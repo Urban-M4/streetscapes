@@ -19,6 +19,13 @@ It is possible to combine more CSV files if needed.
 `plot_city.ipynb` shows a simple of example of subsetting the dataset and plotting the data.
 `subset_data.ipynb` shows an example of subsetting the data for image download, similar to [this example](https://github.com/ualsg/global-streetscapes/blob/main/code/download_imgs/sample_subset_download.ipynb)
 
+## Installation
+Just clone the repository and run
+
+`$> pip install -e .`
+
+from the project root.
+
 ### Dependencies
 There are a lot more dependencies in `pyproject.toml` than strictly necessary to run the examples in this repository. They are necessary for running (at least part of) the code in the original `global-streetscapes` repository, specifically the training pipeline (WIP).
 
