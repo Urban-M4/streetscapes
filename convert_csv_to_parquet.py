@@ -17,8 +17,9 @@ def convert_csvs_to_dataframe(files: Iterable[Path]) -> pd.DataFrame:
         columns "uuid", "source", and "orig_id" using a left join.
     """
     csv_dfs = []
+    dtypes = {'sequence_id': str, 'capital': str, 'pano_status': str, 'view_direction': str}
     for file in files:
-        df = pd.read_csv(file, dtype={'sequence_id': str})
+        df = pd.read_csv(file, dtype=dtypes)
         csv_dfs.append(df)
 
     merged_df = reduce(
