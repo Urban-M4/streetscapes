@@ -4,7 +4,7 @@ This repository contains information and code for retrieving and using data from
 ### Converting global-streetscapes to parquet
 
 `convert_csv_to_parquet.py` contains the code for reproducing `streetscapes-data.parquet` dataset. 
-For input you will have to download the original csv files from [hugging face](https://huggingface.co/datasets/NUS-UAL/global-streetscapes/tree/main/data).
+For input you will have to download the original csv files from [hugging face](https://huggingface.co/datasets/NUS-UAL/global-streetscapes/tree/main/data). The code looks for these csv files in `../streetscapes-data`, which you may need to create yourself or change the path to the location of the files. 
 To limit size, the dataset contains the following data:
     - `contextual.csv`
     - `metadata_common_attributes.csv`
