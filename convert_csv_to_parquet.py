@@ -20,6 +20,7 @@ def convert_csvs_to_dataframe(files: Iterable[Path]) -> pd.DataFrame:
     dtypes = {'sequence_id': str, 'capital': str, 'pano_status': str, 'view_direction': str}
     for file in files:
         df = pd.read_csv(file, dtype=dtypes)
+        df['orig_id'] = df['orig_id'].astype('int64')
         csv_dfs.append(df)
 
     merged_df = reduce(
