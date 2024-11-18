@@ -1,31 +1,41 @@
 [build-system]
-requires = ["setuptools >= 61.0"]
+requires = ["setuptools"]
 build-backend = "setuptools.build_meta"
+
+[tool.setuptools]
+packages = ["streetscapes"]
 
 [project]
 name = "streetscapes"
 version = "2024"
 dependencies = [
+    "black",
+    "cloup",
     "dask",
     "ephem",
-    "fastparquet",
     "fiona",
     "geodatasets",
     "geopandas",
     "h3",
-    "osmnx",
-    "pyproj",
     "ipykernel",
+    "mapillary @ git+https://github.com/Urban-M4/mapillary-python-sdk.git",
     "matplotlib",
+    "numpy",
+    "osmnx",
     "pandas",
     "pyarrow",
+    "pyproj",
+    "python-decouple",
     "rasterio",
     "seaborn",
     "timezonefinder",
     "tqdm",
 ]
-requires-python = ">=3.11"
 authors = []
 description = "Code for extracting the emissivity and albedo of buildings in cities based on images downloaded from Mapillary and KartaView."
 readme = "README.md"
 license = { file = "LICENCE.md" }
+
+
+[project.scripts]
+streetscapes = "streetscapes.main:main"
