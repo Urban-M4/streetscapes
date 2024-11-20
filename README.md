@@ -2,33 +2,59 @@
 This repository contains information and code for retrieving and using data from the [global-streetscapes](https://github.com/ualsg/global-streetscapes/tree/main) dataset.
 
 # Installation
-Clone the repository, enter the root directory and use pip to install the `streetscapes` package:
+1. Clone the repository
+
+Using SSH:
 
 ```shell
 $> git clone git@github.com:Urban-M4/streetscapes.git
-<...>
+```
+
+Using HTTPS:
+
+```shell
+$> git clone https://github.com/Urban-M4/streetscapes.git
+```
+
+2. Create a virtual environment
+
+Use [venv](https://docs.python.org/3/library/venv.html), [virtualenv](https://virtualenv.pypa.io/en/stable/) or a wrapper such as [virtualenvwrapper](https://virtualenvwrapper.readthedocs.io/en/latest/) to create a virtual environment. A barebones `environment.yml` file is provided for convenience in case you prefer to use [Conda](https://anaconda.org/) or [Mamba](https://mamba.readthedocs.io/en/latest/installation/mamba-installation.html), but please note that all dependencies are installed by `pip` from `PyPI`.
+
+3. Install the `streetscapes` package in development mode:
+
+```
 $> cd streetscapes
 $> pip install -e .
 ```
+
+4. Set up environment variables
+
+To facilitate the use of `streetscapes` for different local setups, some environment variables can be added to an `.env` file in the root directory of the `streetscapes` repository.
+
+- `MAPILLARY_TOKEN`: A Mapillary token string used for authentication when querying Mapillary via their API.
+- `STREETSCAPES_DATA_DIR`: A directory containing data from the `global-streetscapes` projects, such as CSV files (cf. below). Defaults to `<repo-root>/local/streetscapes-data`.
+- `STREETSCAPES_OUTPUT_DIR`: A directory for output files. Defaults to `<repo-root>/local/output`.
+- `STREETSCAPES_LOG_LEVEL`: The global log level. Defaults to `INFO`.
 
 ### Dependencies
 There are a lot more dependencies in `pyproject.toml` than strictly necessary to run the examples in this repository. They are necessary for running (at least part of) the code in the original `global-streetscapes` repository, specifically the training pipeline (WIP).
 
 Streetscapes uses a [custom version](https://github.com/Urban-M4/mapillary-python-sdk) of the [Mapillary Python SDK](https://github.com/mapillary/mapillary-python-sdk) which fixes some dependency issues.
 
-## Environment variables
-To facilitate usage across different setups, some environment variables can can be added to an `.env` file (`<repo-root>` is the root directory of the `streetscapes` repository):
-
-- `MAPILLARY_CLIENT_ID`: A Mapillary client ID string (can be obtained via your [Mapillary account](https://www.mapillary.com/app/)).
-- `MAPILLARY_TOKEN`: A Mapillary token string used for authentication when querying Mapillary via their API.
-- `STREETSCAPES_DATA_PATH`: A directory containing data from the `global-streetscapes` projects, such as CSV files (cf. below). Defaults to `<repo-root>/local/streetscapes-data`.
-- `STREETSCAPES_OUTPUT_DIR`: A directory for output files. Defaults to `<repo-root>/local/output`.
-
 ## CLI
 Streetscapes provides a command line interface (CLI) that exposes some of the internal functions. To get the list of available commands, run the CLI with the `--help` switch:
 
 ```shell
 $> streetscapes --help
+
+Usage: streetscapes [OPTIONS] COMMAND [ARGS]...
+
+Options:
+  --help  Show this message and exit.
+
+Commands:
+  convert
+  download
 ```
 
 For instance, CSV files from the `global-streetscapes` project can be converted into `parquet` format with the CLI as follows:
@@ -47,6 +73,8 @@ To limit the size of the archive, the dataset currently combines the following C
 - `simplemaps.csv`
 
 It is possible to combine more CSV files if needed.
+
+More CLI commands will be added as the codebase grows.
 
 ## Examples and analysis
 Currently, there are several notebooks (located under `<repo-root>/notebooks`) demonstrating how to work with the dataset.

@@ -1,28 +1,70 @@
 # --------------------------------------
+import sys
+
+# --------------------------------------
 from decouple import AutoConfig
 
 # --------------------------------------
 from pathlib import Path
 
+# --------------------------------------
+import logging
+logger = logging.getLogger("mapillary.utils.client")
+logger.setLevel(logging.ERROR)
+
+# --------------------------------------
+from loguru import logger
+
+
 # Setup
 # ==================================================
+# The root directory of the project
 ROOT_DIR = Path(__file__).parent.parent
-LOCAL_DIR = ROOT_DIR / "local"
 config = AutoConfig(ROOT_DIR)
+
+# A local directory where data and output files
+LOCAL_DIR = ROOT_DIR / "local"
 
 # Location of the Streetscapes data
 # ==================================================
-DATA_DIR = Path(
-    config("STREETSCAPES_DATA_PATH", LOCAL_DIR / "streetscapes-data")
+DATA_DIR = (
+    Path(config("STREETSCAPES_DATA_DIR", LOCAL_DIR / "streetscapes-data"))
+    .expanduser()
+    .resolve()
+    .absolute()
 )
-DATA_DIR.mkdir(exist_ok=True, parents=True)
 
 # Output directory
 # ==================================================
-OUTPUT_DIR = Path(config("STREETSCAPES_OUTPUT_DIR", LOCAL_DIR / "output"))
-OUTPUT_DIR.mkdir(exist_ok=True, parents=True)
+OUTPUT_DIR = (
+    Path(config("STREETSCAPES_OUTPUT_DIR", LOCAL_DIR / "output"))
+    .expanduser()
+    .resolve()
+    .absolute()
+)
 
 # Mapillary configuration
 # ==================================================
-MAPILLARY_CLIENT_ID = config("MAPILLARY_CLIENT_ID")
-MAPILLARY_TOKEN = config("MAPILLARY_TOKEN")
+MAPILLARY_TOKEN = config("MAPILLARY_TOKEN", None)
+
+
+# Logger configuration
+# ==================================================
+# Enable colour tags in messages.
+logger = logger.opt(colors=True)
+
+#: Configurable log level.
+LOG_LEVEL = config("STREETSCAPES_LOG_LEVEL", "INFO").upper()
+
+#: Log format.
+log_config = {
+    "handlers": [
+        {
+            "sink": sys.stdout,
+            "format": "<magenta>Streetscapes</magenta> | <cyan>{time:YYYY-MM-DD@HH:mm:ss}</cyan> | <level>{message}</level>",
+            "level": LOG_LEVEL,
+        }
+    ]
+}
+
+logger.configure(**log_config)

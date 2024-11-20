@@ -18,6 +18,7 @@ dependencies = [
     "geopandas",
     "h3",
     "ipykernel",
+    "loguru",
     "mapillary @ git+https://github.com/Urban-M4/mapillary-python-sdk.git",
     "matplotlib",
     "numpy",
@@ -31,11 +32,13 @@ dependencies = [
     "timezonefinder",
     "tqdm",
 ]
-authors = []
+authors = [
+    { name = "Claire Donnelly", email = "c.donnelly@esciencecenter.nl" },
+    { name = "Alexander Hadjiivanov", email = "a.hadjiivanov@esciencecenter.nl" },
+]
 description = "Code for extracting the emissivity and albedo of buildings in cities based on images downloaded from Mapillary and KartaView."
 readme = "README.md"
 license = { file = "LICENCE.md" }
-
 
 [project.scripts]
 streetscapes = "streetscapes.main:main"
