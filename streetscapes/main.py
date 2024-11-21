@@ -42,6 +42,12 @@ def main():
     "--filename",
     default="streetscapes-data.parquet",
 )
+@cloup.option(
+    "-s",
+    "--silent",
+    is_flag=True,
+    default=False,
+)
 def convert_csv(**kwargs):
     convert_csv_to_parquet(**kwargs)
 

@@ -76,6 +76,7 @@ def convert_csv_to_parquet(
     data_dir: Path = conf.DATA_DIR,
     out_dir: Path = conf.OUTPUT_DIR,
     filename: str = "streetscapes-data.parquet",
+    silent: bool = False,
 ):
     """
     Converts a list of global-streetscapes csv files into a single merged dataframe.
@@ -88,9 +89,17 @@ def convert_csv_to_parquet(
             The data directory containing the CSV files.
             Defaults to conf.DATA_DIR.
 
+        out_dir (Path, optional):
+            The destinatoin directory for the Parquet file.
+            Defaults to conf.OUTPUT_DIR.
+
         filename (str, optional):
             The name of the Parquet file.
-            Defaults to "streetscapes-data.parquet"
+            Defaults to "streetscapes-data.parquet".
+
+        silent (bool, optional):
+            Do not prompt the user if the destination file exists.
+            Defaults to False.
 
     Raises:
         FileNotFoundError:
@@ -107,7 +116,7 @@ def convert_csv_to_parquet(
 
     parquet_file = out_dir / filename
 
-    if parquet_file.exists():
+    if parquet_file.exists() and not silent:
         ok = input("==[ The target filename exists. Overwrite? (y/[n]) ")
         if not ok.lower().startswith("y"):
             logger.info(f"Exiting.")
