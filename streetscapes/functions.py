@@ -1,26 +1,17 @@
 # --------------------------------------
-import typing as tp
-
-# --------------------------------------
 import os
 
 # --------------------------------------
-import pandas as pd
-
-# --------------------------------------
-from functools import reduce
-
-# --------------------------------------
-from pathlib import Path
-
-# --------------------------------------
-import mapillary.interface as mly
+import time
 
 # --------------------------------------
 import random
 
 # --------------------------------------
-import requests
+from pathlib import Path
+
+# --------------------------------------
+from functools import reduce
 
 # --------------------------------------
 from concurrent.futures import ThreadPoolExecutor
@@ -30,13 +21,21 @@ from concurrent.futures import as_completed
 from tqdm import tqdm
 
 # --------------------------------------
-import time
+import pandas as pd
+
+# --------------------------------------
+import requests
+
+# --------------------------------------
+import mapillary.interface as mly
+
+# --------------------------------------
+import typing as tp
 
 # --------------------------------------
 from streetscapes import conf
-from streetscapes.conf import logger
 from streetscapes import types as sst
-
+from streetscapes.conf import logger
 
 def rt(path: Path) -> Path:
     """

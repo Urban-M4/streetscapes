@@ -1,17 +1,16 @@
 # --------------------------------------
+from pathlib import Path
+
+# --------------------------------------
 import cloup
 
 # --------------------------------------
 import pandas as pd
 
 # --------------------------------------
-from pathlib import Path
-
-# --------------------------------------
 from streetscapes import conf
-from streetscapes.functions import convert_csv_to_parquet
 from streetscapes.functions import download_images
-
+from streetscapes.functions import convert_csv_to_parquet
 
 # ==============================================================================
 # Main entry point

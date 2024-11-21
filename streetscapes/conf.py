@@ -2,19 +2,19 @@
 import sys
 
 # --------------------------------------
-from decouple import AutoConfig
+import logging
 
 # --------------------------------------
 from pathlib import Path
 
 # --------------------------------------
-import logging
-logger = logging.getLogger("mapillary.utils.client")
-logger.setLevel(logging.ERROR)
-
-# --------------------------------------
 from loguru import logger
 
+# --------------------------------------
+from decouple import AutoConfig
+
+logger = logging.getLogger("mapillary.utils.client")
+logger.setLevel(logging.ERROR)
 
 # Setup
 # ==================================================

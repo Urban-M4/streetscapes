@@ -28,6 +28,7 @@ dependencies = [
     "pyproj",
     "python-decouple",
     "rasterio",
+    "ruff",
     "seaborn",
     "timezonefinder",
     "tqdm",
@@ -42,3 +43,61 @@ license = { file = "LICENCE.md" }
 
 [project.scripts]
 streetscapes = "streetscapes.main:main"
+
+[tool.ruff]
+# Exclude a variety of commonly ignored directories.
+exclude = [
+    ".bzr",
+    ".direnv",
+    ".eggs",
+    ".git",
+    ".git-rewrite",
+    ".hg",
+    ".ipynb_checkpoints",
+    ".mypy_cache",
+    ".nox",
+    ".pants.d",
+    ".pyenv",
+    ".pytest_cache",
+    ".pytype",
+    ".ruff_cache",
+    ".svn",
+    ".tox",
+    ".venv",
+    ".vscode",
+    "__pypackages__",
+    "_build",
+    "buck-out",
+    "build",
+    "dist",
+    "node_modules",
+    "site-packages",
+    "venv",
+]
+
+indent-width = 4
+
+[tool.ruff.format]
+indent-style = "space"
+skip-magic-trailing-comma = false
+line-ending = "auto"
+docstring-code-format = false
+docstring-code-line-length = "dynamic"
+
+[tool.ruff.lint.isort]
+from-first = false
+force-single-line = true
+force-sort-within-sections = true
+length-sort = true
+lines-after-imports = 1
+order-by-type = true
+forced-separate = [
+    "typing",
+    "future",
+    "standard-library",
+    "third-party",
+    "first-party",
+    "local-folder",
+    "streetscapes",
+]
+relative-imports-order = "closest-to-furthest"
