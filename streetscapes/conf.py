@@ -13,8 +13,7 @@ from loguru import logger
 # --------------------------------------
 from decouple import AutoConfig
 
-logger = logging.getLogger("mapillary.utils.client")
-logger.setLevel(logging.ERROR)
+logging.getLogger("mapillary.utils.client").setLevel(logging.ERROR)
 
 # Setup
 # ==================================================
