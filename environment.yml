@@ -1,0 +1,7 @@
+name: streetscapes
+channels:
+    - conda-forge
+    - defaults
+dependencies:
+    - python
+    - pip
