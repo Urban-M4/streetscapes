@@ -21,10 +21,13 @@ import scipy
 import torch as pt
 
 # --------------------------------------
+import skimage as ski
+
+# --------------------------------------
 import pandas as pd
 
 # --------------------------------------
-import xarray as xr
+import awkward as ak
 
 # --------------------------------------
 from transformers import AutoImageProcessor
@@ -32,9 +35,6 @@ from transformers import Mask2FormerForUniversalSegmentation
 
 # --------------------------------------
 import matplotlib.pyplot as plt
-
-# --------------------------------------
-import typing as tp
 
 # --------------------------------------
 from streetscapes import conf
@@ -113,11 +113,49 @@ labels = {
     64: "ego-vehicle",
 }
 
+def extract_instances(segmentation: dict) -> dict:
+    """
+    Extract individual instances of objects in the recognised categories.
+
+    Args:
+        segmentation (dict):
+            A dictionary containing an instance map (a tensor)
+            and a list of instance / label mappings.
+
+    Returns:
+        dict:
+            A dictionary of instances and their corresponding masks.
+    """
+
+    instance_map, segments = (
+        segmentation["segmentation"].int(),
+        segmentation["segments_info"],
+    )
+
+    (list_unique, list_counts) = pt.unique(instance_map, return_counts=True)
+
+    if -1 in list_unique:
+        list_unique = list_unique[1:]
+        list_counts = list_counts[1:]
+
+    instances = {label_id: [] for label_id in labels}
+    for i, instance in enumerate(segments):
+        instances[instance["label_id"]].append(
+            {
+                "mask": instance_map == instance["id"],
+                "id": instance["id"],
+            }
+        )
+
+    return instances
+
 
 def segment_image(
     image: Image,
     processor: AutoImageProcessor,
     model: Mask2FormerForUniversalSegmentation,
+    threshold: float = 0.5,
+    instance: bool = True,
 ) -> pt.Tensor:
     """
     Segment a single image.
@@ -132,6 +170,13 @@ def segment_image(
         model (Mask2FormerForUniversalSegmentation):
             Segmentation model.
 
+        threshold (float, optional):
+            Threshold for keeping instances separate.
+            Defaults to 0.5.
+
+        instance (bool, optional):
+            Toggle between instance and semantic segmentation mode.
+
     Returns:
         pt.Tensor:
             A 2D tensor of the same size as the image
@@ -144,22 +189,33 @@ def segment_image(
         pixel_values = inputs["pixel_values"].to(device)
         pixel_mask = inputs["pixel_mask"].to(device)
         output = model(pixel_values=pixel_values, pixel_mask=pixel_mask)
-        classes = processor.post_process_semantic_segmentation(
-            output, target_sizes=[image.size[::-1]]
-        )[0].int()
+        if instance:
+            segmentation = processor.post_process_instance_segmentation(
+                output,
+                target_sizes=[(image.height, image.width)],
+                threshold=threshold,
+            )[0]
 
-    return classes
+            instances = extract_instances(segmentation)
+
+        else:
+            segmentation = processor.post_process_semantic_segmentation(
+                output,
+                target_sizes=[(image.height, image.width)],
+            )[0]
+
+    return instances
 
 
 def mask2former_vistas_panoptic() -> (
-    tp.Tuple[AutoImageProcessor, Mask2FormerForUniversalSegmentation]
+    tuple[AutoImageProcessor, Mask2FormerForUniversalSegmentation]
 ):
     """
     Convenience function for loading the image processor
     and the segmentation model.
 
     Returns:
-        tp.Tuple[AutoImageProcessor, Mask2FormerForUniversalSegmentation]:
+        tuple[AutoImageProcessor, Mask2FormerForUniversalSegmentation]:
             A tuple holding the image processor and the model.
     """
 
@@ -177,10 +233,10 @@ def mask2former_vistas_panoptic() -> (
 
 
 def colour_dict(
-    categories: tp.Dict,
+    categories: dict,
     opacity: int = 255,
     cmap: str = "jet",
-) -> tp.Dict:
+) -> dict:
     """
     Dictionary of colours (used for visualising the segments).
 
@@ -210,10 +266,7 @@ def colour_dict(
 
 def compute_stats(
     image: pt.Tensor,
-    classes: pt.Tensor,
-    image_idx: int,
-    data: np.ndarray,
-    area: np.ndarray,
+    instances: dict,
 ):
     """
     Compute the statistics for all categories.
@@ -222,52 +275,43 @@ def compute_stats(
         image (pt.Tensor):
             The image being processed.
 
-        classes (pt.Tensor):
-            The class mask tensor.
-
-        image_id (int):
-            The image ID.
-
-        data (np.ndarray):
-            An array holding the statistics for all the images.
-
-        area (np.ndarray):
-            An array holding the information about how much of the
-            image is covered by each category.
+        instances (dict):
+            A dictionary mapping of label IDs to a list of instances.
     """
 
     image = np.array(image)
-    unique_classes = classes.unique()
-    if -1 in unique_classes:
-        unique_classes = unique_classes[1:]
 
-    for cat_id, cat in labels.items():
-        mask = classes == cat_id
+    results = {labels[label_id]: [] for label_id in instances}
+    for label_id, instance_list in instances.items():
 
-        # Area
-        area[image_idx][cat_id] = mask.count_nonzero().item() / np.prod(image.shape[:2])
+        for instance in instance_list:
 
-        # Statistics
-        if len(mask.nonzero()) > 0:
-
+            mask = instance["mask"]
             masked = image[mask]
 
-            # Patch colour - median, mode, mean and SD
-            data[image_idx][cat_id][0] = np.median(masked, axis=0).astype(np.ubyte)
-            data[image_idx][cat_id][1] = scipy.stats.mode(masked, axis=0)[0].astype(
-                np.ubyte
+            results[labels[label_id]].append(
+                {
+                    "colour": {
+                        "median": np.median(masked, axis=0).astype(np.ubyte),
+                        "mode": scipy.stats.mode(masked, axis=0)[0].astype(np.ubyte),
+                        "mean": np.mean(masked, axis=0).astype(np.ubyte),
+                        "sd": np.std(masked, axis=0).astype(np.ubyte),
+                    },
+                    # Area
+                    "area": mask.count_nonzero().item() / np.prod(image.shape[:2]),
+                }
             )
-            data[image_idx][cat_id][2] = np.mean(masked, axis=0).astype(np.ubyte)
-            data[image_idx][cat_id][3] = np.std(masked, axis=0).astype(np.ubyte)
+
+    return results
 
 
 def visualise_segmentation(
-    image_path: tp.Union[Path, str],
-    categories: tp.List = None,
+    image_path: Path | str,
+    categories: list = None,
     opacity: float = 0.50,
-    figsize: tp.Tuple[int, int] = (16, 8),
-    ds: xr.Dataset = None,
-) -> tp.Tuple[plt.Figure, plt.Axes, tp.Dict]:
+    figsize: tuple[int, int] = (16, 8),
+    stats: ak.Array = None,
+) -> tuple[plt.Figure, plt.Axes, dict]:
     """
     Segment and visualise an image, and potentially show the colour statistics
     associated with the requested categories.
@@ -285,8 +329,8 @@ def visualise_segmentation(
         figsize (tp.Tuple[int, int], optional):
             Figure size. Defaults to (16, 8).
 
-        ds (xr.Dataset, optional):
-            An `xarray` dataset for extracting the statistics. Defaults to None.
+        stats (ak.Array, optional):
+            An `awkward` array of statistics. Defaults to None.
 
     Returns:
         tp.Tuple[plt.Figure, plt.Axes, tp.Dict]:
@@ -309,7 +353,7 @@ def visualise_segmentation(
     (processor, model) = mask2former_vistas_panoptic()
 
     image = Image.open(image_path)
-    classes = segment_image(image, processor, model)
+    instances = segment_image(image, processor, model)
 
     # Unify the styles of labels and categories
     # so that they can be compared.
@@ -336,19 +380,27 @@ def visualise_segmentation(
     image_opacity = 1 - opacity
     opacity_channel = np.full_like(image[:, :, 0], 255)[:, :, None]
     image_with_opacity = np.concatenate((image, opacity_channel), axis=-1) / 255
-    unique_classes = classes.unique()
-    if -1 in unique_classes:
-        unique_classes = unique_classes[1:]
+
+    unique_classes = [cls for cls in instances if len(instances[cls]) > 0]
 
     colours = colour_dict(category_dict, opacity)
     fig, ax = plt.subplots(1, 2, figsize=figsize)
+    outlines = np.zeros(image.shape[:2])
     for cls in unique_classes:
-        cls = cls.item()
-        idx = classes == cls
-        if labels[cls] in categories:
-            image_with_opacity[idx] = (
-                image_opacity * image_with_opacity[idx] + colours[cls]
-            )
+        for instance in instances[cls]:
+
+            mask = instance["mask"]
+
+            if labels[cls] in categories:
+                outlines[mask] = instance["id"]
+                image_with_opacity[mask] = (
+                    image_opacity * image_with_opacity[mask] + colours[cls]
+                )
+
+    # Outline the instances
+    outlines = ski.segmentation.find_boundaries(outlines, mode="thick")
+    # Equivalent to "#00ff00ff"
+    image_with_opacity[outlines != 0] = np.array([0, 1, 0, 1])
 
     # Plot the original image and the segmented one.
     # If any of the requested categories exist in the
@@ -363,7 +415,6 @@ def visualise_segmentation(
 
     # Add a basic class legend and extract the statistics
     for cls in unique_classes:
-        cls = cls.item()
         if labels[cls] in categories:
             # TODO Find a way to make the label tabs the same width
             txt = ax[1].text(
@@ -382,33 +433,33 @@ def visualise_segmentation(
             )
             label_idx += 1
 
-    subset = ds.sel(
-        image=image_path.name,
-        category=list(categories),
-    )
+    # subset = ds.sel(
+    #     image=image_path.name,
+    #     category=list(categories),
+    # )
 
     stats = {}
-    for cat in categories:
-        stats[cat] = {
-            "colour": {
-                stat: subset.sel(category=cat, stats=stat).colour_info.data.astype(
-                    np.ubyte
-                )
-                for stat in subset.stats.data
-            },
-            "area": float(subset.sel(category=cat).segment.data),
-        }
+    # for cat in categories:
+    #     stats[cat] = {
+    #         "colour": {
+    #             stat: subset.sel(category=cat, stats=stat).colour_info.data.astype(
+    #                 np.ubyte
+    #             )
+    #             for stat in subset.stats.data
+    #         },
+    #         "area": float(subset.sel(category=cat).segment.data),
+    #     }
 
     return (fig, ax, stats)
 
 
 def segment_from_dataset(
-    in_file: tp.Union[Path, str],
-    image_dir: tp.Union[Path, str] = None,
-    out_dir: tp.Union[Path, str] = None,
-    out_file: tp.Union[Path, str] = None,
+    in_file: Path | str,
+    image_dir: Path | str = None,
+    out_dir: Path | str = None,
+    out_file: Path | str = None,
     sample: int = None,
-) -> tp.Tuple[xr.Dataset, tp.Dict]:
+) -> tuple[dict, Path | None]:
     """
     Segment images specified in a CSV data (sub)set.
 
@@ -424,6 +475,9 @@ def segment_from_dataset(
 
         out_file (tp.Union[Path, str], optional):
             Name of the output file. Defaults to None.
+
+        sample (int, optional):
+            WIP
 
     Returns:
         tp.Tuple[xr.Dataset, tp.Dict]:
@@ -472,42 +526,20 @@ def segment_from_dataset(
     #       - Mean
     #       - Standard deviation
     # ==================================================
-    stat_names = ["median", "mode", "mean", "sd"]
-    data = np.zeros((len(image_paths), len(labels), len(stat_names), 3))
-    area = np.zeros((len(image_paths), len(labels)))
+    results = []
     with tqdm(total=len(image_paths)) as pbar:
         for image_idx, image_path in enumerate(image_paths):
             with Image.open(image_path) as image:
-                classes = segment_image(image, processor, model)
-                compute_stats(image, classes, image_idx, data, area)
+                instances = segment_image(image, processor, model)
+                results.append(
+                    {
+                        "image": image_path.name,
+                        "stats": compute_stats(image, instances),
+                    }
+                )
                 pbar.update()
 
-    ds = xr.Dataset(
-        {
-            "colour_info": (["image", "category", "stats", "colour"], data),
-            "segment": (["image", "category"], area),
-        },
-        coords={
-            "image": [path.name for path in image_paths],
-            "category": list(labels.values()),
-            "stats": stat_names,
-            "colour": ["R", "G", "B"],
-        },
-    )
+    arr = ak.Array(results)
 
-    # Save to a NetCDF file
-    # ==================================================
-    # Directory for the output file(s)
-    if out_dir is None:
-        out_dir = conf.OUTPUT_DIR
-    out_dir.mkdir(parents=True, exist_ok=True)
 
-    # Prepare the output file name
-    if out_file is None:
-        out_file = f"{in_file.stem}-stats.nc"
-    out_file = out_dir / out_file
-
-    # Save the file
-    ds.to_netcdf(out_file)
-
-    return (ds, out_file)
+    return (results, out_file)
