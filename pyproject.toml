@@ -8,7 +8,9 @@ packages = ["streetscapes"]
 [project]
 name = "streetscapes"
 version = "2024"
+requires-python = ">= 3.11"
 dependencies = [
+    "awkward",
     "black",
     "cloup",
     "dask",
@@ -31,6 +33,7 @@ dependencies = [
     "rasterio",
     "rich",
     "ruff",
+    "scikit-image",
     "scipy",
     "seaborn",
     "timezonefinder",
