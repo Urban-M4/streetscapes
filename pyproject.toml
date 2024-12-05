@@ -47,7 +47,8 @@ authors = [
     { name = "Alexander Hadjiivanov", email = "a.hadjiivanov@esciencecenter.nl" },
     { name = "Peter Kalverla", email = "p.kalverla@esciencecenter.nl" },
 ]
-description = "Code for extracting the emissivity and albedo of buildings in cities based on images downloaded from Mapillary and KartaView."
+description = "Code for downloading, segmenting and analysing images from Mapillary and KartaView, 
+with the aim of extracting the emissivity and albedo of buildings."
 readme = "README.md"
 license = { file = "LICENCE.md" }
 

@@ -4,7 +4,7 @@
 ](https://research-software-directory.org/software/streetscapes)
 
 # `streetscapes`
-This repository contains information and code for retrieving and using data from the [global-streetscapes](https://github.com/ualsg/global-streetscapes/tree/main) dataset.
+This repository contains information and code for downloading, segmenting and analysing images from Mapillary and KartaView, using information from [global-streetscapes](https://github.com/ualsg/global-streetscapes/tree/main) dataset.
 
 # Installation
 1. Create a virtual environment
