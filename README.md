@@ -1,3 +1,8 @@
+[![DOI](https://zenodo.org/badge/DOI/10.5281/zenodo.14283584.svg)](https://doi.org/10.5281/zenodo.14283533)
+![PyPI - Version](https://img.shields.io/pypi/v/streetscapes)
+[![Research Software Directory](https://img.shields.io/badge/RSD-streetscapes-00a3e3)
+](https://research-software-directory.org/software/streetscapes)
+
 # `streetscapes`
 This repository contains information and code for retrieving and using data from the [global-streetscapes](https://github.com/ualsg/global-streetscapes/tree/main) dataset.
 
