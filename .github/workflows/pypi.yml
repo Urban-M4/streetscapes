@@ -45,5 +45,6 @@ jobs:
         uses: actions/download-artifact@v4
         with:
           name: python-package-distributions
+          path: dist/
       - name: Publish distribution 📦 to PyPI
         uses: pypa/gh-action-pypi-publish@release/v1
