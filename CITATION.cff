@@ -1,0 +1,30 @@
+# This CITATION.cff file was generated with cffinit.
+# Visit https://bit.ly/cffinit to generate yours today!
+
+cff-version: 1.2.0
+title: streetscapes
+message: >-
+  If you use this software, please cite it using the
+  metadata from this file.
+type: software
+authors:
+  - given-names: Claire
+    family-names: Donnelly
+    email: c.donnelly@esciencecenter.nl
+    affiliation: Netherlands eScience Center
+    orcid: 'https://orcid.org/0000-0002-2546-4528'
+  - given-names: Alexander
+    orcid: 'https://orcid.org/0000-0002-7045-1005'
+    family-names: Hadjiivanov
+    email: a.hadjiivanov@esciencecenter.nl
+    affiliation: Netherlands eScience Center
+  - given-names: Peter
+    family-names: Kalverla
+    email: p.kalverla@esciencecenter.nl
+    affiliation: Netherlands eScience Center
+    orcid: 'https://orcid.org/0000-0002-5025-7862'
+repository-code: 'https://github.com/Urban-M4/streetscapes'
+abstract: >-
+  Streetscapes is a package for retrieving and using data
+  from the global-streetscapes dataset.
+license: CC-BY-SA-4.0
