@@ -1,30 +1,26 @@
+[![DOI](https://zenodo.org/badge/DOI/10.5281/zenodo.14283584.svg)](https://doi.org/10.5281/zenodo.14283533)
+![PyPI - Version](https://img.shields.io/pypi/v/streetscapes)
+[![Research Software Directory](https://img.shields.io/badge/RSD-streetscapes-00a3e3)
+](https://research-software-directory.org/software/streetscapes)
+
 # `streetscapes`
-This repository contains information and code for retrieving and using data from the [global-streetscapes](https://github.com/ualsg/global-streetscapes/tree/main) dataset.
+This repository contains information and code for downloading, segmenting and analysing images from Mapillary and KartaView, using information from [global-streetscapes](https://github.com/ualsg/global-streetscapes/tree/main) dataset.
 
 # Installation
-1. Clone the repository
-
-Using SSH:
-
-```shell
-$> git clone git@github.com:Urban-M4/streetscapes.git
-```
-
-Using HTTPS:
-
-```shell
-$> git clone https://github.com/Urban-M4/streetscapes.git
-```
-
-2. Create a virtual environment
+1. Create a virtual environment
 
 Use [venv](https://docs.python.org/3/library/venv.html), [virtualenv](https://virtualenv.pypa.io/en/stable/) or a wrapper such as [virtualenvwrapper](https://virtualenvwrapper.readthedocs.io/en/latest/) to create a virtual environment. A barebones `environment.yml` file is provided for convenience in case you prefer to use [Conda](https://anaconda.org/) or [Mamba](https://mamba.readthedocs.io/en/latest/installation/mamba-installation.html), but please note that all dependencies are installed by `pip` from `PyPI`.
 
-3. Install the `streetscapes` package in development mode:
+2. Install streetscapes from `PyPI`
 
+```shell
+$> pip install streetscapes
 ```
-$> cd streetscapes
-$> pip install -e .
+
+Streetscapes requires a custom version of `mapillary-python-sdk`:
+
+```shell
+$> pip install git+https://github.com/Urban-M4/mapillary-python-sdk.git
 ```
 
 4. Set up environment variables
