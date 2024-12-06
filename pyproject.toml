@@ -23,6 +23,8 @@ dependencies = [
     "ipykernel",
     "loguru",
     "matplotlib",
+    "mkdocs",
+    "myst-nb",
     "numpy",
     "osmnx",
     "pandas",

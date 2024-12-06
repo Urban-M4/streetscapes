@@ -1,0 +1,4 @@
+site_name: Streetscapes
+nav:
+  - Home: index.md
+  - About: about.md
