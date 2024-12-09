@@ -79,13 +79,4 @@ This repository uses the data and work from:
 
 [1] Hou Y, Quintana M, Khomiakov M, Yap W, Ouyang J, Ito K, Wang Z, Zhao T, Biljecki F (2024): Global Streetscapes — A comprehensive dataset of 10 million street-level images across 688 cities for urban science and analytics. ISPRS Journal of Photogrammetry and Remote Sensing 215: 216-238. doi:[10.1016/j.isprsjprs.2024.06.023](https://doi.org/10.1016/j.isprsjprs.2024.06.023)
 
-This repository can be cited as follows:
-
-```bibtex
-@software{Donnelly_streetscapes,
-    author = {Donnelly, Claire and Hadjiivanov, Alexander and Kalverla, Peter},
-    license = {CC-BY-SA-4.0},
-    title = {{streetscapes}},
-    url = {https://github.com/Urban-M4/streetscapes}
-}
-```
+The `streetscapes` package can be cited using the supplied [citation information](https://docs.github.com/en/repositories/managing-your-repositorys-settings-and-features/customizing-your-repository/about-citation-files). For reproducibility, you can also cite a specific version by finding the corresponding DOI on [Zenodo](https://zenodo.org/records/14287547).
