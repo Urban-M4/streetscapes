@@ -48,6 +48,10 @@ def main():
     default=False,
 )
 def convert_csv(**kwargs):
+    '''
+    A CLI for combining several CSV files from the
+    `global-streetscapes` project into a single Parquet file.
+    '''
     convert_csv_to_parquet(**kwargs)
 
 
@@ -83,6 +87,10 @@ def convert_csv(**kwargs):
     default=2048,
 )
 def download_images_from_file(**kwargs):
+    '''
+    A CLI for downloading images with IDs specified
+    in the supplied file.
+    '''
 
     for fmt in ('csv', 'parquet'):
         path = kwargs.pop(fmt)

@@ -96,20 +96,16 @@ class MaskFormerVistasPanoptic(BaseSegmenter):
         **kwargs,
     ):
         """
-        A wrapper for the Mask2Former model:
-
-        https://huggingface.co/docs/transformers/en/model_doc/mask2former
+        A wrapper for the [Mask2Former model](https://huggingface.co/docs/transformers/en/model_doc/mask2former).
 
         The following documentation for the model parameters is taken from the HuggingFace
-        page for the panoptic processing pipeline for the Mask2Former model:
-
-        https://huggingface.co/docs/transformers/v4.46.3/en/model_doc/mask2former#transformers.Mask2FormerImageProcessor.post_process_panoptic_segmentation
+        page for the panoptic [processing pipeline](https://huggingface.co/docs/transformers/v4.46.3/en/model_doc/mask2former#transformers.Mask2FormerImageProcessor.post_process_panoptic_segmentation)
+        for the Mask2Former model.
 
         These parameters are passed directly to the corresponding arguments of the
         post_process_panoptic_segmentation() method of the image processor.
 
         Args:
-
             threshold (float, optional):
                 The probability score threshold to keep predicted instance masks.
                 Defaults to 0.5.

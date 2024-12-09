@@ -1,4 +1,9 @@
-## About Streetscapes
+[![DOI](https://zenodo.org/badge/DOI/10.5281/zenodo.14283584.svg)](https://doi.org/10.5281/zenodo.14283533)
+[![PyPI - Version](https://img.shields.io/pypi/v/streetscapes)](https://pypi.org/project/streetscapes/)
+[![Research Software Directory](https://img.shields.io/badge/RSD-streetscapes-00a3e3)
+](https://research-software-directory.org/software/streetscapes)
+
+## Introduction
 
 The Streetscapes project is based on and extends the existing [Global Streetscapes](https://ual.sg/project/global-streetscapes/) project.
 
