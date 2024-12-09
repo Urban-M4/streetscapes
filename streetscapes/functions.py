@@ -2,6 +2,9 @@
 import os
 
 # --------------------------------------
+import json
+
+# --------------------------------------
 import time
 
 # --------------------------------------
@@ -24,35 +27,14 @@ from tqdm import tqdm
 import pandas as pd
 
 # --------------------------------------
-import requests
-
-# --------------------------------------
-import mapillary.interface as mly
-
-# --------------------------------------
-import typing as tp
+import requests as rq
 
 # --------------------------------------
 from streetscapes import conf
 from streetscapes import types as sst
 from streetscapes.conf import logger
 
-def rt(path: Path) -> Path:
-    """
-    Return a path relative to the root directory.
-
-    Args:
-        path (Path):
-            The original path.
-
-    Returns:
-        Path:
-            The relative path.
-    """
-    return path.relative_to(conf.ROOT_DIR)
-
-
-def mkdir(directory: Path) -> Path:
+def mkdir(directory: Path | str) -> Path:
     """
     Resolve and expand a directory path and
     create the directory if it doesn't exist.
@@ -72,8 +54,8 @@ def mkdir(directory: Path) -> Path:
 
 
 def convert_csv_to_parquet(
-    data_dir: Path = conf.DATA_DIR,
-    out_dir: Path = conf.OUTPUT_DIR,
+    data_dir: Path | str = conf.DATA_DIR,
+    out_dir: Path | str = conf.OUTPUT_DIR,
     filename: str = "streetscapes-data.parquet",
     silent: bool = False,
 ):
@@ -131,7 +113,7 @@ def convert_csv_to_parquet(
         "view_direction": str,
     }
     for file in csv_files:
-        logger.info(f"Processing file '{rt(file)}'...")
+        logger.info(f"Processing file '{file.name}'...")
         df = pd.read_csv(file, dtype=dtypes)
         df["orig_id"] = df["orig_id"].astype("int64")
         csv_dfs.append(df)
@@ -144,15 +126,15 @@ def convert_csv_to_parquet(
         csv_dfs,
     )
 
-    logger.info(f"Saving file '{rt(parquet_file)}'...")
+    logger.info(f"Saving file '{parquet_file.name}'...")
     merged_df.to_parquet(parquet_file, compression="gzip")
 
 
 def load_city_subset(
     city: str = None,
-    directory: tp.Union[str, Path] = conf.OUTPUT_DIR,
+    directory: str | Path = conf.OUTPUT_DIR,
     recreate: bool = False,
-) -> tp.Optional[pd.DataFrame]:
+) -> pd.DataFrame | None:
     """
     Load and return a Parquet file for a specific city, if it exists.
 
@@ -160,7 +142,7 @@ def load_city_subset(
         city (str, optional):
             The city name. Defaults to None.
 
-        directory (tp.Union[str, Path], optional):
+        directory (str | Path, optional):
             Directory to look into for the file.
             Defaults to conf.OUTPUT_DIR.
 
@@ -169,7 +151,7 @@ def load_city_subset(
             Defaults to False.
 
     Returns:
-        tp.Optional[pd.DataFrame]:
+        pd.DataFrame | None:
             The Pandas dataframe with data for the requested city, if it exists.
     """
 
@@ -187,15 +169,15 @@ def load_city_subset(
         df_city = df_all[df_all["city"] == city]
         df_city.to_parquet(fpath)
 
-    logger.info(f"Loading '{rt(fpath)}'...")
+    logger.info(f"Loading '{fpath.name}'...")
     return pd.read_parquet(fpath)
 
 
 def get_missing_image_ids(
     records: pd.DataFrame,
     directory: Path,
-    image_paths: tp.Set[Path] = None,
-) -> tp.Tuple[tp.Set[Path], tp.Set[int]]:
+    image_paths: set[Path] = None,
+) -> tuple[set[Path], set[int]]:
     """
     Extract the set of IDs for images that have not been downloaded yet.
 
@@ -206,11 +188,11 @@ def get_missing_image_ids(
         directory (Path):
             The directory to search.
 
-        image_paths (tp.Set[Path], optional):
+        image_paths (set[Path], optional):
             A set of paths that has already been collected. Defaults to None.
 
     Returns:
-        tp.Tuple[tp.List[Path], tp.List[int]]:
+        tuple[set[Path], set[int]]:
             A tuple containing:
                 1. A set of paths to existing images.
                 2. A set of image IDs to download.
@@ -234,6 +216,7 @@ def get_image_url(
     image_id: int,
     source: sst.SourceMap,
     resolution: int = 2048,
+    session: rq.Session = None,
 ) -> str:
     """
     Retrieve the URL for an image with the given ID.
@@ -248,6 +231,10 @@ def get_image_url(
         resolution (int):
             The resolution of the requested image (only valid for Mapillary for now).
 
+        session (rq.Session, optional):
+            An optional authenticated session to use
+            for retrieving the image.
+
     Returns:
         str:
             The URL to query.
@@ -255,18 +242,35 @@ def get_image_url(
 
     match source:
         case sst.SourceMap.Mapillary:
-            return mly.image_thumbnail(image_id, resolution)
+            url = (
+                f"https://graph.mapillary.com/{image_id}?fields=thumb_{resolution}_url"
+            )
+
+            try:
+                prq = rq.Request(
+                    "GET", url, params={"access_token": conf.MAPILLARY_TOKEN}
+                )
+                res = session.send(prq.prepare())
+                image_url = json.loads(res.content.decode("utf-8"))[
+                    f"thumb_{resolution}_url"
+                ]
+
+                return image_url
+
+            except Exception as e:
+                return
 
         case sst.SourceMap.KartaView:
             url = f"https://api.openstreetcam.org/2.0/photo/?id={image_id}"
-            r = requests.get(url)
             try:
+                # Send the request
+                r = rq.get(url)
                 # Parse the response
                 data = r.json()["result"]["data"][0]
                 image_url = data["fileurlProc"]
                 return image_url
             except Exception as e:
-                return ""
+                return
 
         case _:
             return
@@ -274,10 +278,11 @@ def get_image_url(
 
 def download_image(
     image_id: int,
-    directory: tp.Union[str, Path],
+    directory: str | Path,
     source: sst.SourceMap,
     resolution: int = 2048,
     verbose: bool = True,
+    session: rq.Session = None,
 ) -> Path:
     """
     Download a single image from Mapillary.
@@ -286,14 +291,22 @@ def download_image(
         image_id (str):
             The image ID.
 
-        directory (tp.Union[str, Path]):
+        directory (str | Path):
             The destination directory.
+
+        source (sst.SourceMap):
+            The source map.
+            Limited to Mapillary or KartaView at the moment.
 
         resolution (int, optional):
             The resolution to request. Defaults to 2048.
 
         verbose (bool, optional):
             Print some output. Defaults to True.
+
+        session (rq.Session, optional):
+            An optional authenticated session to use
+            for retrieving the image.
 
     Returns:
         Path:
@@ -317,8 +330,21 @@ def download_image(
         # straight after getting the URL.
         # Collecting all the URLs in advance and requesting them
         # one by one outside the loop doesn't work.
-        url = get_image_url(image_id, source, resolution)
-        response = requests.get(url)
+
+        # Download the image
+        # ==================================================
+        match source:
+            case sst.SourceMap.Mapillary:
+                if session is None:
+                    session = get_session(source)
+                url = get_image_url(image_id, source, resolution, session)
+                response = session.get(url)
+            case sst.SourceMap.KartaView:
+                url = get_image_url(image_id, source, resolution)
+                response = rq.get(url)
+
+        # Save the image if it has been downloaded successfully
+        # ==================================================
         if response.status_code == 200 and response.content is not None:
             with open(image_path, "wb") as f:
                 f.write(response.content)
@@ -326,14 +352,35 @@ def download_image(
     return image_path
 
 
+def get_session(source: sst.SourceMap):
+    """
+    Get an authenticated session for the supplied source.
+
+    Right now, we only need a session for working with Mapillary.
+
+    Args:
+        source (sst.SourceMap):
+            A `requests` session.
+    """
+
+    match source:
+        case sst.SourceMap.Mapillary:
+            session = rq.Session()
+            session.headers.update({"Authorization": f"OAuth {conf.MAPILLARY_TOKEN}"})
+            return session
+
+        case _:
+            return
+
+
 def download_images(
     df: pd.DataFrame,
-    directory: tp.Union[str, Path],
+    directory: str | Path,
     resolution: int = 2048,
     sample: bool = False,
     max_workers: int = None,
     verbose: bool = False,
-) -> tp.List[Path]:
+) -> list[Path]:
     """
     Download a set of images concurrently.
 
@@ -341,14 +388,14 @@ def download_images(
         df (pd.DataFrame):
             A dataframe containing image IDs.
 
-        directory (tp.Union[str, Path]):
+        directory (str | Path):
             The destination directory.
 
         resolution (int, optional):
             The resolution to request. Defaults to 2048.
 
-        sample (bool, optional):
-            A toggle for requesting just a few sample images. Defaults to False.
+        sample (int, optional):
+            Only download a sample set of images. Defaults to None.
 
         max_workers (int, optional):
             The number of workers (threads) to use. Defaults to None.
@@ -357,7 +404,7 @@ def download_images(
             Print some output. Defaults to False.
 
     Returns:
-        tp.List[Path]:
+        list[Path]:
             A list of image paths.
     """
 
@@ -375,8 +422,8 @@ def download_images(
     for source, records in filtered.items():
 
         # Limit the records if only a sample is required
-        if sample:
-            records = records.head()
+        if sample is not None:
+            records = records[:sample]
 
         # Convert records to a dictionary
         records = records.to_dict("records")
@@ -388,23 +435,27 @@ def download_images(
         # ==================================================
         if len(missing) > 0:
 
+            # Authenticated session for this source (if necessary)
+            session = get_session(source)
+
             if max_workers is None:
                 max_workers = os.cpu_count()
-            with ThreadPoolExecutor(max_workers=max_workers) as tp:
+            with ThreadPoolExecutor(max_workers=max_workers) as tpe:
 
                 logger.info(
-                    f"Downloading {len(missing)} images from {source.name} into '{rt(directory)}'..."
+                    f"Downloading {len(missing)} images from {source.name} into '{directory.name}'..."
                 )
 
                 # Submit the image IDs for processing
                 futures = {
-                    tp.submit(
+                    tpe.submit(
                         download_image,
                         image_id,
                         directory,
                         source,
                         resolution,
                         verbose,
+                        session,
                     ): image_id
                     for image_id in missing
                 }

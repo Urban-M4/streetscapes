@@ -162,4 +162,5 @@ cython_debug/
 #.idea/
 
 **/cache
-/local
+local/
+docs/site/
