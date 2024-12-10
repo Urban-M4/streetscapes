@@ -130,7 +130,7 @@ class BaseSegmenter:
         stats: dict,
         filename: Path | str,
         out_dir: Path | str = None,
-    ):
+    ) -> Path:
         """
         Save image statistics as an Awkward array to a Parquet file.
 
@@ -365,7 +365,7 @@ class BaseSegmenter:
         associated with the requested categories.
 
         Args:
-            image (ImagePath):
+            images (ImagePath):
                 Images being visualised.
 
             categories (list[str | int], optional):
