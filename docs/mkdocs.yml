@@ -1,7 +1,7 @@
 site_name: Streetscapes
 repo_url: https://github.com/Urban-M4/streetscapes
 nav:
-  - Home: home.md
+  - Overview: index.md
   - Examples:
       - Converting CSV files into Parquet: examples/convert_csv_to_parquet.ipynb
       - Creating a city subset: examples/subset_data.ipynb
@@ -10,18 +10,18 @@ nav:
       - Downloading images from Mapillary: examples/download_city_images.ipynb
       - Segmenting downloaded images: examples/segmentation.ipynb
   - API:
-      Streetscapes:
-        Models:
-          BaseSegmenter: api/streetscapes/models/base_segmenter.md
-          MaskFormer: api/streetscapes/models/maskformer.md
-      Main: api/main.md
-      Functions: api/functions.md
-      Conf: api/conf.md
-      Types: api/types.md
+      - Streetscapes:
+         - Models:
+            - BaseSegmenter: api/streetscapes/models/base_segmenter.md
+            - MaskFormer: api/streetscapes/models/maskformer.md
+      - Main: api/main.md
+      - Functions: api/functions.md
+      - Conf: api/conf.md
+      - Types: api/types.md
   - About:
-      Licence: about/licence.md
-      Contributing: about/contributing.md
-      Citation: about/citation.md
+      - Licence: about/licence.md
+      - Contributing: about/contributing.md
+      - Citation: about/citation.md
 theme:
   name: material
   palette:

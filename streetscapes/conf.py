@@ -19,7 +19,7 @@ from decouple import AutoConfig
 ROOT_DIR = Path(__file__).parent.parent
 config = AutoConfig(ROOT_DIR)
 
-#: A local directory where data and output files
+#: A local directory where data and output files are stored
 LOCAL_DIR = ROOT_DIR / "local"
 
 # Location of the Streetscapes data
