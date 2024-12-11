@@ -50,7 +50,21 @@ The `.gitignore` file already contains entries for `.env` and `local/`, so they 
 
 ### 📖 (Optional) Documentation
 
-The `streetscapes` project documentation is built with [MkDocs](https://www.mkdocs.org/). To compile the documentation, run `mkdocs build` from the `docs` directory:
+#### Installing
+
+⚠️ To work on the documentation locally, please install `streetscapes` with the `dev` optional dependencies:
+
+```shell
+pip install streetscapes[dev]
+```
+or, if installing from source,
+
+```shell
+pip install -e .[dev]
+```
+#### Building and running
+
+The `streetscapes` project documentation is based on [MkDocs](https://www.mkdocs.org/). To compile the documentation, run `mkdocs build` from the `docs` directory:
 
 ```shell
 cd docs

@@ -1,3 +1,3 @@
 # Licence
 
-`streetscapes` is licenced under the [`CC-BY-4.0`](https://github.com/Urban-M4/streetscapes/blob/main/LICENCE.md) licence.
+`streetscapes` is licensed under [`CC-BY-SA-4.0`](https://creativecommons.org/licenses/by-sa/4.0/deed.en).
