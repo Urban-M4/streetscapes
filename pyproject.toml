@@ -7,13 +7,12 @@ packages = ["streetscapes"]
 
 [project]
 name = "streetscapes"
-version = "0.1.4"
+version = "0.2.0"
 requires-python = ">= 3.11"
 dependencies = [
     "awkward",
     "black",
     "cloup",
-    "dask",
     "ephem",
     "fiona",
     "geodatasets",
@@ -31,16 +30,13 @@ dependencies = [
     "python-decouple",
     "rasterio",
     "rich",
-    "ruff",
     "scikit-image",
     "scipy",
-    "seaborn",
     "timezonefinder",
     "torch",
     "torchvision",
     "tqdm",
     "transformers",
-    "xarray",
 ]
 authors = [
     { name = "Claire Donnelly", email = "c.donnelly@esciencecenter.nl" },
@@ -53,6 +49,16 @@ license = { file = "LICENCE.md" }
 
 [project.scripts]
 streetscapes = "streetscapes.main:main"
+
+[project.optional-dependencies]
+dev = [
+    "ruff",
+    "mike",
+    "mkdocs",
+    "mkdocstrings[python]",
+    "mkdocs-material",
+    "mkdocs-jupyter",
+]
 
 [tool.ruff]
 # Exclude a variety of commonly ignored directories.

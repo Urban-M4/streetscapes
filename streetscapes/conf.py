@@ -13,15 +13,13 @@ from loguru import logger
 # --------------------------------------
 from decouple import AutoConfig
 
-logging.getLogger("mapillary.utils.client").setLevel(logging.ERROR)
-
 # Setup
 # ==================================================
 # The root directory of the project
 ROOT_DIR = Path(__file__).parent.parent
 config = AutoConfig(ROOT_DIR)
 
-# A local directory where data and output files
+#: A local directory where data and output files are stored
 LOCAL_DIR = ROOT_DIR / "local"
 
 # Location of the Streetscapes data
