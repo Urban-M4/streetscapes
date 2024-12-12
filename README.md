@@ -9,6 +9,8 @@ Streetscapes is a project within a project. The aim of the parent project ([Urba
 
 This repository contains information and code for downloading, segmenting and analysing images from Mapillary and KartaView, using information from [global-streetscapes](https://github.com/ualsg/global-streetscapes/tree/main) dataset.
 
+For more info see the [docs](https://docs.readthedocs.io/).
+
 ## 📥 Setup
 
 Use [venv](https://docs.python.org/3/library/venv.html), [virtualenv](https://virtualenv.pypa.io/en/stable/) or a wrapper such as [virtualenvwrapper](https://virtualenvwrapper.readthedocs.io/en/latest/) to create a virtual environment. A barebones `environment.yml` file is provided for convenience in case you prefer to use [Conda](https://anaconda.org/) or [Mamba](https://mamba.readthedocs.io/en/latest/installation/mamba-installation.html), but please note that all dependencies are installed by `pip` from `PyPI`.
@@ -33,18 +35,18 @@ pip install -e .
 
 ⚠️ Installing `streetscapes` is necessary in order to run any of the example notebooks.
 
-⚠️ If one or more dependencies fail to install, check the Python version - it might be too *new*. While `streetscapes` itself specifies only the *minimal* required Python verion, some dependencies might be slow to make releases for the latest Python version.
+⚠️ If one or more dependencies fail to install, check the Python version - it might be too _new_. While `streetscapes` itself specifies only the _minimal_ required Python verion, some dependencies might be slow to make releases for the latest Python version.
 
 ### 🌲 Environment variables
 
 To facilitate the use of `streetscapes` for different local setups, some environment variables can be added to an `.env` file in the root directory of the `streetscapes` repository.
 
-| Variable | Description |
-| --- | ----------- |
-| `MAPILLARY_TOKEN` | A Mapillary token string used for authentication when querying Mapillary via their API. Only needed if you are using imagery from Mapillary. |
-| `STREETSCAPES_DATA_DIR` | A directory containing data from the `global-streetscapes` projects, such as CSV files (cf. below). Defaults to `<repo-root>/local/streetscapes-data`. |
-| `STREETSCAPES_OUTPUT_DIR` | A directory for output files. Defaults to `<repo-root>/local/output`. |
-| `STREETSCAPES_LOG_LEVEL` | The global log level. Defaults to `INFO`. |
+| Variable                  | Description                                                                                                                                            |
+| ------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `MAPILLARY_TOKEN`         | A Mapillary token string used for authentication when querying Mapillary via their API. Only needed if you are using imagery from Mapillary.           |
+| `STREETSCAPES_DATA_DIR`   | A directory containing data from the `global-streetscapes` projects, such as CSV files (cf. below). Defaults to `<repo-root>/local/streetscapes-data`. |
+| `STREETSCAPES_OUTPUT_DIR` | A directory for output files. Defaults to `<repo-root>/local/output`.                                                                                  |
+| `STREETSCAPES_LOG_LEVEL`  | The global log level. Defaults to `INFO`.                                                                                                              |
 
 The `.gitignore` file already contains entries for `.env` and `local/`, so they will never be committed.
 
@@ -57,11 +59,13 @@ The `.gitignore` file already contains entries for `.env` and `local/`, so they 
 ```shell
 pip install streetscapes[dev]
 ```
+
 or, if installing from source,
 
 ```shell
 pip install -e .[dev]
 ```
+
 #### Building and running
 
 The `streetscapes` project documentation is based on [MkDocs](https://www.mkdocs.org/). To compile the documentation, run `mkdocs build` from the `docs` directory:
@@ -87,6 +91,7 @@ mkdocs serve -f docs/mkdocs.yml
 ```
 
 ## ⌨️ Command-line interface
+
 Streetscapes provides a command-line interface (CLI) that exposes some of the internal functions. To get the list of available commands, run the CLI with the `--help` switch:
 
 ```shell
@@ -110,7 +115,7 @@ streetscapes convert
 
 ⚠️ Don't forget to [set up your environment variables](#environment-variables) if using the CLI.
 
-The `convert_csv_to_parquet` function inside `streetscapes.functions` contains the code for reproducing the merged `streetscapes-data.parquet` dataset. This function expects a directory  containing several CSV files, which can be downloaded from [Huggingface](https://huggingface.co/datasets/NUS-UAL/global-streetscapes/tree/main/data). The code looks for these csv files in the supplied directory, which defaults to `./local/streetscapes-data` but can be changed with the `-d` switch (cf. `streetscapes convert --help`). Nonexistent directories are created automatically.
+The `convert_csv_to_parquet` function inside `streetscapes.functions` contains the code for reproducing the merged `streetscapes-data.parquet` dataset. This function expects a directory containing several CSV files, which can be downloaded from [Huggingface](https://huggingface.co/datasets/NUS-UAL/global-streetscapes/tree/main/data). The code looks for these csv files in the supplied directory, which defaults to `./local/streetscapes-data` but can be changed with the `-d` switch (cf. `streetscapes convert --help`). Nonexistent directories are created automatically.
 
 To limit the size of the archive, the dataset currently combines the following CSV files:
 
@@ -128,6 +133,7 @@ More CLI commands will be added as the codebase grows.
 `streetscapes` is licensed under [`CC-BY-SA-4.0`](https://creativecommons.org/licenses/by-sa/4.0/deed.en).
 
 ## 🎓 Acknowledgements and citation
+
 This repository uses the data and work from the [Global Streetscapes](https://ual.sg/project/global-streetscapes/) project.
 
 > [1] Hou Y, Quintana M, Khomiakov M, Yap W, Ouyang J, Ito K, Wang Z, Zhao T, Biljecki F (2024): Global Streetscapes — A comprehensive dataset of 10 million street-level images across 688 cities for urban science and analytics. ISPRS Journal of Photogrammetry and Remote Sensing 215: 216-238. doi:[10.1016/j.isprsjprs.2024.06.023](https://doi.org/10.1016/j.isprsjprs.2024.06.023)
