@@ -47,8 +47,8 @@ In case you feel like you've made a valuable contribution, but you don't know ho
 To create a release you need write permission on the repository.
 
 1. Check the author list in [`CITATION.cff`](CITATION.cff)
-1. Update the version number in setup.cfg and CITATION.cff
-1. Update the `CHANGELOG.md` to include changes made
+1. Update the version number in `pyproject.toml`
+1. Make a pull request to commit and merge to main branch
 1. Go to the [GitHub release page](https://github.com/nlesc/python-template/releases)
 1. Press draft a new release button
 1. Fill version, title and description field
