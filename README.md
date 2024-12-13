@@ -128,6 +128,11 @@ It is possible to combine more CSV files if needed.
 
 More CLI commands will be added as the codebase grows.
 
+## Contributing and publishing
+
+If you want to contribute to the development of streetscapes,
+have a look at the [contribution guidelines](CONTRIBUTING.md).
+
 ## 🪪 Licence
 
 `streetscapes` is licensed under [`CC-BY-SA-4.0`](https://creativecommons.org/licenses/by-sa/4.0/deed.en).
