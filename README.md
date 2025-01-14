@@ -27,8 +27,6 @@ mamba create -n myenv -c conda-forge python=3.12 pip
 # Dont forget to activate the environment once created, e.g. source venv/bin/activate or mamba activate myenv
 ```
 
-Some of the dependencies in `pyproject.toml` are there in anticipation for replicating and extending the pipelines in the original `global-streetscapes` repository, specifically the training pipeline (currently work in progress).
-
 ### ⚙️ Installation
 
 The `streetscapes` package can be installed from PyPI:
@@ -44,6 +42,8 @@ git clone git@github.com:Urban-M4/streetscapes.git
 cd streetscapes
 pip install -e .
 ```
+
+Some of the dependencies in `pyproject.toml` are there in anticipation for replicating and extending the pipelines in the original `global-streetscapes` repository, specifically the training pipeline (currently work in progress).
 
 ⚠️ Installing `streetscapes` is necessary in order to run any of the example notebooks.
 
