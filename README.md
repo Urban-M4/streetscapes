@@ -53,12 +53,12 @@ Some of the dependencies in `pyproject.toml` are there in anticipation for repli
 
 To facilitate the use of `streetscapes` for different local setups, some environment variables can be added to an `.env` file in the root directory of the `streetscapes` repository.
 
-| Variable                  | Description                                                                                                                                            |
-| ------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| `MAPILLARY_TOKEN`         | A Mapillary token string used for authentication when querying Mapillary via their API. Only needed if you are using imagery from Mapillary.           |
-| `STREETSCAPES_DATA_DIR`   | A directory containing data from the `global-streetscapes` projects, such as CSV files (cf. below). Defaults to `<repo-root>/local/streetscapes-data`. |
-| `STREETSCAPES_OUTPUT_DIR` | A directory for output files. Defaults to `<repo-root>/local/output`.                                                                                  |
-| `STREETSCAPES_LOG_LEVEL`  | The global log level. Defaults to `INFO`.                                                                                                              |
+| Variable                  | Description                                                                                                                                                  |
+| ------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `MAPILLARY_TOKEN`         | A Mapillary token string used for authentication when querying Mapillary via their API. [Get it here](https://www.mapillary.com/developer/api-documentation) |
+| `STREETSCAPES_DATA_DIR`   | A directory containing data from the `global-streetscapes` projects, such as CSV files (cf. below). Defaults to `<repo-root>/local/streetscapes-data`.       |
+| `STREETSCAPES_OUTPUT_DIR` | A directory for output files. Defaults to `<repo-root>/local/output`.                                                                                        |
+| `STREETSCAPES_LOG_LEVEL`  | The global log level. Defaults to `INFO`.                                                                                                                    |
 
 The `.gitignore` file already contains entries for `.env` and `local/`, so they will never be committed.
 
