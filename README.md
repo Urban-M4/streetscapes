@@ -13,7 +13,7 @@ For more information, plese refer to the [documentation](https://streetscapes.re
 
 ## 📥 Setup
 
-Use [venv](https://docs.python.org/3/library/venv.html), [virtualenv](https://virtualenv.pypa.io/en/stable/) or a wrapper such as [virtualenvwrapper](https://virtualenvwrapper.readthedocs.io/en/latest/) or [uv](https://docs.astral.sh/uv/pip/environments/) to create a virtual environment. A barebones `environment.yml` file is provided for convenience in case you prefer to use [Conda](https://anaconda.org/) or [Mamba](https://mamba.readthedocs.io/en/latest/installation/mamba-installation.html), but please note that all dependencies are installed by `pip` from `PyPI`.
+Use [venv](https://docs.python.org/3/library/venv.html), [virtualenv](https://virtualenv.pypa.io/en/stable/) or a wrapper such as [virtualenvwrapper](https://virtualenvwrapper.readthedocs.io/en/latest/) or [uv](https://docs.astral.sh/uv/pip/environments/) to create a virtual environment. You can also use [Conda](https://anaconda.org/) or [Mamba](https://mamba.readthedocs.io/en/latest/installation/mamba-installation.html) if you prefer, but please note that all dependencies are installed by `pip` from `PyPI`.
 
 ```sh
 # Create a virtual environment using your tool of preference
@@ -21,8 +21,8 @@ python -m venv venv
 uv venv venv
 virtualenv venv
 mkvirtualenv venv
-conda create -n myenv -f environment.yml
-mamba create -n myenv -f environment.yml
+conda create -n myenv -c conda-forge python=3.12 pip
+mamba create -n myenv -c conda-forge python=3.12 pip
 
 # Dont forget to activate the environment once created, e.g. source venv/bin/activate or mamba activate myenv
 ```
