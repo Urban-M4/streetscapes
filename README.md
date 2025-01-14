@@ -13,7 +13,19 @@ For more information, plese refer to the [documentation](https://streetscapes.re
 
 ## 📥 Setup
 
-Use [venv](https://docs.python.org/3/library/venv.html), [virtualenv](https://virtualenv.pypa.io/en/stable/) or a wrapper such as [virtualenvwrapper](https://virtualenvwrapper.readthedocs.io/en/latest/) to create a virtual environment. A barebones `environment.yml` file is provided for convenience in case you prefer to use [Conda](https://anaconda.org/) or [Mamba](https://mamba.readthedocs.io/en/latest/installation/mamba-installation.html), but please note that all dependencies are installed by `pip` from `PyPI`.
+Use [venv](https://docs.python.org/3/library/venv.html), [virtualenv](https://virtualenv.pypa.io/en/stable/) or a wrapper such as [virtualenvwrapper](https://virtualenvwrapper.readthedocs.io/en/latest/) or [uv](https://docs.astral.sh/uv/pip/environments/) to create a virtual environment. A barebones `environment.yml` file is provided for convenience in case you prefer to use [Conda](https://anaconda.org/) or [Mamba](https://mamba.readthedocs.io/en/latest/installation/mamba-installation.html), but please note that all dependencies are installed by `pip` from `PyPI`.
+
+```sh
+# Create a virtual environment using your tool of preference
+python -m venv venv
+uv venv venv
+virtualenv venv
+mkvirtualenv venv
+conda create -n myenv -f environment.yml
+mamba create -n myenv -f environment.yml
+
+# Dont forget to activate the environment once created, e.g. source venv/bin/activate or mamba activate myenv
+```
 
 Some of the dependencies in `pyproject.toml` are there in anticipation for replicating and extending the pipelines in the original `global-streetscapes` repository, specifically the training pipeline (currently work in progress).
 
