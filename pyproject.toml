@@ -16,6 +16,7 @@ dependencies = [
     "geopandas",
     "h3",
     "h5netcdf",
+    "huggingface_hub[cli]",
     "ipykernel",
     "loguru",
     "matplotlib",
