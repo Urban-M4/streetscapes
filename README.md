@@ -102,7 +102,11 @@ mkdocs build -f docs/mkdocs.yml
 mkdocs serve -f docs/mkdocs.yml
 ```
 
-## ⌨️ Command-line interface
+## Python interface for exploratory analysis
+
+This package support both an exploratory workflow through a Python API, and an command line interface for more consolidated workflow. We recommend to start by checkout out the [example notebooks](https://streetscapes.readthedocs.io/en/latest/).
+
+## ⌨️ Command-line interface for consolidated workflows
 
 Streetscapes provides a command-line interface (CLI) that exposes some of the internal functions. To get the list of available commands, run the CLI with the `--help` switch:
 
