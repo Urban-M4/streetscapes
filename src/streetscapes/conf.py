@@ -16,7 +16,7 @@ from decouple import AutoConfig
 # Setup
 # ==================================================
 # The root directory of the project
-ROOT_DIR = Path(__file__).parent.parent
+ROOT_DIR = Path(__file__).parent.parent.parent
 config = AutoConfig(ROOT_DIR)
 
 #: A local directory where data and output files are stored
