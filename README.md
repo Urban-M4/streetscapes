@@ -125,11 +125,7 @@ Datasets will be downloaded or loaded from cache as needed by the streetscapes p
 
 ## Python interface for exploratory analysis
 
-<<<<<<< HEAD
-This package support both an exploratory workflow through a Python API, and a command line interface for more consolidated workflow. We recommend to start by checking out the [example notebooks](https://streetscapes.readthedocs.io/en/latest/).
-=======
 This package supports both an exploratory workflow through a Python API, and a command line interface for a more consolidated workflow. We recommend to start by running the [example notebooks](https://streetscapes.readthedocs.io/en/latest/).
->>>>>>> origin/main
 
 ## ⌨️ Command-line interface for consolidated workflows
 
