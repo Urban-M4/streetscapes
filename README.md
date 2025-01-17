@@ -13,9 +13,19 @@ For more information, plese refer to the [documentation](https://streetscapes.re
 
 ## 📥 Setup
 
-Use [venv](https://docs.python.org/3/library/venv.html), [virtualenv](https://virtualenv.pypa.io/en/stable/) or a wrapper such as [virtualenvwrapper](https://virtualenvwrapper.readthedocs.io/en/latest/) to create a virtual environment. A barebones `environment.yml` file is provided for convenience in case you prefer to use [Conda](https://anaconda.org/) or [Mamba](https://mamba.readthedocs.io/en/latest/installation/mamba-installation.html), but please note that all dependencies are installed by `pip` from `PyPI`.
+Use [venv](https://docs.python.org/3/library/venv.html), [virtualenv](https://virtualenv.pypa.io/en/stable/) or a wrapper such as [virtualenvwrapper](https://virtualenvwrapper.readthedocs.io/en/latest/) or [uv](https://docs.astral.sh/uv/pip/environments/) to create a virtual environment. You can also use [Conda](https://anaconda.org/) or [Mamba](https://mamba.readthedocs.io/en/latest/installation/mamba-installation.html) if you prefer, but please note that all dependencies are installed by `pip` from `PyPI`.
 
-Some of the dependencies in `pyproject.toml` are there in anticipation for replicating and extending the pipelines in the original `global-streetscapes` repository, specifically the training pipeline (currently work in progress).
+```sh
+# Create a virtual environment using your tool of preference
+python -m venv venv
+uv venv venv
+virtualenv venv
+mkvirtualenv venv
+conda create -n myenv -c conda-forge python=3.12 pip
+mamba create -n myenv -c conda-forge python=3.12 pip
+
+# Dont forget to activate the environment once created, e.g. source venv/bin/activate or mamba activate myenv
+```
 
 ### ⚙️ Installation
 
@@ -33,20 +43,22 @@ cd streetscapes
 pip install -e .
 ```
 
+Some of the dependencies in `pyproject.toml` are there in anticipation for replicating and extending the pipelines in the original `global-streetscapes` repository, specifically the training pipeline (currently work in progress).
+
 ⚠️ Installing `streetscapes` is necessary in order to run any of the example notebooks.
 
 ⚠️ If one or more dependencies fail to install, check the Python version - it might be too _new_. While `streetscapes` itself specifies only the _minimal_ required Python verion, some dependencies might be slow to make releases for the latest Python version.
 
 ### 🌲 Environment variables
 
-To facilitate the use of `streetscapes` for different local setups, some environment variables can be added to an `.env` file in the root directory of the `streetscapes` repository.
+To facilitate the use of `streetscapes` for different local setups, some environment variables can be added to an `.env` file in the root directory of the `streetscapes` repository. Note that the mapillary token is (only) needed if you are using imagery from Mapillary. You can get it [here](https://www.mapillary.com/developer/api-documentation).
 
-| Variable                  | Description                                                                                                                                            |
-| ------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| `MAPILLARY_TOKEN`         | A Mapillary token string used for authentication when querying Mapillary via their API. Only needed if you are using imagery from Mapillary.           |
-| `STREETSCAPES_DATA_DIR`   | A directory containing data from the `global-streetscapes` projects, such as CSV files (cf. below). Defaults to `<repo-root>/local/streetscapes-data`. |
-| `STREETSCAPES_OUTPUT_DIR` | A directory for output files. Defaults to `<repo-root>/local/output`.                                                                                  |
-| `STREETSCAPES_LOG_LEVEL`  | The global log level. Defaults to `INFO`.                                                                                                              |
+| Variable                  | Description                                                                                                                                                  |
+| ------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `MAPILLARY_TOKEN`         | A Mapillary token string used for authentication when querying Mapillary via their API.  |
+| `STREETSCAPES_DATA_DIR`   | A directory containing data from the `global-streetscapes` projects, such as CSV files (cf. below). Defaults to `<repo-root>/local/streetscapes-data`.       |
+| `STREETSCAPES_OUTPUT_DIR` | A directory for output files. Defaults to `<repo-root>/local/output`.                                                                                        |
+| `STREETSCAPES_LOG_LEVEL`  | The global log level. Defaults to `INFO`.                                                                                                                    |
 
 The `.gitignore` file already contains entries for `.env` and `local/`, so they will never be committed.
 
@@ -90,7 +102,11 @@ mkdocs build -f docs/mkdocs.yml
 mkdocs serve -f docs/mkdocs.yml
 ```
 
-## ⌨️ Command-line interface
+## Python interface for exploratory analysis
+
+This package supports both an exploratory workflow through a Python API, and a command line interface for a more consolidated workflow. We recommend to start by running the [example notebooks](https://streetscapes.readthedocs.io/en/latest/).
+
+## ⌨️ Command-line interface for consolidated workflows
 
 Streetscapes provides a command-line interface (CLI) that exposes some of the internal functions. To get the list of available commands, run the CLI with the `--help` switch:
 

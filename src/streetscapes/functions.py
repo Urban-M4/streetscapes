@@ -34,6 +34,7 @@ from streetscapes import conf
 from streetscapes import types as sst
 from streetscapes.conf import logger
 
+
 def mkdir(directory: Path | str) -> Path:
     """
     Resolve and expand a directory path and
@@ -318,7 +319,6 @@ def download_image(
 
     # Download the image
     if not image_path.exists():
-
         if verbose:
             logger.info(f"Downloading image {image_id}.jpeg...")
 
@@ -420,7 +420,6 @@ def download_images(
 
     image_paths = set()
     for source, records in filtered.items():
-
         # Limit the records if only a sample is required
         if sample is not None:
             records = records[:sample]
@@ -434,14 +433,12 @@ def download_images(
         # Download the images in parallel
         # ==================================================
         if len(missing) > 0:
-
             # Authenticated session for this source (if necessary)
             session = get_session(source)
 
             if max_workers is None:
                 max_workers = os.cpu_count()
             with ThreadPoolExecutor(max_workers=max_workers) as tpe:
-
                 logger.info(
                     f"Downloading {len(missing)} images from {source.name} into '{directory.name}'..."
                 )
