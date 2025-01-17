@@ -104,7 +104,7 @@ mkdocs serve -f docs/mkdocs.yml
 
 ## Python interface for exploratory analysis
 
-This package support both an exploratory workflow through a Python API, and an command line interface for more consolidated workflow. We recommend to start by checkout out the [example notebooks](https://streetscapes.readthedocs.io/en/latest/).
+This package supports both an exploratory workflow through a Python API, and a command line interface for a more consolidated workflow. We recommend to start by running the [example notebooks](https://streetscapes.readthedocs.io/en/latest/).
 
 ## ⌨️ Command-line interface for consolidated workflows
 
