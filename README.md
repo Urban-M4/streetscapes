@@ -102,6 +102,27 @@ mkdocs build -f docs/mkdocs.yml
 mkdocs serve -f docs/mkdocs.yml
 ```
 
+## Downloading streetscapes metadata
+
+This package is designed around the Global Streetscapes dataset [available on Hugging Face](https://huggingface.co/datasets/NUS-UAL/global-streetscapes)
+
+We can use the [`huggingface_hub`](https://huggingface.co/docs/huggingface_hub/index) package to download the data. This package was installed as part of the streetscapes package. It can be used both in a Python script/notebook or on the command line. For example, to download the contextual data file:
+
+```sh 
+ huggingface-cli download NUS-UAL/global-streetscapes data/contextual.csv --repo-type dataset --local-dir ./local/streetscapes-data
+```
+
+Hugging Face hub downloads data to a cache directory by default, but it is possible to specify a local directory, which we have done here to align with the environment variables set above (legacy).
+
+Datasets will be downloaded or loaded from cache as needed by the streetscapes package. However, if you prefer, you could pre-download the full dataset in one go:
+
+```sh 
+ huggingface-cli download NUS-UAL/global-streetscapes --repo-type dataset --local-dir ./local/streetscapes-data
+```
+
+⚠️ Note, this amounts to 64GB of disk space!
+
+
 ## Python interface for exploratory analysis
 
 This package supports both an exploratory workflow through a Python API, and a command line interface for a more consolidated workflow. We recommend to start by running the [example notebooks](https://streetscapes.readthedocs.io/en/latest/).

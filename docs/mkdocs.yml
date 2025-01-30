@@ -3,6 +3,7 @@ repo_url: https://github.com/Urban-M4/streetscapes
 nav:
   - Overview: index.md
   - Examples:
+      - Exploring the Global Streetscapes: examples/explore_data.ipynb
       - Converting CSV files into Parquet: examples/convert_csv_to_parquet.ipynb
       - Creating a city subset: examples/subset_data.ipynb
       - Plotting data from a city subset: examples/plot_city.ipynb
@@ -65,3 +66,5 @@ plugins:
 extra:
   version:
     provider: mike
+extra_css:
+  - stylesheets/extra.css
