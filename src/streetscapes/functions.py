@@ -11,6 +11,9 @@ import time
 import random
 
 # --------------------------------------
+import shutil
+
+# --------------------------------------
 from pathlib import Path
 
 # --------------------------------------
@@ -28,6 +31,10 @@ import pandas as pd
 
 # --------------------------------------
 import requests as rq
+
+# --------------------------------------
+import huggingface_hub
+from huggingface_hub import hf_hub_download
 
 # --------------------------------------
 from streetscapes import conf
@@ -469,3 +476,51 @@ def download_images(
                         pbar.update(1)
 
     return image_paths
+
+
+def download_files_hf(
+    files: str | list[str],
+    local_dir: str | Path = None,
+):
+    """
+    Download files from the Global Streetscapes HuggingFace dataset repo.
+
+    Args:
+        files (str | list[str]):
+            File(s) to download.
+
+        local_dir (str | Path, optional):
+            Destination directory.
+    """
+
+    if isinstance(files, str):
+        files = [files]
+
+    if local_dir is None:
+        local_dir = conf.DATA_DIR
+
+    local_dir = mkdir(local_dir)
+
+    logger.info(f"Downloading files from HuggingFace Hub...")
+
+    for file in files:
+
+        # First, check if the file exists and skip downloading it if it does.
+        fpath = Path(local_dir / file)
+        if fpath.exists():
+            continue
+
+        # Download the file
+        hf_hub_download(
+            repo_id="NUS-UAL/global-streetscapes",
+            repo_type="dataset",
+            subfolder="data",
+            filename=f"{file}",
+            local_dir=local_dir,
+        )
+
+        # HACK
+        # This is necessary because the function above mirrors the
+        # structure of the repo, so the files end up being downloaded
+        # into a "data" subdirectory under local_dir.
+        shutil.move(fpath.parent / f"data/{fpath.name}", fpath)
