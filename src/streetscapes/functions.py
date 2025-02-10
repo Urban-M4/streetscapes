@@ -427,8 +427,8 @@ def download_images(
     image_paths = set()
     for source, records in filtered.items():
         # Limit the records if only a sample is required
-        if sample is not None:
-            records = records[:sample]
+        if isinstance(sample, int):
+            records = records.sample(sample)
 
         # Convert records to a dictionary
         records = records.to_dict("records")

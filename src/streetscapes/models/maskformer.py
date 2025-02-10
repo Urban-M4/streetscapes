@@ -166,7 +166,8 @@ class MaskFormerVistasPanoptic(BaseSegmenter):
         # Mask2Former
         # ==================================================
         processor = AutoImageProcessor.from_pretrained(
-            "facebook/mask2former-swin-large-mapillary-vistas-panoptic"
+            "facebook/mask2former-swin-large-mapillary-vistas-panoptic",
+            use_fast=True,
         )
         model = Mask2FormerForUniversalSegmentation.from_pretrained(
             "facebook/mask2former-swin-large-mapillary-vistas-panoptic"
@@ -255,6 +256,6 @@ class MaskFormerVistasPanoptic(BaseSegmenter):
                     "labels": instances_per_label,
                 }
 
-            pbar.update()
+                pbar.update()
 
         return results
