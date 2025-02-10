@@ -33,7 +33,6 @@ import pandas as pd
 import requests as rq
 
 # --------------------------------------
-import huggingface_hub
 from huggingface_hub import hf_hub_download
 
 # --------------------------------------
@@ -479,7 +478,7 @@ def download_images(
 
 
 def download_files_hf(
-    files: str | list[str],
+    file_names: str | list[str],
     local_dir: str | Path = None,
 ):
     """
@@ -490,37 +489,33 @@ def download_files_hf(
             File(s) to download.
 
         local_dir (str | Path, optional):
-            Destination directory.
+            Destination directory. Defaults to None.
     """
 
-    if isinstance(files, str):
-        files = [files]
+    kwargs = {
+        "repo_id": "NUS-UAL/global-streetscapes",
+        "repo_type": "dataset",
+    }
+    if local_dir is not None:
+        kwargs["local_dir"] = local_dir
 
-    if local_dir is None:
-        local_dir = conf.DATA_DIR
+    if isinstance(file_names, str):
+        file_names = [file_names]
 
     local_dir = mkdir(local_dir)
 
     logger.info(f"Downloading files from HuggingFace Hub...")
 
-    for file in files:
+    for file_name in file_names:
 
-        # First, check if the file exists and skip downloading it if it does.
-        fpath = Path(local_dir / file)
-        if fpath.exists():
-            continue
+        # Update the file name.
+        #
+        # NOTE:
+        # HuggingFace replicates the structure of
+        # the remote repository, so any subdirectories
+        # should be included in the file name, not in
+        # the `local_dir` variable.
+        kwargs["filename"] = file_name
 
         # Download the file
-        hf_hub_download(
-            repo_id="NUS-UAL/global-streetscapes",
-            repo_type="dataset",
-            subfolder="data",
-            filename=f"{file}",
-            local_dir=local_dir,
-        )
-
-        # HACK
-        # This is necessary because the function above mirrors the
-        # structure of the repo, so the files end up being downloaded
-        # into a "data" subdirectory under local_dir.
-        shutil.move(fpath.parent / f"data/{fpath.name}", fpath)
+        hf_hub_download(**kwargs)
