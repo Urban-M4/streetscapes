@@ -11,6 +11,9 @@ import time
 import random
 
 # --------------------------------------
+import shutil
+
+# --------------------------------------
 from pathlib import Path
 
 # --------------------------------------
@@ -28,6 +31,9 @@ import pandas as pd
 
 # --------------------------------------
 import requests as rq
+
+# --------------------------------------
+from huggingface_hub import hf_hub_download
 
 # --------------------------------------
 from streetscapes import conf
@@ -469,3 +475,47 @@ def download_images(
                         pbar.update(1)
 
     return image_paths
+
+
+def download_files_hf(
+    file_names: str | list[str],
+    local_dir: str | Path = None,
+):
+    """
+    Download files from the Global Streetscapes HuggingFace dataset repo.
+
+    Args:
+        files (str | list[str]):
+            File(s) to download.
+
+        local_dir (str | Path, optional):
+            Destination directory. Defaults to None.
+    """
+
+    kwargs = {
+        "repo_id": "NUS-UAL/global-streetscapes",
+        "repo_type": "dataset",
+    }
+    if local_dir is not None:
+        kwargs["local_dir"] = local_dir
+
+    if isinstance(file_names, str):
+        file_names = [file_names]
+
+    local_dir = mkdir(local_dir)
+
+    logger.info(f"Downloading files from HuggingFace Hub...")
+
+    for file_name in file_names:
+
+        # Update the file name.
+        #
+        # NOTE:
+        # HuggingFace replicates the structure of
+        # the remote repository, so any subdirectories
+        # should be included in the file name, not in
+        # the `local_dir` variable.
+        kwargs["filename"] = file_name
+
+        # Download the file
+        hf_hub_download(**kwargs)
