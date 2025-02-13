@@ -20,7 +20,7 @@ dependencies = [
     "h5netcdf",
     "humanize",
     "huggingface_hub[cli]",
-    "ibis-framework",
+    "ibis-framework[duckdb]",
     "ipykernel",
     "ipywidgets",
     "loguru",
