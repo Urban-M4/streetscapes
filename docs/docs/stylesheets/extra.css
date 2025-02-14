@@ -7,3 +7,9 @@
 .jupyter-wrapper .jp-OutputArea-output pre {
     max-height: 300px;
 }
+
+.md-grid {
+    margin-left: 30px;
+    margin-right: 10px;
+    max-width: 100%;
+}

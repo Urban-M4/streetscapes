@@ -9,7 +9,8 @@ nav:
       - Plotting data from a city subset: examples/plot_city.ipynb
       - Mapillary example: examples/mapillary_example.ipynb
       - Downloading images from Mapillary: examples/download_city_images.ipynb
-      - Segmenting downloaded images: examples/segmentation.ipynb
+      - Segmenting downloaded images:
+          - Using MaskFormer: examples/segmentation/maskformer.ipynb
   - API:
       - Streetscapes:
          - Models:
