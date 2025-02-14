@@ -9,15 +9,14 @@ from transformers import Mask2FormerForUniversalSegmentation
 from tqdm import tqdm
 
 # --------------------------------------
-from streetscapes import conf
-from streetscapes.conf import logger
+from streetscapes import logger
 from streetscapes.models import BaseSegmenter
-from streetscapes.models import ImagePath
+from streetscapes.models import ImageOrPath
 
 
-class MaskFormerVistasPanoptic(BaseSegmenter):
+class MaskFormer(BaseSegmenter):
 
-    # All the labels that the Mask2Former recognises.
+    # All the labels recognised by Mask2Former.
     labels = {
         0: "bird",
         1: "ground-animal",
@@ -88,6 +87,7 @@ class MaskFormerVistasPanoptic(BaseSegmenter):
 
     def __init__(
         self,
+        model_id: str = "facebook/mask2former-swin-large-mapillary-vistas-panoptic",
         threshold: float = 0.5,
         mask_threshold: float = 0.5,
         overlap_mask_area_threshold: float = 0.8,
@@ -106,6 +106,10 @@ class MaskFormerVistasPanoptic(BaseSegmenter):
         post_process_panoptic_segmentation() method of the image processor.
 
         Args:
+            model_id (str, optional):
+                Mask2Former model to load.
+                Defaults to "facebook/mask2former-swin-large-mapillary-vistas-panoptic".
+
             threshold (float, optional):
                 The probability score threshold to keep predicted instance masks.
                 Defaults to 0.5.
@@ -127,15 +131,13 @@ class MaskFormerVistasPanoptic(BaseSegmenter):
                 This differs slightly from the original parameter because it can also accept
                 strings instead of integers (the strings are converted to their IDs using the ).
                 Defaults to None.
-
         """
 
         # Initialise the base
         super().__init__(*args, **kwargs)
 
-        # Load the processor and the model
-        self.processor, self.model = self.load_model()
-
+        # Arguments
+        # ==================================================
         # Convert any string labels into integers
         label_ids_to_fuse = set()
         if labels_to_fuse is not None:
@@ -145,40 +147,37 @@ class MaskFormerVistasPanoptic(BaseSegmenter):
                 elif isinstance(lbl, str):
                     label_ids_to_fuse.add(self.label_ids[lbl])
 
-        # Panoptic pipeline options.
+        self.model_id = model_id
         self.threshold = threshold
         self.mask_threshold = mask_threshold
         self.overlap_mask_area_threshold = overlap_mask_area_threshold
         self.label_ids_to_fuse = label_ids_to_fuse
 
-    def load_model(
-        self,
-    ) -> tuple[AutoImageProcessor, Mask2FormerForUniversalSegmentation]:
-        """
-        Convenience function for loading the image processor
-        and the segmentation model.
-
-        Returns:
-            tuple[AutoImageProcessor, Mask2FormerForUniversalSegmentation]:
-                A tuple holding the image processor and the model.
-        """
-
-        # Mask2Former
+        # Processors and models
         # ==================================================
-        processor = AutoImageProcessor.from_pretrained(
-            "facebook/mask2former-swin-large-mapillary-vistas-panoptic",
+        self.processor: AutoImageProcessor = None
+        self.model: Mask2FormerForUniversalSegmentation = None
+        self._load_models()
+
+    def _load_models(self):
+        """
+        Convenience method for loading processors and models.
+        """
+
+        # Mask2Former model
+        # ==================================================
+        self.processor = AutoImageProcessor.from_pretrained(
+            self.model_id,
             use_fast=True,
         )
-        model = Mask2FormerForUniversalSegmentation.from_pretrained(
-            "facebook/mask2former-swin-large-mapillary-vistas-panoptic"
-        )
-
-        model.to(self.device)
-        return (processor, model)
+        self.model = Mask2FormerForUniversalSegmentation.from_pretrained(
+            self.model_id
+        ).to(self.device)
+        self.model.eval()
 
     def segment(
         self,
-        images: ImagePath,
+        images: ImageOrPath,
     ) -> list[dict]:
         """
         Segment the provided sequence of images.

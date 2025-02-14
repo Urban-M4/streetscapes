@@ -5,10 +5,13 @@ import re
 from pathlib import Path
 
 # --------------------------------------
+import PIL
 from PIL import Image
-from PIL import ImageFile
+
+PIL.ImageFile.LOAD_TRUNCATED_IMAGES = True
 
 # --------------------------------------
+import PIL.ImageFile
 from tqdm import tqdm
 
 # --------------------------------------
@@ -16,9 +19,6 @@ import numpy as np
 
 # --------------------------------------
 import scipy
-
-# --------------------------------------
-import json
 
 # --------------------------------------
 import torch as pt
@@ -40,19 +40,20 @@ import matplotlib.patches as mpatches
 from streetscapes import conf
 from streetscapes.conf import logger
 
-ImageFile.LOAD_TRUNCATED_IMAGES = True
 
-ImagePath = (
+ImageOrPath = (
     Path
     | str
     | np.ndarray
-    | list[Path | str | np.ndarray]
-    | tuple[Path | str | np.ndarray]
+    | Image.Image
+    | list[Path | str | np.ndarray | Image.Image]
+    | tuple[Path | str | np.ndarray | Image.Image]
 )
 
 
 class BaseSegmenter:
 
+    # Dictionary of label ID to label
     labels = {}
 
     @property
@@ -76,7 +77,7 @@ class BaseSegmenter:
             device = "cuda" if pt.cuda.is_available() else "cpu"
         self.device = pt.device(device)
 
-    def load_model(self, *args, **kwargs):
+    def _load_models(self, *args, **kwargs):
         """
         Convenience function for loading a pretrained model.
 
@@ -119,6 +120,7 @@ class BaseSegmenter:
         }
 
         # Fix for empty lists appearing as None
+        # FIXME: Find a more generic solution.
         for image_name, categories in data.items():
             for category, stats in categories.items():
                 if stats is None:
@@ -170,8 +172,8 @@ class BaseSegmenter:
 
     def load_images(
         self,
-        images: ImagePath,
-    ) -> tuple[dict[str, np.ndarray], bool]:
+        images: ImageOrPath,
+    ) -> dict[str, np.ndarray]:
         """
         A list of images or paths to image files.
 
@@ -180,31 +182,38 @@ class BaseSegmenter:
                 A list of paths to image files.
 
         Returns:
-            tuple[dict[str, np.ndarray], bool]:
-                A tuple containing:
-                    - A dictionary of images as NumPy arrays.
-                    - A boolean value indicating if the input is
-                        a list of images or a single image.
+            dict[str, np.ndarray]:
+                A dictionary of image names mapped to images as NumPy arrays.
         """
 
+        names = None
         if isinstance(images, dict):
-            return images
+            names = list(images.keys())
+            images = list(images.values())
 
         if not isinstance(images, (list, tuple)):
             images = [images]
 
-        images = {
-            image.name: (
-                np.array(Image.open(image)) if isinstance(image, (str, Path)) else image
-            )
-            for image in images
-        }
+        image_dict = {}
 
-        return images
+        if names is None:
+            names = [f"image_{n:04d}" for n in range(len(images))]
+
+        for idx, image in enumerate(images):
+            if isinstance(image, (str, Path)):
+                image_name = image.name
+                image = Image.open(image)
+
+            else:
+                image_name = names[idx]
+
+            image_dict[image_name] = np.array(image)
+
+        return image_dict
 
     def make_colour_dict(
         self,
-        categories: dict,
+        categories: dict | list | tuple,
         opacity: float = 1.0,
         cmap: str = "jet",
     ) -> dict:
@@ -212,7 +221,7 @@ class BaseSegmenter:
         Create a dictionary of colours (used for visualising the segments).
 
         Args:
-            categories (dict):
+            categories (dict | list | tuple):
                 A dictionary of categories.
 
             opacity (float, optional):
@@ -295,7 +304,7 @@ class BaseSegmenter:
         """
 
         # Rescale intensity to (0,1) (converts the image to float32)
-        float_image = ski.exposure.rescale_intensity(image, out_range=(0,1))
+        float_image = ski.exposure.rescale_intensity(image, out_range=(0, 1))
         rgb_patch = float_image[mask]
 
         # Convert the image to HSV
@@ -336,34 +345,27 @@ class BaseSegmenter:
     def compute_statistics(
         self,
         images: dict,
-        segmentations: dict,
     ) -> dict:
         """
         Compute the statistics for all categories.
 
         Args:
-            images (dict):
-                A dictionary of images being processed.
-
             segmentations (dict):
                 A dictionary of segmentation results.
+
         Returns:
             dict:
                 A dictinary with statistics about the image segments.
         """
 
-        # Load the images
-        images = self.load_images(images)
-
         # Loop over the images
         logger.info("Computing statistics...")
         results = {}
         with tqdm(total=len(images)) as pbar:
-            for image_name, image in images.items():
+            for image in images.items():
                 instance_stats = {}
                 # Loop over categories per image
-                for label_id, instances in segmentations[image_name]["labels"].items():
-
+                for label_id, instances in image["masks"].items():
                     if len(instances) > 0:
                         instance_stats[self.labels[label_id]] = []
                         # Loop over instances per category
@@ -375,13 +377,12 @@ class BaseSegmenter:
                             )
                             instance_stats[self.labels[label_id]].append(stats)
 
-                results[image_name] = instance_stats
                 pbar.update()
         return results
 
     def visualise_segmentation(
         self,
-        images: ImagePath,
+        images: ImageOrPath,
         categories: list[str | int] = None,
         opacity: float = 0.50,
         figsize: tuple[int, int] = (16, 6),
@@ -585,3 +586,111 @@ class BaseSegmenter:
             self.save_stats(stats, out_file_path)
 
         return (images, segmented, stats)
+
+    def flatten_categories(
+        self,
+        categories: dict,
+    ) -> dict:
+        """
+        Flatten a nested dictionary of categories.
+
+        Useful for defining masks in terms of more general categories
+        that can be subtracted.
+        For instance, building facades can include windows and doors,
+        which means that we can define a category dictionary as follows:
+
+        categories = {
+            "sky": None,
+            "building": {
+                "window": None,
+                "door": None
+            },
+            "tree": None,
+            "car": None,
+            "road": None,
+        }
+
+        The model will subtract the masks for `window` and `door` from
+        that for `building`, so when the statistics are computed, only
+        the portion of the building without windows and doors will be
+        taken into acount.
+
+        Args:
+            tree (dict):
+                The categories as a tree (dictionary of dictionaries).
+
+        Returns:
+            dict:
+                A flattened category tree where each key is a
+                category and the corresponding value is a list of
+                masks that should be subtracted from it.
+        """
+
+        def _flatten(
+            tree: dict,
+            _subtree: dict = None,
+        ) -> dict:
+            """
+            An internal function that performs the actual flattening.
+
+            Args:
+                tree (dict):
+                    The tree to flatten.
+
+                _subtree (dict, optional):
+                    A tree used for flattening the category tree recursively.
+                    Internal parameter only.
+                    Defaults to None.
+
+
+            Returns:
+                dict:
+                    The flattened dictionary
+            """
+            if _subtree is None:
+                _subtree = {}
+
+            for k, v in tree.items():
+                if isinstance(v, dict):
+                    # Dictionary
+                    _subtree[k] = list(v.keys())
+                    _flatten(v, _subtree)
+
+                else:
+                    # String or None
+                    _subtree[k] = []
+                    if v is not None:
+                        _subtree[v] = []
+                        _subtree[k].append(v)
+
+            return _subtree
+
+        return _flatten(categories)
+
+    def remove_overlaps(
+        self,
+        segmentations: dict,
+        categories: dict,
+    ):
+        """
+        Remove overap between masks based on the specified categories.
+
+        Args:
+            segmentations (dict):
+                Segmentations produced by a segmentation model
+                (this is usually implemented in a derived class).
+
+            categories (dict):
+                Hierarchical category specification
+                (cf. `BaseSegmenter.flatten_categories()`).
+        """
+        for segmentation in segmentations:
+            masks = segmentation["categories"]
+
+            for category, instances in masks.items():
+
+                if dependencies := categories.get(category):
+
+                    for dependency in dependencies:
+                        if dependency in categories:
+                            segmentations[category][categories[dependency]] = False
