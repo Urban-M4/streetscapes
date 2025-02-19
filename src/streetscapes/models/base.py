@@ -114,7 +114,8 @@ class BaseSegmenter:
 
         # Load the data
         data = {
-            item["image"]: item["stats"].tolist() for item in list(ak.from_parquet(stats))
+            item["image"]: item["stats"].tolist()
+            for item in list(ak.from_parquet(stats))
         }
 
         # Fix for empty lists appearing as None
@@ -293,17 +294,43 @@ class BaseSegmenter:
                 A dictionary of statistics.
         """
 
-        # Get the patch corresponding to the mask
-        patch = image[mask]
+        # Rescale intensity to (0,1) (converts the image to float32)
+        float_image = ski.exposure.rescale_intensity(image, out_range=(0,1))
+        rgb_patch = float_image[mask]
+
+        # Convert the image to HSV
+        hsv_image = ski.color.convert_colorspace(image, "RGB", "HSV")
+        hsv_patch = hsv_image[mask]
+
+        # Extract the HSV channels to compute the corresponding statistics.
+        hue, sat, val = hsv_patch[..., 0], hsv_patch[..., 1], hsv_patch[..., 2]
 
         return {
             "colour": {
-                "median": np.median(patch, axis=0).astype(np.ubyte).tolist(),
-                "mode": scipy.stats.mode(patch, axis=0)[0].astype(np.ubyte).tolist(),
-                "mean": np.mean(patch, axis=0).astype(np.ubyte).tolist(),
-                "sd": np.std(patch, axis=0).astype(np.ubyte).tolist(),
+                "median": np.median(rgb_patch, axis=0).tolist(),
+                "mode": scipy.stats.mode(rgb_patch, axis=0)[0].tolist(),
+                "mean": np.mean(rgb_patch, axis=0).tolist(),
+                "sd": np.std(rgb_patch, axis=0).tolist(),
             },
-            "area": np.count_nonzero(mask) / np.prod(image.shape[:2]),
+            "hue": {
+                "median": np.median(hue).tolist(),
+                "mode": scipy.stats.mode(hue)[0].tolist(),
+                "mean": np.mean(hue).tolist(),
+                "sd": np.std(hue).tolist(),
+            },
+            "saturation": {
+                "median": np.median(sat).tolist(),
+                "mode": scipy.stats.mode(sat)[0].tolist(),
+                "mean": np.mean(sat).tolist(),
+                "sd": np.std(sat).tolist(),
+            },
+            "value": {
+                "median": np.median(val).tolist(),
+                "mode": scipy.stats.mode(val)[0].tolist(),
+                "mean": np.mean(val).tolist(),
+                "sd": np.std(val).tolist(),
+            },
+            "area": float(np.count_nonzero(mask) / np.prod(image.shape[:2])),
         }
 
     def compute_statistics(
@@ -424,9 +451,7 @@ class BaseSegmenter:
                 ax = axes if len(images) == 1 else axes[idx]
 
                 # Convert the image to float [0,1]
-                image = ski.exposure.rescale_intensity(
-                    ski.util.img_as_float32(image), out_range=(0, 1)
-                )
+                image = ski.exposure.rescale_intensity(image, out_range=(0, 1))
 
                 # Add an alpha channel if it's missing.
                 # A greyscale image has one channel, and an RGB one has three.
@@ -496,7 +521,7 @@ class BaseSegmenter:
                 ax[1].legend(handles=handles, loc="upper left", bbox_to_anchor=(1, 1))
                 ax[0].set_title(image_name)
 
-            pbar.update()
+                pbar.update()
 
         return (fig, ax, image_stats)
 
