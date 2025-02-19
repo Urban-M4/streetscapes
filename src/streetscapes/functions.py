@@ -11,9 +11,6 @@ import time
 import random
 
 # --------------------------------------
-import shutil
-
-# --------------------------------------
 from pathlib import Path
 
 # --------------------------------------
@@ -27,13 +24,22 @@ from concurrent.futures import as_completed
 from tqdm import tqdm
 
 # --------------------------------------
+import numpy as np
+
+# --------------------------------------
 import pandas as pd
+
+# --------------------------------------
+import skimage as ski
 
 # --------------------------------------
 import requests as rq
 
 # --------------------------------------
 from huggingface_hub import hf_hub_download
+
+# --------------------------------------
+import matplotlib.pyplot as plt
 
 # --------------------------------------
 from streetscapes import conf
@@ -475,6 +481,73 @@ def download_images(
                         pbar.update(1)
 
     return image_paths
+
+
+def as_rgb(
+    image: np.ndarray,
+    greyscale: bool = False,
+) -> np.ndarray:
+    """
+    Convert an image into an RGB version.
+
+    Args:
+        image (np.ndarray):
+            The image to convert.
+
+        greyscale (bool, optional):
+            Switch to convert the image to greyscale.
+            Defaults to False.
+
+    Returns:
+        np.ndarray:
+            The RGB image.
+    """
+
+    if len(image.shape) == 2:
+        # The image is already greyscale.
+        # Just convert it to RGB.
+        image = ski.color.gray2rgb(image)
+
+    else:
+        if image.shape[-1] == 4:
+            # Remove the alpha channel if it's present
+            image = image[..., :-1]
+
+        # Check if it needs to be converted to greyscale
+        if greyscale:
+            image = ski.color.gray2rgb(ski.color.rgb2gray(image))
+
+    # Convert the image to ubyte
+    image = ski.exposure.rescale_intensity(image, out_range=np.ubyte)
+
+    return image
+
+
+def make_colourmap(
+    labels: dict | list | tuple,
+    cmap: str = "jet",
+) -> dict:
+    """
+    Create a dictionary of colours (used for visualising instances).
+
+    Args:
+        labels (dict | list | tuple):
+            A dictionary of labels.
+
+        cmap (str, optional):
+            Colourmap. Defaults to "jet".
+
+    Returns:
+        dict:
+            Dictionary of class/colour associations.
+    """
+
+    if len(labels) == 0:
+        return {}
+
+    cmap = plt.get_cmap(cmap, len(labels))
+    cmap = cmap(np.linspace(0, 1, cmap.N))[:, :3]
+    return {label: colour for label, colour in zip(labels, cmap)}
 
 
 def download_files_hf(

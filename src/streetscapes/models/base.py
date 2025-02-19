@@ -1,17 +1,20 @@
 # --------------------------------------
-import re
-
-# --------------------------------------
 from pathlib import Path
 
 # --------------------------------------
 import PIL
 from PIL import Image
+import PIL.ImageFile
 
 PIL.ImageFile.LOAD_TRUNCATED_IMAGES = True
 
 # --------------------------------------
-import PIL.ImageFile
+from copy import deepcopy
+
+# --------------------------------------
+import json
+
+# --------------------------------------
 from tqdm import tqdm
 
 # --------------------------------------
@@ -33,13 +36,14 @@ import awkward as ak
 import skimage as ski
 
 # --------------------------------------
+from matplotlib.colors import hex2color
 import matplotlib.pyplot as plt
 import matplotlib.patches as mpatches
 
 # --------------------------------------
+import streetscapes as scs
 from streetscapes import conf
 from streetscapes.conf import logger
-
 
 ImageOrPath = (
     Path
@@ -52,13 +56,6 @@ ImageOrPath = (
 
 
 class BaseSegmenter:
-
-    # Dictionary of label ID to label
-    labels = {}
-
-    @property
-    def label_ids(self):
-        return {label: label_id for label_id, label in self.labels.items()}
 
     def __init__(
         self,
@@ -77,7 +74,11 @@ class BaseSegmenter:
             device = "cuda" if pt.cuda.is_available() else "cpu"
         self.device = pt.device(device)
 
-    def _load_models(self, *args, **kwargs):
+        # Mapping of label ID to label
+        self.id_to_label = {}
+        self.label_to_id = {}
+
+    def _load(self, *args, **kwargs):
         """
         Convenience function for loading a pretrained model.
 
@@ -97,78 +98,77 @@ class BaseSegmenter:
         """
         raise NotImplementedError("Please implement this method in a derived class")
 
-    def load_stats(
+    def load_metadata(
         self,
-        stats: str | Path,
-    ) -> ak.Array:
+        path: str | Path,
+    ) -> dict:
         """
-        Load statistics from a Parquet file.
+        Load metadata from a Parquet file.
 
         Args:
-            stats (str | Path):
+            path (str | Path):
                 The path to the Parquet file.
 
         Returns:
-            ak.Array:
-                An Awkward array
+            dict:
+                A dictionary of image metadata.
         """
 
         # Load the data
-        data = {
-            item["image"]: item["stats"].tolist()
-            for item in list(ak.from_parquet(stats))
-        }
+        arr = ak.from_parquet(path)
 
-        # Fix for empty lists appearing as None
-        # FIXME: Find a more generic solution.
-        for image_name, categories in data.items():
-            for category, stats in categories.items():
-                if stats is None:
-                    categories[category] = []
+        # Convert the masks and the outlines into NumPy arrays
+        metadata = json.loads(ak.to_json(arr))
+        metadata["masks"] = np.array(metadata["masks"], dtype=np.uint32)
+        metadata["outlines"] = np.array(metadata["outlines"], dtype=np.uint32)
+        metadata['stats'] = ak.Array[metadata['stats']]
 
-        return data
+        return metadata
 
-    def save_stats(
+    def save_metadata(
         self,
         stats: dict,
-        filename: Path | str,
-        out_dir: Path | str = None,
+        path: Path | str,
     ) -> Path:
         """
-        Save image statistics as an Awkward array to a Parquet file.
+        Save image metadata as an Awkward array to a Parquet file.
 
         Args:
 
-            filename (Path | str):
-                Name of the output file.
+            stats (dict):
+                A dictionary of statistics.
 
-            out_dir (Path | str, optional):
-                Directory where the output file should be saved. Defaults to None.
+            path (Path | str):
+                Path to the output file.
 
         Returns:
             Path:
                 The path to the saved file.
         """
 
-        if out_dir is None:
-            out_dir = conf.OUTPUT_DIR
+        path = Path(path)
+        if path.is_dir():
+            raise ValueError("Please provide a valid file path.")
 
-        out_dir = Path(out_dir)
-        out_dir.mkdir(parents=True, exist_ok=True)
-        out_file = out_dir / filename
+        # Create the directory if it doesn't exist
+        scs.mkdir(path.parent)
 
-        stats = [
-            {
-                "image": image_name,
-                "stats": image_stats,
-            }
-            for image_name, image_stats in stats.items()
-        ]
+        # Convert the masks and the outlines into lists.
+        _stats = deepcopy(stats)
+        try:
+            _stats["masks"] = stats["masks"].tolist()
+            _stats["outlines"] = stats["outlines"].tolist()
+        except AttributeError as e:
+            pass
 
-        # Save the file
-        ak.to_parquet(stats, out_file)
+        # Convert the stats into a JSON object and
+        # then into an Awkward array.
+        arr = ak.from_json(json.dumps(_stats))
 
-        return out_file
+        # Save the array to a Parquet file.
+        ak.to_parquet(arr, path)
+
+        return path
 
     def load_images(
         self,
@@ -186,352 +186,238 @@ class BaseSegmenter:
                 A dictionary of image names mapped to images as NumPy arrays.
         """
 
-        names = None
-        if isinstance(images, dict):
-            names = list(images.keys())
-            images = list(images.values())
-
-        if not isinstance(images, (list, tuple)):
+        if isinstance(images, (str, Path, np.ndarray, Image.Image)):
+            # A single image
             images = [images]
 
-        image_dict = {}
+        if isinstance(images, (list, tuple)):
+            images = {f"image_{n}": image for n, image in enumerate(images)}
 
-        if names is None:
-            names = [f"image_{n:04d}" for n in range(len(images))]
-
-        for idx, image in enumerate(images):
+        result = {}
+        for image_name, image in images.items():
             if isinstance(image, (str, Path)):
                 image_name = image.name
                 image = Image.open(image)
 
-            else:
-                image_name = names[idx]
+            result[image_name] = np.array(image)
 
-            image_dict[image_name] = np.array(image)
+        return result
 
-        return image_dict
-
-    def make_colour_dict(
-        self,
-        categories: dict | list | tuple,
-        opacity: float = 1.0,
-        cmap: str = "jet",
-    ) -> dict:
-        """
-        Create a dictionary of colours (used for visualising the segments).
-
-        Args:
-            categories (dict | list | tuple):
-                A dictionary of categories.
-
-            opacity (float, optional):
-                Opacity to use for the segmentation patches.
-                Should be between 0.0 and 1.0. Defaults to 1.0.
-
-            cmap (str, optional):
-                Matplotlib colourmap. Defaults to "jet".
-
-        Returns:
-            dict:
-                Dictionary of class/colour associations.
-        """
-
-        cmap = plt.get_cmap(cmap)
-        colours = {}
-        for i, cls_id in enumerate(categories):
-            colour = np.array(cmap(1.0 * i / (len(categories))))
-            colour[-1] = 1
-            colours[cls_id] = opacity * colour
-
-        return colours
-
-    def check_categories_against_labels(
-        self,
-        categories: list[str, int],
-    ) -> set[str]:
-        """
-        Unify a set of categories that the user is interested in
-        with the categories that are actually available.
-
-        Args:
-            categories (list[str, int]):
-                Requested categories.
-
-        Returns:
-            set[str]:
-                A set of categories that are guaranteed to exist.
-        """
-
-        # Make sure that the requested set is sane
-        if categories is None:
-            categories = self.labels.values()
-
-        categories = set(
-            [
-                re.sub(
-                    r"\s+",
-                    "-",
-                    (self.labels[cat] if isinstance(cat, int) else cat)
-                    .lower()
-                    .strip()
-                    .replace("-", " "),
-                )
-                for cat in categories
-            ]
-        ).intersection(set(self.labels.values()))
-        category_dict = {self.label_ids[cat]: cat for cat in categories}
-
-        return (categories, category_dict)
-
-    def compute_class_statistics(
+    def compute_stats(
         self,
         image: np.ndarray,
-        mask: np.ndarray,
-    ) -> dict:
+        masks: np.ndarray,
+        instances: dict[int, str],
+    ) -> ak.Array:
         """
-        Compute statistics over a patch of the segmented image.
+        Compute the statistics for all labels.
 
         Args:
             image (np.ndarray):
-                The segmented image.
+                The original image.
+                Needed for extracting colour information for each instance.
 
-            mask (np.ndarray):
-                A mask corresponding to a single class.
+            masks (np.ndarray):
+                A segmentation mask containing pixel-level instance information.
+                Each instance is denoted with its ID (= the keys in the `instances` dictionary).
+
+            instances (dict[int, str]):
+                A mapping from instance ID (int) to its label.
+                This is used to extract the individual instance masks from the image
+                and computing the statistics for the corresponding patch.
 
         Returns:
             dict:
                 A dictionary of statistics.
         """
 
-        # Rescale intensity to (0,1) (converts the image to float32)
-        float_image = ski.exposure.rescale_intensity(image, out_range=(0, 1))
-        rgb_patch = float_image[mask]
+        # Loop over the segmented images and compute
+        # some statistics for each patch.
+        logger.info("Computing statistics...")
 
-        # Convert the image to HSV
-        hsv_image = ski.color.convert_colorspace(image, "RGB", "HSV")
-        hsv_patch = hsv_image[mask]
-
-        # Extract the HSV channels to compute the corresponding statistics.
-        hue, sat, val = hsv_patch[..., 0], hsv_patch[..., 1], hsv_patch[..., 2]
-
-        return {
-            "colour": {
-                "median": np.median(rgb_patch, axis=0).tolist(),
-                "mode": scipy.stats.mode(rgb_patch, axis=0)[0].tolist(),
-                "mean": np.mean(rgb_patch, axis=0).tolist(),
-                "sd": np.std(rgb_patch, axis=0).tolist(),
-            },
-            "hue": {
-                "median": np.median(hue).tolist(),
-                "mode": scipy.stats.mode(hue)[0].tolist(),
-                "mean": np.mean(hue).tolist(),
-                "sd": np.std(hue).tolist(),
-            },
-            "saturation": {
-                "median": np.median(sat).tolist(),
-                "mode": scipy.stats.mode(sat)[0].tolist(),
-                "mean": np.mean(sat).tolist(),
-                "sd": np.std(sat).tolist(),
-            },
-            "value": {
-                "median": np.median(val).tolist(),
-                "mode": scipy.stats.mode(val)[0].tolist(),
-                "mean": np.mean(val).tolist(),
-                "sd": np.std(val).tolist(),
-            },
-            "area": float(np.count_nonzero(mask) / np.prod(image.shape[:2])),
+        stats = {
+            "instance": [],
+            "label": [],
+            "R": [],
+            "G": [],
+            "B": [],
+            "H": [],
+            "S": [],
+            "V": [],
+            "area": [],
         }
 
-    def compute_statistics(
-        self,
-        images: dict,
-    ) -> dict:
-        """
-        Compute the statistics for all categories.
+        # Convert the image colour space
+        rgb_image = ski.exposure.rescale_intensity(image, out_range=(0, 1))
+        hsv_image = ski.color.convert_colorspace(rgb_image, "RGB", "HSV")
+        with tqdm(total=len(instances)) as pbar:
+            for inst_id, label in instances.items():
+                stats["instance"].append(inst_id)
+                stats["label"].append(label)
 
-        Args:
-            segmentations (dict):
-                A dictionary of segmentation results.
+                # Extract the patches corresponding to the mask
+                mask = masks == inst_id
+                rgb_patch = rgb_image[mask]
+                hsv_patch = hsv_image[mask]
 
-        Returns:
-            dict:
-                A dictinary with statistics about the image segments.
-        """
+                # Extract the R, G, B, H, S and V channels
+                # to compute the corresponding statistics.
+                patches = {
+                    "R": rgb_patch[..., 0],
+                    "G": rgb_patch[..., 1],
+                    "B": rgb_patch[..., 2],
+                    "H": hsv_patch[..., 0],
+                    "S": hsv_patch[..., 1],
+                    "V": hsv_patch[..., 2],
+                }
 
-        # Loop over the images
-        logger.info("Computing statistics...")
-        results = {}
-        with tqdm(total=len(images)) as pbar:
-            for image in images.items():
-                instance_stats = {}
-                # Loop over categories per image
-                for label_id, instances in image["masks"].items():
-                    if len(instances) > 0:
-                        instance_stats[self.labels[label_id]] = []
-                        # Loop over instances per category
-                        for instance in instances:
+                for k, v in patches.items():
+                    stats[k].append(
+                        {
+                            "median": np.median(v),
+                            "mode": scipy.stats.mode(v)[0],
+                            "mean": np.mean(v),
+                            "sd": np.std(v),
+                        }
+                    )
 
-                            # Compute the statistics for that instance
-                            stats = self.compute_class_statistics(
-                                image, instance["mask"]
-                            )
-                            instance_stats[self.labels[label_id]].append(stats)
+                stats["area"].append(
+                    np.count_nonzero(mask) / np.prod(rgb_image.shape[:2])
+                )
 
                 pbar.update()
-        return results
+
+        return stats
 
     def visualise_segmentation(
         self,
-        images: ImageOrPath,
-        categories: list[str | int] = None,
-        opacity: float = 0.50,
+        image: np.ndarray,
+        metadata: dict,
+        labels: list[str] = None,
+        opacity: float = 0.5,
+        outline: str = "#ffff00",
+        title: str = None,
         figsize: tuple[int, int] = (16, 6),
-        stats: ak.Array | list | str | Path = None,
-    ) -> tuple[plt.Figure, plt.Axes, dict]:
+    ) -> tuple[plt.Figure, plt.Axes]:
         """
-        Segment and visualise an image, and potentially show the colour statistics
-        associated with the requested categories.
+        Visualise the instances of different objects in an image.
 
         Args:
-            images (ImagePath):
-                Images being visualised.
+            image (np.ndarray):
+                Image being segmented.
 
-            categories (list[str | int], optional):
-                Categories to extract. Defaults to None.
+            metadata (dict):
+                A dictionary contianing metadata, including the
+                instance segmentation and outline maps.
+
+            labels (list[str]):
+                Labels for the instance categories that should be plotted.
 
             opacity (float, optional):
-                Opacity to use for the segmentation overlay. Defaults to 0.50.
+                Opacity to use for the segmentation overlay.
+                Defaults to 0.5.
+
+            outline (str, optional):
+                Outline colour for instances.
+                Defaults to "#ffff00".
+
+            title (str | None, optional):
+                The figure title.
+                Defaults to None.
 
             figsize (tuple[int, int], optional):
-                Figure size. Defaults to (16, 8).
-
-            stats (ak.Array | list | str | Path, optional):
-                An `awkward` array of statistics. Defaults to None.
+                Figure size. Defaults to (16, 6).
 
         Returns:
-            tuple[plt.Figure, plt.Axes, dict]:
+            tuple[plt.Figure, plt.Axes]:
                 A tuple containing:
-                    - A Figure object;
-                    - An Axes object;
-                    - A set of statistics for the requested categories.
+                    - A Figure object.
+                    - An Axes object that allows further annotations to be added.
         """
 
-        # Load the images
-        images = self.load_images(images)
-
-        # Segment the image(s).
-        # ==================================================
-        segmentations = self.segment(images)
-
-        # Unify the styles of labels and categories
-        # so that they can be compared.
-        # ==================================================
-        (categories, category_dict) = self.check_categories_against_labels(categories)
-
-        # Adjust the figsize based on how many images are being plotted
-        figsize = list(figsize)
-        figsize[1] *= len(images)
+        # Prepare the greyscale version of the image for plotting instances.
+        greyscale = scs.as_rgb(image, greyscale=True)
 
         # Create a figure
-        (fig, axes) = plt.subplots(len(images), 2, figsize=figsize)
-
-        # Load the statistics if provided as a file.
-        if isinstance(stats, (str, Path)):
-            self.load_stats(stats)
+        (fig, axes) = plt.subplots(1, 2, figsize=figsize)
 
         # Prepare the colour dictionary and the layers
         # necessary for plotting the category patches.
+        colourmap = scs.make_colourmap(labels)
+
+        # Label handles for the plot legend.
+        handles = {}
+
+        # Convert the outline colour into a NumPy array
+        if outline is not None:
+            outline = (255 * np.array(hex2color(outline))).astype(np.ubyte)
+
+        # Get the masks and the outlines
+        masks = metadata["masks"]
+        outlines = metadata["outlines"]
+        stats = metadata["stats"]
+        instances = {
+            inst_id: inst_label
+            for inst_id, inst_label in zip(
+                stats["instance"],
+                stats["label"],
+            )
+        }
+
+        # Loop over the segmentation list
+        outline_layer = np.zeros(greyscale.shape[:2])
+        for instance_id, label in instances.items():
+
+            if label not in labels:
+                # Skip labels that have been removed.
+                continue
+
+            if label not in handles:
+                # Add a basic coloured label to the legend
+                handles[label] = mpatches.Patch(
+                    color=colourmap[label],
+                    label=label,
+                )
+
+            # Extract the mask
+            mask = masks == instance_id
+            if not np.any(mask):
+                continue
+
+            greyscale[mask] = (
+                (1 - opacity) * greyscale[mask] + 255 * opacity * colourmap[label]
+            ).astype(np.ubyte)
+
+            if outline is not None:
+                # Extract the outline
+                outline_layer[outlines == instance_id] = 1
+
+        # Plot the original image and the segmented one.
+        # If any of the requested categories exist in the
+        # image, they will be overlaid as coloured patches
+        # with the given opacity over the original image.
         # ==================================================
-        image_stats = {}
-        with tqdm(total=len(images)) as pbar:
-            for idx, (image_name, image) in enumerate(images.items()):
+        if outline is not None:
+            greyscale[outline_layer > 0] = outline
+        axes[0].imshow(image)
+        axes[0].axis("off")
+        axes[1].imshow(greyscale)
+        axes[1].axis("off")
+        axes[1].legend(
+            handles=handles.values(), loc="upper left", bbox_to_anchor=(1, 1)
+        )
+        if title is not None:
+            fig.suptitle(f"Segmentation for {title}", fontsize=16)
 
-                segmentation = segmentations[image_name]
-
-                # Get the right axis in case there is more than one row
-                ax = axes if len(images) == 1 else axes[idx]
-
-                # Convert the image to float [0,1]
-                image = ski.exposure.rescale_intensity(image, out_range=(0, 1))
-
-                # Add an alpha channel if it's missing.
-                # A greyscale image has one channel, and an RGB one has three.
-                if len(image.shape) in [1, 3]:
-                    opacity_channel = np.full(image.shape[:-1], 1)[:, :, None]
-                    image_with_alpha = np.concatenate((image, opacity_channel), axis=-1)
-
-                # The image opacity is complementary to the segment opacity
-                image_opacity = 1 - opacity
-
-                # Prepare the colour dictionary
-                colours = self.make_colour_dict(category_dict, opacity)
-
-                # Create an outline layer
-                outlines = np.zeros(image.shape[:2])
-
-                # Label handles for the plot legend.
-                handles = []
-
-                # Create a dictionary for the statistics for this image
-                image_stats[image_name] = {}
-
-                # Loop over the segmentation list
-                for label_id, instances in segmentation["labels"].items():
-                    if label_id in category_dict:
-
-                        if len(instances) > 0:
-                            # Add a basic class legend and extract the statistics
-                            handles.append(
-                                mpatches.Patch(
-                                    color=colours[label_id][:-1] / opacity,
-                                    label=category_dict[label_id],
-                                )
-                            )
-
-                            # Loop over instances and add an overlay with
-                            # their corresponding colours
-                            for instance in instances:
-
-                                mask = instance["mask"]
-                                outlines[mask] = instance["id"]
-
-                                image_with_alpha[mask] = (
-                                    image_opacity * image_with_alpha[mask]
-                                    + colours[label_id]
-                                )
-
-                        # Get the statistics for the requested categories only
-                        if stats is not None:
-                            cat = category_dict[label_id]
-                            if cat in stats[image_name]:
-                                image_stats[image_name][cat] = stats[image_name][cat]
-
-                # Outline the instances (the colour is equivalent to "#00ff00ff")
-                outlines = ski.segmentation.find_boundaries(outlines, mode="thick")
-                image_with_alpha[outlines != 0] = np.array([0, 1, 0, 1])
-
-                # Plot the original image and the segmented one.
-                # If any of the requested categories exist in the
-                # image, they will be overlaid as coloured patches
-                # with the given opacity over the original image.
-                # ==================================================
-                ax[0].imshow(image)
-                ax[0].axis("off")
-                ax[1].imshow(image_with_alpha)
-                ax[1].axis("off")
-                ax[1].legend(handles=handles, loc="upper left", bbox_to_anchor=(1, 1))
-                ax[0].set_title(image_name)
-
-                pbar.update()
-
-        return (fig, ax, image_stats)
+        return (fig, axes)
 
     def segment_from_dataset(
         self,
         path: Path | str,
+        labels: dict,
         image_dir: Path | str = None,
-        out_file_path: Path | str = None,
         sample: int = None,
+        save: bool = True,
     ) -> tuple[dict, Path | None]:
         """
         Segment images specified in a CSV data (sub)set.
@@ -540,14 +426,21 @@ class BaseSegmenter:
             path (Path | str):
                 The input dataset (a CSV file).
 
+            labels (dict):
+                A flattened set of labels to look for,
+                with optional subsets of labels that should be
+                checked in order to eliminate overlaps.
+                Cf. `BaseSegmenter._flatten_labels()`
+
             image_dir (Path | str):
                 The directory where downloaded images are located. Defaults to None.
 
-            out_file_path (Path | str, optional):
-                Name of the output file. Defaults to None.
-
             sample (int, optional):
                 The size of the sample (used for testing purposes).
+
+            save (bool, optional):
+                Save the computed segmentation and statistics.
+                Defaults to True.
 
         Returns:
             list[dict]:
@@ -563,43 +456,39 @@ class BaseSegmenter:
         if image_dir is None:
             image_dir = conf.OUTPUT_DIR / "images"
 
-        images = sorted(
-            [image_dir / f"{file_name}.jpeg" for file_name in df["orig_id"]]
-        )
+        paths = [image_dir / f"{file_name}.jpeg" for file_name in df["orig_id"]]
+
         if sample is not None:
-            images = images[:sample]
+            paths = list(Path(n) for n in np.random.choice(paths, sample))
 
         # Load the images
-        images = self.load_images(images)
+        image_data = self.load_images(paths)
 
         # Segment the images
         # ==================================================
-        segmented = self.segment(images)
-
-        # Compute the statistics
-        # ==================================================
-        stats = self.compute_statistics(images, segmented)
+        metadata = self.segment(image_data, labels)
 
         # Save the dataset if a file name is provided
         # ==================================================
-        if out_file_path is not None:
-            self.save_stats(stats, out_file_path)
+        if save:
+            for path, entry in zip(paths, metadata):
+                self.save_metadata(entry, image_dir / path.with_suffix(".parquet"))
 
-        return (images, segmented, stats)
+        return (paths, metadata)
 
-    def flatten_categories(
+    def _flatten_labels(
         self,
-        categories: dict,
+        labels: dict,
     ) -> dict:
         """
-        Flatten a nested dictionary of categories.
+        Flatten a nested dictionary of labels.
 
-        Useful for defining masks in terms of more general categories
+        Useful for defining masks in terms of more general labels
         that can be subtracted.
         For instance, building facades can include windows and doors,
         which means that we can define a category dictionary as follows:
 
-        categories = {
+        labels = {
             "sky": None,
             "building": {
                 "window": None,
@@ -617,7 +506,7 @@ class BaseSegmenter:
 
         Args:
             tree (dict):
-                The categories as a tree (dictionary of dictionaries).
+                The labels as a tree (dictionary of dictionaries).
 
         Returns:
             dict:
@@ -665,32 +554,4 @@ class BaseSegmenter:
 
             return _subtree
 
-        return _flatten(categories)
-
-    def remove_overlaps(
-        self,
-        segmentations: dict,
-        categories: dict,
-    ):
-        """
-        Remove overap between masks based on the specified categories.
-
-        Args:
-            segmentations (dict):
-                Segmentations produced by a segmentation model
-                (this is usually implemented in a derived class).
-
-            categories (dict):
-                Hierarchical category specification
-                (cf. `BaseSegmenter.flatten_categories()`).
-        """
-        for segmentation in segmentations:
-            masks = segmentation["categories"]
-
-            for category, instances in masks.items():
-
-                if dependencies := categories.get(category):
-
-                    for dependency in dependencies:
-                        if dependency in categories:
-                            segmentations[category][categories[dependency]] = False
+        return _flatten(labels)

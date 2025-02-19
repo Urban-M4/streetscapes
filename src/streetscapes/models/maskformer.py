@@ -2,11 +2,14 @@
 import torch as pt
 
 # --------------------------------------
-from transformers import AutoImageProcessor
+from transformers import Mask2FormerImageProcessor
 from transformers import Mask2FormerForUniversalSegmentation
 
 # --------------------------------------
-from tqdm import tqdm
+import skimage as ski
+
+# --------------------------------------
+import numpy as np
 
 # --------------------------------------
 from streetscapes import logger
@@ -17,7 +20,7 @@ from streetscapes.models import ImageOrPath
 class MaskFormer(BaseSegmenter):
 
     # All the labels recognised by Mask2Former.
-    labels = {
+    id_to_label = {
         0: "bird",
         1: "ground-animal",
         2: "curb",
@@ -136,6 +139,13 @@ class MaskFormer(BaseSegmenter):
         # Initialise the base
         super().__init__(*args, **kwargs)
 
+        self.id_to_label = MaskFormer.id_to_label
+
+        # Create the reverse mapping of label to label ID
+        self.label_to_id = {
+            label: label_id for label_id, label in self.id_to_label.items()
+        }
+
         # Arguments
         # ==================================================
         # Convert any string labels into integers
@@ -145,7 +155,7 @@ class MaskFormer(BaseSegmenter):
                 if isinstance(lbl, int):
                     label_ids_to_fuse.add(lbl)
                 elif isinstance(lbl, str):
-                    label_ids_to_fuse.add(self.label_ids[lbl])
+                    label_ids_to_fuse.add(self.label_to_id[lbl])
 
         self.model_id = model_id
         self.threshold = threshold
@@ -155,18 +165,18 @@ class MaskFormer(BaseSegmenter):
 
         # Processors and models
         # ==================================================
-        self.processor: AutoImageProcessor = None
+        self.processor: Mask2FormerImageProcessor = None
         self.model: Mask2FormerForUniversalSegmentation = None
-        self._load_models()
+        self._load()
 
-    def _load_models(self):
+    def _load(self):
         """
         Convenience method for loading processors and models.
         """
 
         # Mask2Former model
         # ==================================================
-        self.processor = AutoImageProcessor.from_pretrained(
+        self.processor = Mask2FormerImageProcessor.from_pretrained(
             self.model_id,
             use_fast=True,
         )
@@ -178,6 +188,7 @@ class MaskFormer(BaseSegmenter):
     def segment(
         self,
         images: ImageOrPath,
+        labels: dict,
     ) -> list[dict]:
         """
         Segment the provided sequence of images.
@@ -186,75 +197,93 @@ class MaskFormer(BaseSegmenter):
             images (ImagePath):
                 A list of images to process.
 
+            labels (dict):
+                A flattened set of labels to look for,
+                with optional subsets of labels that should be
+                checked in order to eliminate overlaps.
+                Cf. `BaseSegmenter._flatten_labels()`
+
         Returns:
             list[dict]:
-                A list of dictionary objects containing instance-level segment information.
+                A list of dictionary objects containing
+                instance-level segment information.
         """
 
-        # Load the images
+        # Load the images as NumPy arrays
         images = self.load_images(images)
+        image_names = list(images.keys())
+        image_list = list(images.values())
 
-        # Perform the segmentation.
-        # ==================================================
+        # Flatten the label dictionary
+        labels = self._flatten_labels(labels)
+
+        # Eliminate labels that are not recognised by the model
+        remove = set(labels).difference(self.id_to_label)
+        _labels = {}
+        for k, v in labels.items():
+            if k in remove:
+                continue
+            vdiff = set(v) - remove
+            _labels[k] = list(vdiff) if len(vdiff) > 0 else None
+        labels = _labels
+
         results = {}
         logger.info("Segmenting images...")
 
-        with tqdm(total=len(images)) as pbar:
-            for image_name, image in images.items():
-                with pt.no_grad():
-                    # Process the image with the processor
-                    inputs = self.processor(images=image, return_tensors="pt")
-                    inputs.to(self.device)
-                    pixel_values = inputs["pixel_values"].to(self.device)
-                    pixel_mask = inputs["pixel_mask"].to(self.device)
+        # Perform the segmentation.
+        # ==================================================
+        logger.info("Detecting objects...")
+        with pt.no_grad():
+            # Process the image with the processor
+            inputs = self.processor(images=image_list, return_tensors="pt")
+            inputs.to(self.device)
+            pixel_values = inputs["pixel_values"].to(self.device)
+            pixel_mask = inputs["pixel_mask"].to(self.device)
 
-                    # Pass the pixel masks through the model to obtain the segmentation.
-                    output = self.model(
-                        pixel_values=pixel_values, pixel_mask=pixel_mask
+            # Pass the pixel masks through the model to obtain the segmentation.
+            output = self.model(pixel_values=pixel_values, pixel_mask=pixel_mask)
+
+            segmented = self.processor.post_process_panoptic_segmentation(
+                output,
+                threshold=self.threshold,
+                mask_threshold=self.mask_threshold,
+                overlap_mask_area_threshold=self.overlap_mask_area_threshold,
+                label_ids_to_fuse=self.label_ids_to_fuse,
+                target_sizes=[img.shape[:2] for img in image_list],
+            )
+
+            # Some containers for intermediate results that can be
+            # accessed during the segmentation phase.
+            results = []
+            for idx, result in enumerate(segmented):
+
+                # Sort out instances and their labels
+                segmentation = result["segmentation"].detach().clone().cpu().numpy()
+                instances = {}
+                outlines = np.zeros_like(segmentation)
+                for instance in result["segments_info"]:
+                    inst_id = instance["id"]
+                    inst_label = self.id_to_label[instance["label_id"]]
+                    instances[inst_id] = inst_label
+
+                    # Find the outline of the instance
+                    outline = ski.segmentation.find_boundaries(
+                        np.where(segmentation == inst_id, 1, 0), mode="thick"
                     )
+                    outlines[outline] = inst_id
 
-                # Extract instance-level label information.
-                # ==================================================
-                # The `segmented` object is a dictionary containing the following items:
-                # - 'segmentation':
-                #   A tensor containing pixel-level instance IDs.
-                # - 'segments_info':
-                #   A list of dictionary objects with metadata about
-                #   each instance, including its label ID.
-                segmented = self.processor.post_process_panoptic_segmentation(
-                    output,
-                    threshold=self.threshold,
-                    mask_threshold=self.mask_threshold,
-                    overlap_mask_area_threshold=self.overlap_mask_area_threshold,
-                    label_ids_to_fuse=self.label_ids_to_fuse,
-                    target_sizes=[image.shape[:2]],
-                )[0]
+                stats = self.compute_stats(image_list[idx], segmentation, instances)
 
-                # Extract the segmentation and the instance metadata
-                segmentation = segmented["segmentation"]
+                results.append(
+                    {
+                        "masks": segmentation,
+                        "outlines": outlines,
+                        "stats": stats,
+                    }
+                )
 
-                # Pop the segment metadata.
-                segments = segmented.pop("segments_info")
-
-                instances_per_label = {label_id: [] for label_id in self.labels}
-                for segment in segments:
-
-                    instances_per_label[segment["label_id"]].append(
-                        {
-                            "mask": (segmentation == segment["id"]).numpy(),
-                            "id": segment["id"],
-                            "fused": segment["was_fused"],
-                            "score": segment["score"],
-                        }
-                    )
-
-                # Populate the result dictionary
-                # ==================================================
-                results[image_name] = {
-                    "segmentation": segmentation,
-                    "labels": instances_per_label,
-                }
-
-                pbar.update()
+                logger.info(
+                    f"[ <yellow>{image_names[idx]}</yellow> ] Extracted {len(instances)} instances for {len(set(instances.values()))} labels."
+                )
 
         return results
