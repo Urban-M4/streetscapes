@@ -165,14 +165,14 @@ def load_city_subset(
     directory = Path(directory)
 
     if city is None:
-        filename = "streetscapes-data.parquet"
+        filename = "streetscape.parquet"
     else:
         filename = f"{city}.parquet"
 
     fpath = directory / filename
     if not fpath.exists() or (fpath.exists() and recreate):
         logger.info(f"Creating subset for '{city}'...")
-        df_all = pd.read_parquet(conf.OUTPUT_DIR / "streetscapes-data.parquet")
+        df_all = pd.read_parquet(conf.DATA_DIR / "data/parquet/streetscapes.parquet")
         df_city = df_all[df_all["city"] == city]
         df_city.to_parquet(fpath)
 
