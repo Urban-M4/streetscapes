@@ -15,6 +15,9 @@ from copy import deepcopy
 import json
 
 # --------------------------------------
+import ibis
+
+# --------------------------------------
 from tqdm import tqdm
 
 # --------------------------------------
@@ -121,7 +124,6 @@ class BaseSegmenter:
         metadata = json.loads(ak.to_json(arr))
         metadata["masks"] = np.array(metadata["masks"], dtype=np.uint32)
         metadata["outlines"] = np.array(metadata["outlines"], dtype=np.uint32)
-        metadata['stats'] = ak.Array[metadata['stats']]
 
         return metadata
 
@@ -407,24 +409,24 @@ class BaseSegmenter:
             handles=handles.values(), loc="upper left", bbox_to_anchor=(1, 1)
         )
         if title is not None:
-            fig.suptitle(f"Segmentation for {title}", fontsize=16)
+            fig.suptitle(title, fontsize=16)
 
         return (fig, axes)
 
     def segment_from_dataset(
         self,
-        path: Path | str,
+        dataset: Path | str,
         labels: dict,
         image_dir: Path | str = None,
         sample: int = None,
-        save: bool = True,
+        save: bool = False,
     ) -> tuple[dict, Path | None]:
         """
-        Segment images specified in a CSV data (sub)set.
+        Segment images specified in a Parquet data (sub)set.
 
         Args:
-            path (Path | str):
-                The input dataset (a CSV file).
+            dataset (Path | str):
+                The input dataset (a Parquet file).
 
             labels (dict):
                 A flattened set of labels to look for,
@@ -433,30 +435,31 @@ class BaseSegmenter:
                 Cf. `BaseSegmenter._flatten_labels()`
 
             image_dir (Path | str):
-                The directory where downloaded images are located. Defaults to None.
+                The directory where downloaded images are located.
+                Defaults to None.
 
             sample (int, optional):
                 The size of the sample (used for testing purposes).
 
             save (bool, optional):
                 Save the computed segmentation and statistics.
-                Defaults to True.
+                Defaults to False.
 
         Returns:
             list[dict]:
                 The statistics for all the segmented images.
         """
 
-        # Load the CSV file.
+        # Load the Parquet dataset.
         # ==================================================
-        df = pd.read_csv(path)
+        dataset = ibis.read_parquet(dataset).to_pandas()
 
         # Directory containing the downloaded images
         # ==================================================
         if image_dir is None:
             image_dir = conf.OUTPUT_DIR / "images"
 
-        paths = [image_dir / f"{file_name}.jpeg" for file_name in df["orig_id"]]
+        paths = [image_dir / f"{file_name}.jpeg" for file_name in dataset["orig_id"]]
 
         if sample is not None:
             paths = list(Path(n) for n in np.random.choice(paths, sample))
@@ -467,6 +470,31 @@ class BaseSegmenter:
         # Segment the images
         # ==================================================
         metadata = self.segment(image_data, labels)
+
+        # Extract some extra image attributes.
+        # First, filter the full database to find the right entries.
+        full_dataset = ibis.read_parquet(
+            conf.DATA_DIR / "data/parquet/streetscapes_full.parquet"
+        )
+        extra_data = (
+            full_dataset.select("orig_id", "lat", "lon")
+            .filter(full_dataset["orig_id"].isin(set([p.stem for p in paths])))
+            .to_pandas()
+        )
+
+        # Filter based on (lat, lon)
+        filtered_paths = []
+        filtered_metadata = []
+        for path, meta in zip(paths, metadata):
+            row = extra_data[extra_data["orig_id"] == int(path.stem)].values
+            if len(row) > 0:
+                meta["lat"] = row[0][1]
+                meta["lon"] = row[0][2]
+                filtered_paths.append(path)
+                filtered_metadata.append(meta)
+
+        paths = filtered_paths
+        metadata = filtered_metadata
 
         # Save the dataset if a file name is provided
         # ==================================================

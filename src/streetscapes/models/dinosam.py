@@ -183,76 +183,79 @@ class DinoSAM(BaseSegmenter):
         # Detect objects with GroundingDINO
         # ==================================================
         logger.info("Detecting objects...")
-        inputs = self.dino_processor(
-            images=image_list,
-            text=prompt,
-            return_tensors="pt",
-        ).to(self.device)
 
-        # Run the model on the input images
-        with pt.no_grad():
-            outputs = self.dino_model(**inputs)
-
-        # Process the results to detect objects and bounding boxes
-        dino_results = self.dino_processor.post_process_grounded_object_detection(
-            outputs,
-            inputs.input_ids,
-            box_threshold=self.box_threshold,
-            text_threshold=self.text_threshold,
-            target_sizes=[img.shape[:2] for img in image_list],
-        )
-
-        # Some containers for intermediate results that can be
-        # accessed during the segmentation phase.
         results = []
-        seq_indices = []
-        seq_images = []
-        seq_boxes = []
-        for idx, result in enumerate(dino_results):
+        for image in image_list:
 
-            if result["labels"]:
-                seq_indices.append(idx)
-                seq_images.append(image_list[idx])
-                seq_boxes.append(result["boxes"].cpu().numpy())
+            inputs = self.dino_processor(
+                images=[image],
+                text=prompt,
+                return_tensors="pt",
+            ).to(self.device)
 
-        # Segment the objects with SAM
-        # ==================================================
-        logger.info("Performing segmentation...")
+            # Run the model on the input images
+            with pt.no_grad():
+                outputs = self.dino_model(**inputs)
 
-        if seq_images:
+            # Process the results to detect objects and bounding boxes
+            dino_results = self.dino_processor.post_process_grounded_object_detection(
+                outputs,
+                inputs["input_ids"],
+                box_threshold=self.box_threshold,
+                text_threshold=self.text_threshold,
+                target_sizes=[image.shape[:2]],
+            )
 
-            # Use SAM to segment any images that contain objects.
-            segmentations = self._segment_batch(seq_images, bboxes=seq_boxes)
-            for idx, segmentation in zip(seq_indices, segmentations):
+            # Some containers for intermediate results that can be
+            # accessed during the segmentation phase.
+            seq_indices = []
+            seq_images = []
+            seq_boxes = []
+            for idx, result in enumerate(dino_results):
 
-                # Extract the labels
-                dino_labels = dino_results[idx]["labels"]
+                if result["labels"]:
+                    seq_indices.append(idx)
+                    seq_images.append(image)
+                    seq_boxes.append(result["boxes"].cpu().numpy())
 
-                # Dictionary of instances
-                masks = {}
+            # Segment the objects with SAM
+            # ==================================================
+            logger.info("Performing segmentation...")
 
-                for inst_label, instances in zip(dino_labels, segmentation):
-                    if inst_label:
-                        masks.setdefault(inst_label, []).append(instances)
+            if seq_images:
 
-                # Remove any overlaps between labeled masks.
-                masks, outlines, instances = self._remove_overlaps(
-                    image_list[idx], labels, masks
-                )
+                # Use SAM to segment any images that contain objects.
+                segmentations = self._segment_batch(seq_images, bboxes=seq_boxes)
+                for idx, segmentation in zip(seq_indices, segmentations):
 
-                logger.info(
-                    f"[ <yellow>{image_names[idx]}</yellow> ] Extracted {len(instances)} instances for {len(set(instances.values()))} labels."
-                )
+                    # Extract the labels
+                    dino_labels = dino_results[idx]["labels"]
 
-                stats = self.compute_stats(image_list[idx], masks, instances)
+                    # Dictionary of instances
+                    masks = {}
 
-                results.append(
-                    {
-                        "masks": masks,
-                        "outlines": outlines,
-                        "stats": stats,
-                    }
-                )
+                    for inst_label, instances in zip(dino_labels, segmentation):
+                        if inst_label:
+                            masks.setdefault(inst_label, []).append(instances)
+
+                    # Remove any overlaps between labeled masks.
+                    masks, outlines, instances = self._remove_overlaps(
+                        image_list[idx], labels, masks
+                    )
+
+                    logger.info(
+                        f"[ <yellow>{image_names[idx]}</yellow> ] Extracted {len(instances)} instances for {len(set(instances.values()))} labels."
+                    )
+
+                    stats = self.compute_stats(image_list[idx], masks, instances)
+
+                    results.append(
+                        {
+                            "masks": masks,
+                            "outlines": outlines,
+                            "stats": stats,
+                        }
+                    )
 
         return results
 
