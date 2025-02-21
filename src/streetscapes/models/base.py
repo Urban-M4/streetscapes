@@ -555,7 +555,7 @@ class BaseSegmenter:
 
         # Load the CSV file.
         # ==================================================
-        df = pd.read_csv(path)
+        df = pd.read_parquet(path)
 
         # Directory containing the downloaded images
         # ==================================================
