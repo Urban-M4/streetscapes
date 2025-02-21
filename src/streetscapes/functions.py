@@ -67,9 +67,9 @@ def mkdir(directory: Path | str) -> Path:
 
 
 def convert_csv_to_parquet(
-    data_dir: Path | str = conf.DATA_DIR,
-    out_dir: Path | str = conf.OUTPUT_DIR,
-    filename: str = "streetscapes-data.parquet",
+    csv_dir: Path | str = conf.CSV_DIR,
+    parquet_dir: Path | str = conf.PARQUET_DIR,
+    filename: str = "streetscapes.parquet",
     silent: bool = False,
 ):
     """
@@ -79,13 +79,13 @@ def convert_csv_to_parquet(
     columns "uuid", "source", and "orig_id" using a left join.
 
     Args:
-        data_dir (Path, optional):
+        csv_dir (Path, optional):
             The data directory containing the CSV files.
-            Defaults to conf.DATA_DIR.
+            Defaults to conf.CSV_DIR.
 
-        out_dir (Path, optional):
+        parquet_dir (Path, optional):
             The destinatoin directory for the Parquet file.
-            Defaults to conf.OUTPUT_DIR.
+            Defaults to conf.PARQUET_DIR.
 
         filename (str, optional):
             The name of the Parquet file.
@@ -100,15 +100,13 @@ def convert_csv_to_parquet(
             Error if the data directory does not exist.
     """
 
-    data_dir = Path(data_dir)
-    out_dir = Path(out_dir)
+    csv_dir = Path(csv_dir)
 
-    if not data_dir.exists():
-        raise FileNotFoundError(f"The specified directory '{data_dir}' does not exist.")
+    if not csv_dir.exists():
+        raise FileNotFoundError(f"The specified directory '{csv_dir}' does not exist.")
 
-    out_dir.mkdir(exist_ok=True, parents=True)
-
-    parquet_file = out_dir / filename
+    parquet_dir = mkdir(parquet_dir)
+    parquet_file = parquet_dir / filename
 
     if parquet_file.exists() and not silent:
         ok = input("==[ The target filename exists. Overwrite? (y/[n]) ")
@@ -116,7 +114,7 @@ def convert_csv_to_parquet(
             logger.info(f"Exiting.")
             return
 
-    csv_files = data_dir.glob("*.csv")
+    csv_files = csv_dir.glob("*.csv")
 
     csv_dfs = []
     dtypes = {
@@ -140,12 +138,12 @@ def convert_csv_to_parquet(
     )
 
     logger.info(f"Saving file '{parquet_file.name}'...")
-    merged_df.to_parquet(parquet_file, compression="gzip")
+    merged_df.to_parquet(parquet_file, compression="zstd")
 
 
 def load_city_subset(
     city: str = None,
-    directory: str | Path = conf.OUTPUT_DIR,
+    directory: str | Path = conf.PARQUET_DIR,
     recreate: bool = False,
 ) -> pd.DataFrame | None:
     """
@@ -156,8 +154,8 @@ def load_city_subset(
             The city name. Defaults to None.
 
         directory (str | Path, optional):
-            Directory to look into for the file.
-            Defaults to conf.OUTPUT_DIR.
+            Directory to look into for the Parquet file.
+            Defaults to conf.PARQUET_DIR.
 
         recreate (bool, optional):
             Recreate the city subset if it exists.
@@ -178,7 +176,7 @@ def load_city_subset(
     fpath = directory / filename
     if not fpath.exists() or (fpath.exists() and recreate):
         logger.info(f"Creating subset for '{city}'...")
-        df_all = pd.read_parquet(conf.OUTPUT_DIR / "streetscapes-data.parquet")
+        df_all = pd.read_parquet(conf.PARQUET_DIR / "streetscapes.parquet")
         df_city = df_all[df_all["city"] == city]
         df_city.to_parquet(fpath)
 

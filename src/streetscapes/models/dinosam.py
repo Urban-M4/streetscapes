@@ -22,7 +22,7 @@ import skimage as ski
 from streetscapes import conf
 from streetscapes.conf import logger
 from streetscapes.models import BaseSegmenter
-from streetscapes.models import ImageOrPath
+from streetscapes.models import ImagePath
 
 
 class DinoSAM(BaseSegmenter):
@@ -147,7 +147,7 @@ class DinoSAM(BaseSegmenter):
 
     def segment(
         self,
-        images: ImageOrPath,
+        images: ImagePath,
         labels: dict,
     ) -> list[dict]:
         """
@@ -170,9 +170,7 @@ class DinoSAM(BaseSegmenter):
         """
 
         # Load the images as NumPy arrays
-        images = self.load_images(images)
-        image_names = list(images.keys())
-        image_list = list(images.values())
+        image_paths, image_list = self.load_images(images)
 
         # Flatten the label dictionary
         labels = self._flatten_labels(labels)
@@ -182,10 +180,12 @@ class DinoSAM(BaseSegmenter):
 
         # Detect objects with GroundingDINO
         # ==================================================
-        logger.info("Detecting objects...")
 
         results = []
-        for image in image_list:
+        for idx, image in enumerate(image_list):
+            orig_id = image_paths[idx].stem
+
+            logger.info(f"[ <yellow>{orig_id}</yellow> ] Detecting objects...")
 
             inputs = self.dino_processor(
                 images=[image],
@@ -204,65 +204,60 @@ class DinoSAM(BaseSegmenter):
                 box_threshold=self.box_threshold,
                 text_threshold=self.text_threshold,
                 target_sizes=[image.shape[:2]],
-            )
+            )[0]
 
-            # Some containers for intermediate results that can be
-            # accessed during the segmentation phase.
-            seq_indices = []
-            seq_images = []
-            seq_boxes = []
-            for idx, result in enumerate(dino_results):
+            if not dino_results["labels"]:
+                # No objects found, move on...
+                continue
 
-                if result["labels"]:
-                    seq_indices.append(idx)
-                    seq_images.append(image)
-                    seq_boxes.append(result["boxes"].cpu().numpy())
+            # Bounding boxes
+            bboxes = dino_results["boxes"].cpu().numpy()
 
             # Segment the objects with SAM
             # ==================================================
-            logger.info("Performing segmentation...")
+            logger.info(f"[ <yellow>{orig_id}</yellow> ] Performing segmentation...")
 
-            if seq_images:
+            # Use SAM to segment any images that contain objects.
+            sam_masks = self._segment_single(image, bboxes=bboxes)
 
-                # Use SAM to segment any images that contain objects.
-                segmentations = self._segment_batch(seq_images, bboxes=seq_boxes)
-                for idx, segmentation in zip(seq_indices, segmentations):
+            # Labels from GroundingDINO
+            dino_labels = dino_results["labels"]
 
-                    # Extract the labels
-                    dino_labels = dino_results[idx]["labels"]
+            # Label to instance IDs
+            insts_by_label = {}
 
-                    # Dictionary of instances
-                    masks = {}
+            instances = {}
 
-                    for inst_label, instances in zip(dino_labels, segmentation):
-                        if inst_label:
-                            masks.setdefault(inst_label, []).append(instances)
+            # Dictionary of final masks
+            inst_masks = {}
 
-                    # Remove any overlaps between labeled masks.
-                    masks, outlines, instances = self._remove_overlaps(
-                        image_list[idx], labels, masks
-                    )
+            for inst_label, sam_mask in zip(dino_labels, sam_masks):
+                _inst_id = len(inst_masks) + 1
+                instances[_inst_id] = inst_label
+                insts_by_label.setdefault(inst_label, []).append(_inst_id)
+                inst_masks[_inst_id] = sam_mask
 
-                    logger.info(
-                        f"[ <yellow>{image_names[idx]}</yellow> ] Extracted {len(instances)} instances for {len(set(instances.values()))} labels."
-                    )
+            # Remove overlaps between labelled masks.
+            mask = self._remove_overlaps(image, inst_masks, insts_by_label, labels)
 
-                    stats = self.compute_stats(image_list[idx], masks, instances)
+            logger.info(
+                f"[ <yellow>{orig_id}</yellow> ] Extracted {len(inst_masks)} instances for {len(insts_by_label)} labels."
+            )
 
-                    results.append(
-                        {
-                            "masks": masks,
-                            "outlines": outlines,
-                            "stats": stats,
-                        }
-                    )
+            results.append(
+                {
+                    "orig_id": int(orig_id),
+                    "mask": mask,
+                    "instances": instances,
+                }
+            )
 
-        return results
+        return image_list, results
 
     def _segment_single(
         self,
         image: np.ndarray,
-        bbox: np.ndarray,
+        bboxes: np.ndarray,
     ) -> np.ndarray:
         """
         Segment a single image.
@@ -279,7 +274,7 @@ class DinoSAM(BaseSegmenter):
                 A mask.
         """
         self.sam_model.set_image(image)
-        masks, _, _ = self.sam_model.predict(box=bbox, multimask_output=False)
+        masks, _, _ = self.sam_model.predict(box=bboxes, multimask_output=False)
         if len(masks.shape) > 3:
             masks = np.squeeze(masks, axis=1)
         return masks
@@ -317,9 +312,10 @@ class DinoSAM(BaseSegmenter):
     def _remove_overlaps(
         self,
         image: np.ndarray,
+        masks: dict[int, np.ndarray],
+        instances: dict[str, list[int]],
         labels: dict[str, list[str] | None],
-        masks: dict[str, list[np.ndarray]],
-    ) -> tuple[np.ndarray, dict, dict]:
+    ) -> np.ndarray:
         """
         Remove overap between masks based on the specified label hierarchy.
 
@@ -327,70 +323,60 @@ class DinoSAM(BaseSegmenter):
             image (np.ndarray):
                 The image being segmented.
 
+            masks (dict[int, np.ndarray]):
+                A dictionary of instances and their coordinates.
+
+            insstances (dict[str, list[int]]):
+                A dictionary of labels mapped to instances of that label.
+
             labels (dict[str, list[str] | None]):
-                Hierarchical label specification.
+                A dictionary of labels and their dependencies
+                that should be removed from the corresponding masks.
                 (cf. `BaseSegmenter.flatten_labels()`).
 
-            masks (dict[str, list[np.ndarray]]):
-                A dictionary of labels and their corresponding instances.
-
         Returns:
-            tuple[np.ndarray, dict, dict]:
-                A tuple containing:
-                    1. A global mask representing all segmented instances.
-                    2. A forward mapping from instances to their labels.
-                    3. A reverse mapping from labels to their instances.
+            np.ndarray:
+                A mask representing all segmented instances.
         """
 
         logger.info(f"Removing overlaps...")
 
-        # A global mask.
-        # All instances will be accessible via this mask.
-        global_masks = np.zeros(image.shape[:2], dtype=np.uint32)
-        global_outlines = np.zeros_like(global_masks)
-        global_instances = {}
-
         # A dictionary of merged masks for each label.
-        merged_masks = {}
+        label_masks = {}
 
-        for label, instances in masks.items():
-            merged_mask = np.zeros_like(global_masks, dtype=bool)
-            for instance in instances:
+        # Filtered instance masks
+        filtered_instances = {}
+
+        for label, inst_ids in instances.items():
+            label_mask = np.zeros(image.shape[:2], dtype=bool)
+            for inst_id in inst_ids:
 
                 # Merge the instance
-                merged_mask |= instance > 0
+                label_mask |= masks[inst_id] > 0
 
-                # Find the outline of the instance
-                outline = ski.segmentation.find_boundaries(instance, mode="thick")
-
-                # Instance ID
-                inst_id = len(global_instances) + 1
-
-                # Store the instance with its label and outline.
-                # This is used below for creating the global mask and outline maps.
-                global_instances[inst_id] = [label, instance, outline]
+                # Store the instance with its label.
+                # This is used below for creating the global mask.
+                filtered_instances[inst_id] = [label, masks[inst_id]]
 
             # Store the merged mask for this label
-            merged_masks[label] = merged_mask
+            label_masks[label] = label_mask
 
         # Iterate over all merged masks and remove overlaps.
         # and merge all masks into the global mask.
-        for instance_id, (label, instance, outline) in global_instances.items():
+        # ==================================================
 
-            # Remove any overlapping nested categories.
-            if subcats := labels.get(label):
-                for subcat in subcats:
-                    if subcat in merged_masks:
-                        instance[merged_masks[subcat]] = 0
+        # The final mask.
+        # All instances will be accessible via this mask.
+        mask = np.zeros(image.shape[:2], dtype=np.uint32)
+        for inst_id, (label, inst_mask) in filtered_instances.items():
+
+            # Remove any overlapping nested categories ("dependencies").
+            if dep_labels := labels.get(label):
+                for dep_label in dep_labels:
+                    if dep_label in label_masks:
+                        inst_mask[label_masks[dep_label]] = 0
 
             # Merge the instance into the global mask.
-            global_masks[instance > 0] = instance_id
+            mask[inst_mask > 0] = inst_id
 
-            # Merge the instance *outline* into the global outline map.
-            global_outlines[outline > 0] = instance_id
-
-            # Remove the instance from the instance dictionary,
-            # it is not needed any more.
-            global_instances[instance_id] = label
-
-        return (global_masks, global_outlines, global_instances)
+        return mask

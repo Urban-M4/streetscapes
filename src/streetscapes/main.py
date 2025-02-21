@@ -28,13 +28,13 @@ def main():
     "-d",
     "--data_dir",
     type=Path,
-    default=conf.DATA_DIR,
+    default=conf.CSV_DIR,
 )
 @cloup.option(
     "-o",
     "--out_dir",
     type=Path,
-    default=conf.OUTPUT_DIR,
+    default=conf.PARQUET_DIR,
 )
 @cloup.option(
     "-f",
@@ -72,7 +72,7 @@ def convert_csv(**kwargs):
     "-d",
     "--directory",
     type=Path,
-    default=conf.OUTPUT_DIR,
+    default=conf.PARQUET_DIR,
 )
 @cloup.option(
     "-s",

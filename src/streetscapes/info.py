@@ -18,11 +18,11 @@ def render_info_csv():
         repo_id="NUS-UAL/global-streetscapes",
         filename="info.csv",
         repo_type="dataset",
-        local_dir=conf.DATA_DIR,
+        local_dir=conf.CSV_DIR,
     )
 
     # Read
-    info = pd.read_csv(conf.DATA_DIR / "info.csv")
+    info = pd.read_csv(conf.CSV_DIR / "info.csv")
 
     # Render
     for _, row in info.iterrows():
@@ -33,10 +33,10 @@ def render_info_csv():
 
 
 def get_columns(file):
-    full_path = conf.DATA_DIR / "data" / file
+    full_path = conf.CSV_DIR / "data" / file
     return duckdb.sql(f"SELECT * FROM read_csv('{full_path}') LIMIT 0").columns
 
 
 def get_unique(file, column):
-    full_path = conf.DATA_DIR / "data" / file
+    full_path = conf.CSV_DIR / "data" / file
     return duckdb.sql(f"SELECT DISTINCT {column} FROM read_csv('{full_path}')")

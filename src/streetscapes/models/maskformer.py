@@ -14,7 +14,7 @@ import numpy as np
 # --------------------------------------
 from streetscapes import logger
 from streetscapes.models import BaseSegmenter
-from streetscapes.models import ImageOrPath
+from streetscapes.models import ImagePath
 
 
 class MaskFormer(BaseSegmenter):
@@ -187,7 +187,7 @@ class MaskFormer(BaseSegmenter):
 
     def segment(
         self,
-        images: ImageOrPath,
+        images: ImagePath,
         labels: dict,
     ) -> list[dict]:
         """
@@ -210,9 +210,7 @@ class MaskFormer(BaseSegmenter):
         """
 
         # Load the images as NumPy arrays
-        images = self.load_images(images)
-        image_names = list(images.keys())
-        image_list = list(images.values())
+        image_paths, image_list = self.load_images(images)
 
         # Flatten the label dictionary
         labels = self._flatten_labels(labels)
@@ -258,32 +256,23 @@ class MaskFormer(BaseSegmenter):
             for idx, result in enumerate(segmented):
 
                 # Sort out instances and their labels
-                segmentation = result["segmentation"].detach().clone().cpu().numpy()
+                mask = result["segmentation"].detach().clone().cpu().numpy()
                 instances = {}
-                outlines = np.zeros_like(segmentation)
                 for instance in result["segments_info"]:
                     inst_id = instance["id"]
                     inst_label = self.id_to_label[instance["label_id"]]
                     instances[inst_id] = inst_label
 
-                    # Find the outline of the instance
-                    outline = ski.segmentation.find_boundaries(
-                        np.where(segmentation == inst_id, 1, 0), mode="thick"
-                    )
-                    outlines[outline] = inst_id
-
-                stats = self.compute_stats(image_list[idx], segmentation, instances)
-
                 results.append(
                     {
-                        "masks": segmentation,
-                        "outlines": outlines,
-                        "stats": stats,
+                        "orig_id": int(image_paths[idx].stem),
+                        "mask": mask,
+                        "instances": instances,
                     }
                 )
 
                 logger.info(
-                    f"[ <yellow>{image_names[idx]}</yellow> ] Extracted {len(instances)} instances for {len(set(instances.values()))} labels."
+                    f"[ <yellow>{image_paths[idx].name}</yellow> ] Extracted {len(instances)} instances for {len(set(instances.values()))} labels."
                 )
 
-        return results
+        return image_list, results
