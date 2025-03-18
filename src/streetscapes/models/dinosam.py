@@ -87,7 +87,7 @@ class DinoSAM(BaseSegmenter):
         Convenience method for loading processors and models.
         """
 
-        # SAM model.
+        # SAM2 model.
         # ==================================================
         # Thre is no image processor for SAM.
         self.sam_model = SAM2ImagePredictor.from_pretrained(
@@ -98,7 +98,8 @@ class DinoSAM(BaseSegmenter):
         # ==================================================
         self.dino_processor = AutoProcessor.from_pretrained(self.dino_model_id)
         self.dino_model = AutoModelForZeroShotObjectDetection.from_pretrained(
-            self.dino_model_id
+            self.dino_model_id,
+            device=self.device
         )
         self.dino_model.eval()
 

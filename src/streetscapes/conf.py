@@ -21,7 +21,7 @@ LOCAL_DIR = ROOT_DIR / "local"
 
 # Location of the Streetscapes data
 # ==================================================
-CSV_DIR = (
+DATA_DIR = (
     Path(config("STREETSCAPES_DATA_DIR", LOCAL_DIR / "data"))
     .expanduser()
     .resolve()
@@ -32,7 +32,7 @@ CSV_DIR = (
 # ==================================================
 # Defaults to "DATA_DIR"
 CSV_DIR = (
-    Path(config("STREETSCAPES_CSV_DIR", CSV_DIR)).expanduser().resolve().absolute()
+    Path(config("STREETSCAPES_CSV_DIR", DATA_DIR)).expanduser().resolve().absolute()
 )
 
 # Parquet files (the default mirrors the structure

@@ -1,4 +1,7 @@
 # --------------------------------------
+import typing as tp
+
+# --------------------------------------
 import os
 
 # --------------------------------------
@@ -9,6 +12,9 @@ import time
 
 # --------------------------------------
 import random
+
+# --------------------------------------
+import ibis
 
 # --------------------------------------
 from pathlib import Path
@@ -22,6 +28,9 @@ from concurrent.futures import as_completed
 
 # --------------------------------------
 from tqdm import tqdm
+
+# --------------------------------------
+import operator
 
 # --------------------------------------
 import numpy as np
@@ -141,25 +150,39 @@ def convert_csv_to_parquet(
     merged_df.to_parquet(parquet_file, compression="zstd")
 
 
-def load_city_subset(
-    city: str = None,
+def load_subset(
+    subset: str = "streetscapes",
     directory: str | Path = conf.PARQUET_DIR,
+    criteria: dict = None,
+    columns: list | tuple | set = None,
     recreate: bool = False,
+    save: bool = True,
 ) -> pd.DataFrame | None:
     """
     Load and return a Parquet file for a specific city, if it exists.
 
     Args:
-        city (str, optional):
-            The city name. Defaults to None.
+        subset (str, optional):
+            The subset to load.
+            Defaults to 'streetscapes' (the entire dataset).
 
         directory (str | Path, optional):
             Directory to look into for the Parquet file.
             Defaults to conf.PARQUET_DIR.
 
+        criteria (dict, optional):
+            The criteria used to subset the global streetscapes dataset.
+
+        columns (list | tuple | set, optional):
+            The columns to keep in the subset.
+
         recreate (bool, optional):
             Recreate the city subset if it exists.
             Defaults to False.
+
+        save (bool, optional):
+            Save a newly created subset.
+            Defaults to True.
 
     Returns:
         pd.DataFrame | None:
@@ -167,21 +190,49 @@ def load_city_subset(
     """
 
     directory = Path(directory)
-
-    if city is None:
-        filename = "streetscapes-data.parquet"
-    else:
-        filename = f"{city}.parquet"
+    filename = f"{subset}.parquet"
 
     fpath = directory / filename
-    if not fpath.exists() or (fpath.exists() and recreate):
-        logger.info(f"Creating subset for '{city}'...")
-        df_all = pd.read_parquet(conf.PARQUET_DIR / "streetscapes.parquet")
-        df_city = df_all[df_all["city"] == city]
-        df_city.to_parquet(fpath)
 
-    logger.info(f"Loading '{fpath.name}'...")
-    return pd.read_parquet(fpath)
+    if recreate or not fpath.exists():
+        logger.info(f"Creating subset '{subset}'...")
+
+        # First, load the entire dataset
+        df_all = ibis.read_parquet(conf.PARQUET_DIR / "streetscapes.parquet")
+        subset = df_all
+
+        if isinstance(criteria, dict):
+
+            for lhs, criterion in criteria.items():
+
+                if isinstance(criterion, (tuple, list, set)):
+                    if len(criterion) > 2:
+                        raise IndexError(f"Invalid criterion '{criterion}'")
+                    op, rhs = (operator.eq, criterion[0]) if len(criterion) == 1 else criterion
+
+                else:
+                    op, rhs = operator.eq, criterion
+
+                if not isinstance(op, tp.Callable):
+                    raise TypeError(f"The operator is not callable.")
+
+                subset = subset[op(subset[lhs], rhs)]
+
+            if columns is not None:
+                subset = subset[columns]
+
+            if save:
+                subset.to_parquet(fpath)
+    else:
+        logger.info(f"Loading '{fpath.name}'...")
+
+        subset = ibis.read_parquet(fpath)
+        if columns is not None:
+            subset = subset[columns]
+
+    logger.info(f"Done")
+
+    return subset
 
 
 def get_missing_image_ids(

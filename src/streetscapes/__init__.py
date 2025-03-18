@@ -4,7 +4,7 @@ from streetscapes.info import render_info_csv
 from streetscapes.functions import mkdir
 from streetscapes.functions import make_colourmap
 from streetscapes.functions import as_rgb
-from streetscapes.functions import load_city_subset
+from streetscapes.functions import load_subset
 from streetscapes.functions import download_image
 from streetscapes.functions import download_images
 from streetscapes.functions import download_files_hf
