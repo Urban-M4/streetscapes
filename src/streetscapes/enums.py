@@ -20,6 +20,7 @@ class Attr(enum.StrEnum):
     S = enum.auto()
     V = enum.auto()
     Area = enum.auto()
+    Coords = enum.auto()
 
     @classmethod
     @property
