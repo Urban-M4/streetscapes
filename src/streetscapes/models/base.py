@@ -18,6 +18,9 @@ import json
 import ibis
 
 # --------------------------------------
+import itertools
+
+# --------------------------------------
 from tqdm import tqdm
 
 # --------------------------------------
@@ -45,6 +48,8 @@ import matplotlib.patches as mpatches
 
 # --------------------------------------
 import streetscapes as scs
+from streetscapes.enums import Stat
+from streetscapes.enums import Attr
 from streetscapes import conf
 from streetscapes.conf import logger
 
@@ -94,104 +99,314 @@ class BaseSegmenter:
         """
         raise NotImplementedError("Please implement this method in a derived class")
 
-    def load_metadata(
+    def load_stats(
         self,
-        path: str | Path,
-    ) -> tuple[np.ndarray, ak.Array]:
+        paths: str | Path | list[str | Path],
+    ) -> ak.Array:
         """
         Load metadata from a Parquet file.
 
         Args:
-            path (str | Path):
-                The path to the Parquet file.
+            paths (str | Path | list[str | Path]):
+                The paths to the Parquet file containing image statistics.
 
         Returns:
-            tuple[np.ndarray, ak.Array]:
-                A tuple containing:
-                    1. A segmentation mask.
-                    2. An Awkward array containing metadata about
-                        the image and the segmented instances.
+            dict[int, ak.Array]:
+                A dictionary mapping origin IDs to Awkward arrays
+                containing statistics about the segmented images.
         """
 
-        # Load the data into an awkward array
-        arr = ak.to_list(ak.from_parquet(path))
+        # Ensure that we have a list of path objects
+        if isinstance(paths, str):
+            paths = [paths]
+        paths = [Path(p) for p in paths]
 
-        # Load the segmentations
-        segmentations = []
-        for item in arr:
-            segmentations.append(
-                {
-                    "orig_id": item["orig_id"],
-                    "instances": {
-                        int(k): v for k, v in zip(item["instance"], item["label"])
-                    },
-                    "mask": np.array(item.pop("mask"), dtype=np.uint32),
-                }
-            )
+        stats = {}
 
-        metadata = ak.Array(arr)
+        # Load the statistics
+        for path in paths:
+            orig_id = int(str(path.name).removesuffix("".join(path.suffixes)))
+            stats[orig_id] = {}
+            loaded = json.loads(ak.to_json(ak.from_parquet(path))).items()
+            for key, data in loaded:
+                print(f"==[ key: {key}")
+                match key:
+                    case "instance" | "label":
+                        stats[orig_id][key] = data
+                    case "area":
+                        stats[orig_id][Attr[key.capitalize()]] = data
+                    case _:
+                        print(f"==[ {key}: {data}")
+                        if key in Attr.JSONColour:
+                            # Statistics
+                            stats[orig_id][Attr[key.capitalize()]] = {}
+                            for s, v in data.items():
+                                stats[orig_id][Attr[key.capitalize()]][
+                                    Stat[s.capitalize()]
+                                ] = v
 
-        return (segmentations, metadata)
+        return stats
 
-    def save_metadata(
+    def save_stats(
         self,
-        segmentations: list[dict],
-        metadata: list[dict],
-        path: Path | str,
-    ) -> Path:
+        stats: dict,
+        path: Path | None = None,
+    ) -> list[Path]:
         """
         Save image metadata to a Parquet file.
 
         Args:
 
-            segmentations (list[dict]):
-                A list of image segmentations.
-
-            metadata (list[dict]):
+            stats (list[dict]):
                 A list of metadata entries.
 
-            path (Path | str):
-                Path to the output file.
+            path (Path | None, optional):
+                A directory where the stats should be saved.
+                Defaults to None.
 
         Returns:
-            Path:
-                The path to the saved file.
+            list[Path]:
+                A list of paths to the saved files.
         """
 
-        path = Path(path)
-        if path.is_dir():
-            raise ValueError("Please provide a valid file path.")
+        if path is None:
+            path = conf.PARQUET_DIR
 
-        # Create the directory if it doesn't exist
-        scs.mkdir(path.parent)
+        path = scs.mkdir(path)
 
-        # Save only those segmentations that have associated
-        # metadata entries
-        orig_ids = {meta["orig_id"]: meta for meta in ak.to_list(metadata)}
+        files = []
 
-        filtered = []
-        for seg in segmentations:
+        for orig_id, stat in stats.items():
 
-            if seg["orig_id"] not in orig_ids:
+            # File path
+            fpath = path / f"{orig_id}.stat.parquet"
+
+            # Convert the stats into a JSON object and
+            # then into an Awkward array.
+            arr = ak.from_json(json.dumps(stat))
+
+            # Save the array to a Parquet file.
+            ak.to_parquet(arr, fpath)
+
+            files.append(fpath)
+
+        return files
+
+    def extract_stats(
+        self,
+        images: dict[int, np.ndarray],
+        masks: dict[int, np.ndarray],
+        instances: dict[int, dict],
+        attrs: set[Attr] | None = None,
+        stats: set[Stat] | None = None,
+    ) -> ak.Array:
+        """
+        Compute colour statistics and other metadata
+        for a list of segmented images.
+
+        Args:
+
+            images (dict[int, np.ndarray]):
+                A dictionary of images as NumPy arrays.
+
+            masks (dict[int, np.ndarray]):
+                A dictionary of masks as NumPy arrays.
+
+            instances (dict[int, dict]):
+                A dictionary of instances containing instance-level segmentation details.
+                Each instance is denoted with its ID (= the keys in the `instances` dictionary).
+
+            attrs (set[Attr] | None, optional):
+                A set of Attr items representing image attributes.
+                Defaults to None.
+
+            stats (set[Stat] | None, optional):
+                A set of Stats items representing statistics to be extracted
+                from the segmentations.
+                Defaults to None.
+
+        Returns:
+            list[dict]:
+                A dictionary of metadata.
+        """
+
+        logger.info("Extracting metadata...")
+
+        # Statistics about instances in the images
+        image_stats = {}
+
+        # Ensure that the attrs and stats are sets
+        attrs = set(attrs) if attrs is not None else set()
+        stats = set(stats) if stats is not None else set()
+
+        rgb = len(attrs.intersection(Attr.RGB)) > 0
+        hsv = len(attrs.intersection(Attr.HSV)) > 0
+
+        # Loop over the segmented images and compute
+        # some statistics for each instance.
+        for orig_id, image in images.items():
+
+            # Create a new dictionary to hold the results
+            computed = image_stats.setdefault(
+                orig_id,
+                {
+                    "instance": [],
+                    "label": [],
+                },
+            )
+
+            # Convert the image colour space to floating-point RGB and HSV
+            if rgb or hsv:
+                rgb_image = ski.exposure.rescale_intensity(image, out_range=(0, 1))
+            if hsv:
+                hsv_image = ski.color.convert_colorspace(rgb_image, "RGB", "HSV")
+
+            # Ensure that the mask and the instances for this image are available
+            mask = masks.get(orig_id)
+            if mask is None:
                 continue
 
-            merged = {"mask": seg["mask"].tolist()}
-            merged.update(orig_ids[seg["orig_id"]])
-            filtered.append(merged)
+            image_instances = instances.get(orig_id)
+            if image_instances is None:
+                continue
 
-        # Convert the stats into a JSON object and
-        # then into an Awkward array.
-        arr = ak.from_json(json.dumps(filtered))
+            with tqdm(total=len(image_instances)) as pbar:
+                for inst_id, label in image_instances.items():
+                    computed["instance"].append(inst_id)
+                    computed["label"].append(label)
 
-        # Save the array to a Parquet file.
-        ak.to_parquet(arr, path)
+                    # Extract the patches corresponding to the mask
+                    patches = {}
+                    inst_mask = mask == inst_id
+                    if rgb:
+                        rgb_patch = rgb_image[inst_mask]
+                        patches.update(
+                            {
+                                Attr.R: rgb_patch[..., 0],
+                                Attr.G: rgb_patch[..., 1],
+                                Attr.B: rgb_patch[..., 2],
+                            }
+                        )
+                    if hsv:
+                        hsv_patch = hsv_image[inst_mask]
+                        patches.update(
+                            {
+                                Attr.H: hsv_patch[..., 0],
+                                Attr.S: hsv_patch[..., 1],
+                                Attr.V: hsv_patch[..., 2],
+                            }
+                        )
 
-        return path
+                    # Extract the statistics for the requested attributes.
+                    for attr in attrs:
+                        if attr == Attr.Area:
+                            computed.setdefault(attr, []).append(
+                                np.count_nonzero(mask) / np.prod(rgb_image.shape[:2])
+                            )
+                        else:
+                            computed.setdefault(attr, {stat: [] for stat in stats})
+                            for stat in stats:
+                                match stat:
+                                    case Stat.Median:
+                                        value = np.nan_to_num(
+                                            np.median(patches[attr]), nan=0.0
+                                        )
+                                    case Stat.Mode:
+                                        value = np.nan_to_num(
+                                            scipy.stats.mode(patches[attr])[0], nan=0.0
+                                        )
+                                    case Stat.Mean:
+                                        value = np.nan_to_num(
+                                            np.mean(patches[attr]), nan=0.0
+                                        )
+                                    case Stat.SD:
+                                        value = np.nan_to_num(
+                                            np.std(patches[attr]), nan=0.0
+                                        )
+                                    case _:
+                                        value = None
+
+                                if value is not None:
+                                    computed[attr][stat].append(value)
+
+                    pbar.update()
+
+        return image_stats
+
+    def save_masks(
+        self,
+        masks: dict,
+        path: Path | None = None,
+    ) -> list[Path]:
+        """
+        Save image segmentation masks to NPZ files.
+
+        Args:
+
+            masks (list[dict]):
+                A dictionary containing image segmentation masks.
+
+            path (Path | None, optional):
+                A directory where the masks should be saved.
+                Defaults to None.
+
+        Returns:
+            list[Path]:
+                A list of paths to the saved files.
+        """
+
+        if path is None:
+            path = conf.IMAGE_DIR
+
+        path = scs.mkdir(path)
+
+        files = []
+
+        for orig_id, mask in masks.items():
+
+            # File path
+            fpath = path / f"{orig_id}.npz"
+
+            # Save the mask as a compressed NumPy array.
+            np.savez_compressed(fpath, mask)
+
+            files.append(fpath)
+
+        return files
+
+    def load_masks(
+        self,
+        paths: str | Path | list[str | Path],
+    ) -> dict[int, np.ndarray]:
+        """
+        Load segmentation masks from NumPy archives.
+
+        Args:
+            paths (str | Path | list[str | Path]):
+                Path(s) to the archives.
+
+        Returns:
+            dict[int, np.ndarray]:
+                A dictionary mapping origin IDs to NumPy arrays
+                containing the segmentation masks.
+        """
+
+        # Ensure that we have a list of path objects
+        if isinstance(paths, str):
+            paths = [paths]
+        paths = [Path(p) for p in paths]
+
+        masks = {}
+
+        for path in paths:
+            masks[int(path.stem)] = np.load(path, allow_pickle=False)["arr_0"]
+
+        return masks
 
     def load_images(
         self,
         images: ImagePath,
-    ) -> dict[Path, np.ndarray]:
+    ) -> tuple[list[Path], list[np.ndarray]]:
         """
         A list of images or paths to image files.
 
@@ -215,125 +430,31 @@ class BaseSegmenter:
 
         return (image_paths, images)
 
-    def extract_metadata(
+    def load_image(
         self,
-        images: list[np.ndarray],
-        segmentations: list[dict],
-    ) -> ak.Array:
+        path: Path | str,
+    ) -> tuple[list[Path], list[np.ndarray]]:
         """
-        Compute colour statistics and other metadata
-        for a list of segmented images.
+        A list of images or paths to image files.
 
         Args:
-
-            images (list[np.ndarray]):
-                A list of images as NumPy arrays.
-
-            segmentations (list[dict]):
-                A list of dictionaries containing instance-level segmentation details.
-                Each instance is denoted with its ID (= the keys in the `instances` dictionary).
+            path (Path | str):
+                A path to an image.
 
         Returns:
-            list[dict]:
-                A dictionary of metadata.
+            tuple[int, np.ndarray]:
+                A tuple containing:
+                    1. The ID of the image.
+                    2. The images as a NumPy array.
         """
 
-        logger.info("Extracting metadata...")
-
-        # Extract some extra image attributes.
-        # First, filter the full database to find the right entries.
-        full_dataset = ibis.read_parquet(conf.PARQUET_DIR / "streetscapes.parquet")
-        extra_data = (
-            full_dataset.select("orig_id", "lat", "lon")
-            .filter(
-                full_dataset["orig_id"].isin(
-                    set([seg["orig_id"] for seg in segmentations])
-                )
-            )
-            .to_pandas()
-        )
-
-        results = []
-
-        # Loop over the segmented images and compute
-        # some statistics for each instance.
-        for image, segmentation in zip(images, segmentations):
-
-            # Unpack the segmentation dictionary
-            orig_id = segmentation["orig_id"]
-            instances = segmentation["instances"]
-            mask = segmentation["mask"]
-
-            # Filter based on the availability of (lat, lon)
-            row = extra_data[extra_data["orig_id"] == orig_id].values
-            if len(row) == 0:
-                # Skip the image if there are no coordinates
-                continue
-
-            # Create a metadata dictionary for this segmentation
-            metadata = {
-                "orig_id": orig_id,
-                "instance": [],
-                "label": [],
-                "R": [],
-                "G": [],
-                "B": [],
-                "H": [],
-                "S": [],
-                "V": [],
-                "area": [],
-                "lat": row[0][1],
-                "lon": row[0][2],
-            }
-
-            # Convert the image colour space to floating-point RGB and HSV
-            rgb_image = ski.exposure.rescale_intensity(image, out_range=(0, 1))
-            hsv_image = ski.color.convert_colorspace(rgb_image, "RGB", "HSV")
-            with tqdm(total=len(instances)) as pbar:
-                for inst_id, label in instances.items():
-                    metadata["instance"].append(inst_id)
-                    metadata["label"].append(label)
-
-                    # Extract the patches corresponding to the mask
-                    inst_mask = mask == inst_id
-                    rgb_patch = rgb_image[inst_mask]
-                    hsv_patch = hsv_image[inst_mask]
-
-                    # Extract the R, G, B, H, S and V channels
-                    # to compute the corresponding statistics.
-                    patches = {
-                        "R": rgb_patch[..., 0],
-                        "G": rgb_patch[..., 1],
-                        "B": rgb_patch[..., 2],
-                        "H": hsv_patch[..., 0],
-                        "S": hsv_patch[..., 1],
-                        "V": hsv_patch[..., 2],
-                    }
-
-                    for k, v in patches.items():
-                        metadata[k].append(
-                            {
-                                "median": np.median(v),
-                                "mode": scipy.stats.mode(v)[0],
-                                "mean": np.mean(v),
-                                "sd": np.std(v),
-                            }
-                        )
-
-                    metadata["area"].append(
-                        np.count_nonzero(mask) / np.prod(rgb_image.shape[:2])
-                    )
-
-                    pbar.update()
-
-            results.append(metadata)
-
-        return ak.Array(results)
+        return int(path.stem), np.array(Image.open(path))
 
     def visualise_segmentation(
         self,
         image: np.ndarray,
-        segmentation: dict,
+        mask: np.ndarray,
+        instances: dict,
         labels: list[str] = None,
         opacity: float = 0.5,
         title: str = None,
@@ -346,9 +467,11 @@ class BaseSegmenter:
             image (np.ndarray):
                 Image being segmented.
 
-            segmentation (dict):
-                A dictionary contianing an instance segmentation mask
-                and a mapping of instance IDs to labels.
+            mask (np.ndarray):
+                The segmentation mask.
+
+            instances (dict):
+                A dictionary of instances and their labels.
 
             labels (list[str]):
                 Labels for the instance categories that should be plotted.
@@ -383,10 +506,6 @@ class BaseSegmenter:
 
         # Label handles for the plot legend.
         handles = {}
-
-        # Get the mask and the instances
-        mask = segmentation["mask"]
-        instances = segmentation['instances']
 
         # Loop over the segmentation list
         for instance_id, label in instances.items():
@@ -430,18 +549,20 @@ class BaseSegmenter:
 
     def segment_from_dataset(
         self,
-        dataset: Path | str,
+        dataset: Path | str | ibis.Table | pd.DataFrame,
         labels: dict,
-        image_dir: Path | str = None,
-        sample: int = None,
-        save: bool = False,
+        sample: int | None = None,
+        batch_size: int = 10,
+        ensure: list[str] | None = None,
+        attrs: set[Attr] | None = None,
+        stats: set[Stat] | None = None,
     ) -> tuple[dict, Path | None]:
         """
         Segment images specified in a Parquet data (sub)set.
 
         Args:
-            dataset (Path | str):
-                The input dataset (a Parquet file).
+            dataset (Path | str | ibis.Table | pd.DataFrame):
+                The input dataset (a Parquet file, an Ibis table or a Pandas dataframe).
 
             labels (dict):
                 A flattened set of labels to look for,
@@ -449,16 +570,25 @@ class BaseSegmenter:
                 checked in order to eliminate overlaps.
                 Cf. `BaseSegmenter._flatten_labels()`
 
-            image_dir (Path | str):
-                The directory where downloaded images are located.
-                Defaults to None.
-
             sample (int, optional):
                 The size of the sample (used for testing purposes).
+                Defaults to None.
 
-            save (bool, optional):
-                Save the computed segmentation and statistics.
-                Defaults to False.
+            batch_size (int, optional):
+                Process the images in batches of this size.
+                Defaults to 10.
+
+            ensure (list[str] | None, optional):
+                A list of columns whose values must be set (not null or empty).
+                Defaults to None.
+
+            attrs (set[Attr] | None, optional):
+                Attributes to use for computing the segmentation.
+                Defaults to None.
+
+            stats (set[Stat] | None, optional):
+                Statistics to compute for each attribute.
+                Defaults to None.
 
         Returns:
             list[dict]:
@@ -467,23 +597,55 @@ class BaseSegmenter:
 
         # Load the Parquet dataset.
         # ==================================================
-        dataset = ibis.read_parquet(dataset).to_pandas()
+        if isinstance(dataset, (str, Path)):
+            # Read the valuate to a Pandas dataframe
+            dataset = ibis.read_parquet(dataset)
 
-        # Directory containing the downloaded images
-        # ==================================================
-        if image_dir is None:
-            image_dir = conf.IMAGE_DIR
+        if isinstance(dataset, ibis.Table):
+            # Evaluate to a Pandas dataframe
+            dataset = dataset.to_pandas()
 
-        paths = [image_dir / f"{file_name}.jpeg" for file_name in dataset["orig_id"]]
+        # Drop rows with missing values
+        if ensure is not None:
+            dataset = dataset.dropna(subset=ensure)
 
+        # Build a list of paths from the file names.
+        paths = [
+            conf.IMAGE_DIR / f"{file_name}.jpeg" for file_name in dataset["orig_id"]
+        ]
+
+        # Extract a sample of a certain size.
         if sample is not None:
             paths = list(Path(n) for n in np.random.choice(paths, sample))
 
-        # Segment the images
-        # ==================================================
-        segmentations = self.segment(paths, labels)
+        # Ensure that the attrs and stats are sets
+        attrs = set(attrs) if attrs is not None else set()
+        stats = set(stats) if stats is not None else set()
 
-        return segmentations
+        # Segment the images and save the results
+        # ==================================================
+        total = len(paths) // batch_size
+        if total * batch_size != len(paths):
+            total += 1
+
+        # Lists of paths to the saved segmentations and stats
+        image_paths = []
+        mask_paths = []
+        stat_paths = []
+
+        # Segment the images and extract the metadata
+        for batch in tqdm(itertools.batched(paths, batch_size), total=total):
+            images, masks, instances = self.segment(batch, labels)
+
+            image_paths.extend(batch)
+
+            if stats is not None:
+                image_stats = self.extract_stats(images, masks, instances, attrs, stats)
+
+            mask_paths.extend(self.save_masks(masks))
+            stat_paths.extend(self.save_stats(image_stats))
+
+        return image_paths, mask_paths, stat_paths
 
     def _flatten_labels(
         self,

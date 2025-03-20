@@ -51,8 +51,8 @@ from huggingface_hub import hf_hub_download
 import matplotlib.pyplot as plt
 
 # --------------------------------------
+from streetscapes import enums
 from streetscapes import conf
-from streetscapes import types as sst
 from streetscapes.conf import logger
 
 
@@ -276,7 +276,7 @@ def get_missing_image_ids(
 
 def get_image_url(
     image_id: int,
-    source: sst.SourceMap,
+    source: enums.SourceMap,
     resolution: int = 2048,
     session: rq.Session = None,
 ) -> str:
@@ -284,7 +284,7 @@ def get_image_url(
     Retrieve the URL for an image with the given ID.
 
     Args:
-        source (sst.Source):
+        source (enums.Source):
             The source map (cf. the SourceMap enum).
 
         image_id (int):
@@ -303,7 +303,7 @@ def get_image_url(
     """
 
     match source:
-        case sst.SourceMap.Mapillary:
+        case enums.SourceMap.Mapillary:
             url = (
                 f"https://graph.mapillary.com/{image_id}?fields=thumb_{resolution}_url"
             )
@@ -322,7 +322,7 @@ def get_image_url(
             except Exception as e:
                 return
 
-        case sst.SourceMap.KartaView:
+        case enums.SourceMap.KartaView:
             url = f"https://api.openstreetcam.org/2.0/photo/?id={image_id}"
             try:
                 # Send the request
@@ -341,7 +341,7 @@ def get_image_url(
 def download_image(
     image_id: int,
     directory: str | Path,
-    source: sst.SourceMap,
+    source: enums.SourceMap,
     resolution: int = 2048,
     verbose: bool = True,
     session: rq.Session = None,
@@ -356,7 +356,7 @@ def download_image(
         directory (str | Path):
             The destination directory.
 
-        source (sst.SourceMap):
+        source (enums.SourceMap):
             The source map.
             Limited to Mapillary or KartaView at the moment.
 
@@ -395,12 +395,12 @@ def download_image(
         # Download the image
         # ==================================================
         match source:
-            case sst.SourceMap.Mapillary:
+            case enums.SourceMap.Mapillary:
                 if session is None:
                     session = get_session(source)
                 url = get_image_url(image_id, source, resolution, session)
                 response = session.get(url)
-            case sst.SourceMap.KartaView:
+            case enums.SourceMap.KartaView:
                 url = get_image_url(image_id, source, resolution)
                 response = rq.get(url)
 
@@ -413,19 +413,19 @@ def download_image(
     return image_path
 
 
-def get_session(source: sst.SourceMap):
+def get_session(source: enums.SourceMap):
     """
     Get an authenticated session for the supplied source.
 
     Right now, we only need a session for working with Mapillary.
 
     Args:
-        source (sst.SourceMap):
+        source (enums.SourceMap):
             A `requests` session.
     """
 
     match source:
-        case sst.SourceMap.Mapillary:
+        case enums.SourceMap.Mapillary:
             session = rq.Session()
             session.headers.update({"Authorization": f"OAuth {conf.MAPILLARY_TOKEN}"})
             return session
@@ -471,7 +471,7 @@ def download_images(
 
     # Filter records by source
     filtered = {}
-    for source in sst.SourceMap:
+    for source in enums.SourceMap:
         subset = df[df["source"].str.lower() == source.name.lower()]
         if len(subset) > 0:
             filtered[source] = subset

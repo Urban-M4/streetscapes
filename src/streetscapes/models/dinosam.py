@@ -96,10 +96,11 @@ class DinoSAM(BaseSegmenter):
 
         # GroundingDINO model.
         # ==================================================
-        self.dino_processor = AutoProcessor.from_pretrained(self.dino_model_id)
+        self.dino_processor = AutoProcessor.from_pretrained(
+            self.dino_model_id, device=self.device
+        )
         self.dino_model = AutoModelForZeroShotObjectDetection.from_pretrained(
-            self.dino_model_id,
-            device=self.device
+            self.dino_model_id
         )
         self.dino_model.eval()
 
@@ -182,9 +183,13 @@ class DinoSAM(BaseSegmenter):
         # Detect objects with GroundingDINO
         # ==================================================
 
-        results = []
+        masks = {}
+        instances = {}
+        image_map = {}
+
         for idx, image in enumerate(image_list):
-            orig_id = image_paths[idx].stem
+            orig_id = int(image_paths[idx].stem)
+            image_map[orig_id] = image
 
             logger.info(f"[ <yellow>{orig_id}</yellow> ] Detecting objects...")
 
@@ -227,33 +232,29 @@ class DinoSAM(BaseSegmenter):
             # Label to instance IDs
             insts_by_label = {}
 
-            instances = {}
-
             # Dictionary of final masks
             inst_masks = {}
 
+            # A new dictionary of instances for this image
+            instances[orig_id] = {}
             for inst_label, sam_mask in zip(dino_labels, sam_masks):
                 _inst_id = len(inst_masks) + 1
-                instances[_inst_id] = inst_label
+                instances[orig_id][_inst_id] = inst_label
                 insts_by_label.setdefault(inst_label, []).append(_inst_id)
                 inst_masks[_inst_id] = sam_mask
 
             # Remove overlaps between labelled masks.
+            logger.info(f"[ <yellow>{orig_id}</yellow> ] Removing overlaps...")
+
+            # Computer and store the mask
             mask = self._remove_overlaps(image, inst_masks, insts_by_label, labels)
+            masks[orig_id] = mask
 
             logger.info(
                 f"[ <yellow>{orig_id}</yellow> ] Extracted {len(inst_masks)} instances for {len(insts_by_label)} labels."
             )
 
-            results.append(
-                {
-                    "orig_id": int(orig_id),
-                    "mask": mask,
-                    "instances": instances,
-                }
-            )
-
-        return image_list, results
+        return image_map, masks, instances
 
     def _segment_single(
         self,
@@ -339,8 +340,6 @@ class DinoSAM(BaseSegmenter):
             np.ndarray:
                 A mask representing all segmented instances.
         """
-
-        logger.info(f"Removing overlaps...")
 
         # A dictionary of merged masks for each label.
         label_masks = {}

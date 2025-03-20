@@ -225,7 +225,6 @@ class MaskFormer(BaseSegmenter):
             _labels[k] = list(vdiff) if len(vdiff) > 0 else None
         labels = _labels
 
-        results = {}
         logger.info("Segmenting images...")
 
         # Perform the segmentation.
@@ -252,27 +251,27 @@ class MaskFormer(BaseSegmenter):
 
             # Some containers for intermediate results that can be
             # accessed during the segmentation phase.
-            results = []
+            masks = {}
+            instances = {}
+            image_map = {}
+
             for idx, result in enumerate(segmented):
+
+                orig_id = int(image_paths[idx].stem)
+                image_map[orig_id] = image_list[idx]
 
                 # Sort out instances and their labels
                 mask = result["segmentation"].detach().clone().cpu().numpy()
-                instances = {}
+                masks[orig_id] = mask
+
+                instances[orig_id] = {}
                 for instance in result["segments_info"]:
                     inst_id = instance["id"]
                     inst_label = self.id_to_label[instance["label_id"]]
-                    instances[inst_id] = inst_label
-
-                results.append(
-                    {
-                        "orig_id": int(image_paths[idx].stem),
-                        "mask": mask,
-                        "instances": instances,
-                    }
-                )
+                    instances[orig_id][inst_id] = inst_label
 
                 logger.info(
-                    f"[ <yellow>{image_paths[idx].name}</yellow> ] Extracted {len(instances)} instances for {len(set(instances.values()))} labels."
+                    f"[ <yellow>{image_paths[idx].name}</yellow> ] Extracted {len(instances)} instances for {len(set(instances[orig_id].values()))} labels."
                 )
 
-        return image_list, results
+        return image_map, masks, instances

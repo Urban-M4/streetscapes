@@ -1,5 +1,5 @@
-# The `types` module
+# The `enums` module
 
-::: streetscapes.types
+::: streetscapes.enums
     :automodule:
     :autoclass:
