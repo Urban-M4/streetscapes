@@ -101,7 +101,7 @@ class DinoSAM(BaseSegmenter):
         )
         self.dino_model = AutoModelForZeroShotObjectDetection.from_pretrained(
             self.dino_model_id
-        )
+        ).to(self.device)
         self.dino_model.eval()
 
     def _merge_masks(

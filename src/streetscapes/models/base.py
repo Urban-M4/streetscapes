@@ -129,21 +129,19 @@ class BaseSegmenter:
             stats[orig_id] = {}
             loaded = json.loads(ak.to_json(ak.from_parquet(path))).items()
             for key, data in loaded:
-                print(f"==[ key: {key}")
-                match key:
+                key = key.capitalize()
+                match key.lower():
                     case "instance" | "label":
                         stats[orig_id][key] = data
-                    case "area":
-                        stats[orig_id][Attr[key.capitalize()]] = data
+                    case "area" | "coords":
+                        stats[orig_id][Attr[key]] = data
                     case _:
-                        print(f"==[ {key}: {data}")
                         if key in Attr.JSONColour:
                             # Statistics
-                            stats[orig_id][Attr[key.capitalize()]] = {}
+                            stats[orig_id][Attr[key]] = {}
                             for s, v in data.items():
-                                stats[orig_id][Attr[key.capitalize()]][
-                                    Stat[s.capitalize()]
-                                ] = v
+                                s = s.capitalize()
+                                stats[orig_id][Attr[key]][Stat[s]] = v
 
         return stats
 
@@ -199,7 +197,7 @@ class BaseSegmenter:
         instances: dict[int, dict],
         attrs: set[Attr] | None = None,
         stats: set[Stat] | None = None,
-    ) -> ak.Array:
+    ) -> dict[int, dict]:
         """
         Compute colour statistics and other metadata
         for a list of segmented images.
@@ -226,7 +224,7 @@ class BaseSegmenter:
                 Defaults to None.
 
         Returns:
-            list[dict]:
+            dict[int, dict]:
                 A dictionary of metadata.
         """
 
@@ -614,6 +612,9 @@ class BaseSegmenter:
             conf.IMAGE_DIR / f"{file_name}.jpeg" for file_name in dataset["orig_id"]
         ]
 
+        # Extract the coordinates of the image (latitude and longitude).
+        coords = {dataset["orig_id"]: (lat, lon) for lat, lon in dataset}
+
         # Extract a sample of a certain size.
         if sample is not None:
             paths = list(Path(n) for n in np.random.choice(paths, sample))
@@ -634,13 +635,17 @@ class BaseSegmenter:
         stat_paths = []
 
         # Segment the images and extract the metadata
-        for batch in tqdm(itertools.batched(paths, batch_size), total=total):
-            images, masks, instances = self.segment(batch, labels)
+        for path_batch, coord_batch in tqdm(
+            itertools.batched(list(zip(paths, coords)), batch_size), total=total
+        ):
+            images, masks, instances = self.segment(path_batch, labels)
 
-            image_paths.extend(batch)
+            image_paths.extend(path_batch)
 
             if stats is not None:
                 image_stats = self.extract_stats(images, masks, instances, attrs, stats)
+                for orig_id in image_stats:
+                    image_stats[orig_id][Attr.Coords] = coords[orig_id]
 
             mask_paths.extend(self.save_masks(masks))
             stat_paths.extend(self.save_stats(image_stats))
