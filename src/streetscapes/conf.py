@@ -2,9 +2,6 @@
 import sys
 
 # --------------------------------------
-import logging
-
-# --------------------------------------
 from pathlib import Path
 
 # --------------------------------------
@@ -25,25 +22,40 @@ LOCAL_DIR = ROOT_DIR / "local"
 # Location of the Streetscapes data
 # ==================================================
 DATA_DIR = (
-    Path(config("STREETSCAPES_DATA_DIR", LOCAL_DIR / "streetscapes-data"))
+    Path(config("STREETSCAPES_DATA_DIR", LOCAL_DIR / "data"))
     .expanduser()
     .resolve()
     .absolute()
 )
 
-# Output directory
+# Directory containing CSV, Parquet and image files.
 # ==================================================
-OUTPUT_DIR = (
-    Path(config("STREETSCAPES_OUTPUT_DIR", LOCAL_DIR / "output"))
+# Defaults to "DATA_DIR"
+CSV_DIR = (
+    Path(config("STREETSCAPES_CSV_DIR", DATA_DIR)).expanduser().resolve().absolute()
+)
+
+# Parquet files (the default mirrors the structure
+# of the Global Streetscapes Huggingface repository).
+PARQUET_DIR = (
+    Path(config("STREETSCAPES_PARQUET_DIR", CSV_DIR / "parquet"))
     .expanduser()
     .resolve()
     .absolute()
 )
+
+# Images downloaded from Mapillary and KartaView
+IMAGE_DIR = (
+    Path(config("STREETSCAPES_IMAGE_DIR", LOCAL_DIR / "images"))
+    .expanduser()
+    .resolve()
+    .absolute()
+)
+
 
 # Mapillary configuration
 # ==================================================
 MAPILLARY_TOKEN = config("MAPILLARY_TOKEN", None)
-
 
 # Logger configuration
 # ==================================================

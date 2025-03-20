@@ -33,6 +33,7 @@ dependencies = [
     "python-decouple",
     "rasterio",
     "rich",
+    "sam2",
     "scikit-image",
     "scipy",
     "timezonefinder",

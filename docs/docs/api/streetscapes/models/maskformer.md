@@ -3,6 +3,10 @@
 ::: streetscapes.models
     :docstring:
 
-::: streetscapes.models.maskformer.MaskFormerVistasPanoptic
+::: streetscapes.models.dinosam.DinoSAM
+    :docstring:
+    :members:
+
+::: streetscapes.models.maskformer.MaskFormer
     :docstring:
     :members:

@@ -19,7 +19,7 @@ nav:
       - Main: api/main.md
       - Functions: api/functions.md
       - Conf: api/conf.md
-      - Types: api/types.md
+      - Enums: api/enums.md
   - About:
       - Licence: about/licence.md
       - Contributing: about/contributing.md
