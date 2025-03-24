@@ -96,7 +96,7 @@ class DinoSAM(BaseSegmenter):
         # GroundingDINO model.
         # ==================================================
         self.dino_processor = AutoProcessor.from_pretrained(
-            self.dino_model_id, device=self.device
+            self.dino_model_id
         )
         self.dino_model = AutoModelForZeroShotObjectDetection.from_pretrained(
             self.dino_model_id
