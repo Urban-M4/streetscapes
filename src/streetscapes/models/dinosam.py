@@ -19,7 +19,6 @@ from transformers import AutoProcessor
 import skimage as ski
 
 # --------------------------------------
-from streetscapes import conf
 from streetscapes.conf import logger
 from streetscapes.models import BaseSegmenter
 from streetscapes.models import ImagePath
@@ -97,7 +96,7 @@ class DinoSAM(BaseSegmenter):
         # GroundingDINO model.
         # ==================================================
         self.dino_processor = AutoProcessor.from_pretrained(
-            self.dino_model_id, device=self.device
+            self.dino_model_id
         )
         self.dino_model = AutoModelForZeroShotObjectDetection.from_pretrained(
             self.dino_model_id
@@ -113,7 +112,6 @@ class DinoSAM(BaseSegmenter):
         # A global mask.
         # All instances will be accessible via this mask.
         global_masks = np.zeros(image.shape[:2], dtype=np.uint32)
-        global_outlines = np.zeros_like(global_masks)
 
         # A dictionary of merged masks for each label.
         merged_masks = {}
