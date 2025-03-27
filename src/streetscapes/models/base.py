@@ -168,7 +168,7 @@ class BaseSegmenter:
         """
 
         if path is None:
-            path = conf.PARQUET_DIR
+            path = conf.IMAGE_DIR
 
         path = scs.mkdir(path)
 
