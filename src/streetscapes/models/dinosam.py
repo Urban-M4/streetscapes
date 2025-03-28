@@ -19,12 +19,15 @@ from transformers import AutoProcessor
 import skimage as ski
 
 # --------------------------------------
-from streetscapes.conf import logger
+from streetscapes.utils import logger
 from streetscapes.models import BaseSegmenter
 from streetscapes.models import ImagePath
+from streetscapes.utils.enums import SegmentationModel
 
 
 class DinoSAM(BaseSegmenter):
+
+    model_type = SegmentationModel.DinoSAM
 
     def __init__(
         self,
