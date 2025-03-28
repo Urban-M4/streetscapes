@@ -7,10 +7,6 @@ from PIL import Image
 import PIL.ImageFile
 
 PIL.ImageFile.LOAD_TRUNCATED_IMAGES = True
-
-# --------------------------------------
-from copy import deepcopy
-
 # --------------------------------------
 import json
 
@@ -48,15 +44,19 @@ import matplotlib.patches as mpatches
 
 # --------------------------------------
 import streetscapes as scs
-from streetscapes.enums import Stat
-from streetscapes.enums import Attr
-from streetscapes import conf
-from streetscapes.conf import logger
+from streetscapes.utils.enums import Stat
+from streetscapes.utils.enums import Attr
+from streetscapes.utils.enums import SegmentationModel
+# from streetscapes import conf
+from streetscapes.utils import logger
 
 ImagePath = Path | str | list[Path | str]
 
 
 class BaseSegmenter:
+
+    model_type = None
+    models = {}
 
     def __init__(
         self,
@@ -78,6 +78,17 @@ class BaseSegmenter:
         # Mapping of label ID to label
         self.id_to_label = {}
         self.label_to_id = {}
+
+    @staticmethod
+    def _load_model(model: SegmentationModel):
+        return BaseSegmenter.models.get(model)
+
+    @staticmethod
+    def _register_models():
+        for m in BaseSegmenter.__subclasses__():
+            mt = getattr(m, "model_type", None)
+            if mt is not None:
+                BaseSegmenter.models[mt] = m
 
     def _load(self, *args, **kwargs):
         """
@@ -732,3 +743,7 @@ class BaseSegmenter:
             return _subtree
 
         return _flatten(labels)
+
+
+def load_model(model: SegmentationModel):
+    return BaseSegmenter._load_model(model)

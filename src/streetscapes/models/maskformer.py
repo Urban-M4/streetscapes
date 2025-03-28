@@ -6,18 +6,15 @@ from transformers import Mask2FormerImageProcessor
 from transformers import Mask2FormerForUniversalSegmentation
 
 # --------------------------------------
-import skimage as ski
-
-# --------------------------------------
-import numpy as np
-
-# --------------------------------------
-from streetscapes import logger
+from streetscapes.utils import logger
 from streetscapes.models import BaseSegmenter
 from streetscapes.models import ImagePath
+from streetscapes.utils.enums import SegmentationModel
 
 
 class MaskFormer(BaseSegmenter):
+
+    model_type = SegmentationModel.MaskFormer
 
     # All the labels recognised by Mask2Former.
     id_to_label = {
