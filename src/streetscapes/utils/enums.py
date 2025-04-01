@@ -1,11 +1,12 @@
 import enum
 
 
-class ImageSource(enum.StrEnum):
+class Source(enum.StrEnum):
     """
     An enum listing supported image sources.
     """
 
+    GSS = enum.auto() # Global Streetscapes
     Mapillary = enum.auto()
     KartaView = enum.auto()
     Amsterdam = enum.auto()

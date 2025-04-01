@@ -20,6 +20,9 @@ from pathlib import Path
 import operator
 
 # --------------------------------------
+import requests
+
+# --------------------------------------
 from functools import reduce
 
 # --------------------------------------
@@ -69,7 +72,7 @@ import typing as tp
 
 # --------------------------------------
 from streetscapes.utils import enums
-from streetscapes.utils.enums import ImageSource
+from streetscapes.utils.enums import Source
 from streetscapes.utils.logging import logger
 
 
@@ -99,26 +102,26 @@ class SVWorkspace:
         conf: Path | str | None = None,
     ) -> SVWorkspace:
         """
-        _summary_
+        Create a workspace.
 
         Args:
             path:
-                _description_
+                The path to the workspace directory.
 
             conf:
-                _description_. Defaults to None.
+                A configuration file. Defaults to None.
 
         Raises:
-            FileNotFoundError:
-                _description_
+            FileExistsError:
+                Raised if the directory already exists.
 
         Returns:
-            _description_
+            The created workspace.
         """
 
         path = Path(path)
         if path.exists():
-            raise FileNotFoundError("The specified path already exists.")
+            raise FileExistsError("The specified path already exists.")
 
         # Return a workspace
         return SVWorkspace(SVWorkspace.ensure_dir(path), conf)
@@ -139,8 +142,8 @@ class SVWorkspace:
 
         # Repository details
         # ==================================================
-        self._repo_id = "NUS-UAL/global-streetscapes"
-        self._repo_type = "dataset"
+        # self._repo_id = "NUS-UAL/global-streetscapes"
+        # self._repo_type = "dataset"
 
         # Directories and paths
         # ==================================================
@@ -149,50 +152,34 @@ class SVWorkspace:
         if not self.root_dir.exists():
             raise FileNotFoundError("The specified path does not exist.")
 
-        # Paths for the Global Streetscapes cache and some
-        # sub directoriesfor convenience.
-        self.local_dir: Path | None = None
-        self.csv_dir: Path | None = None
-        self.parquet_dir: Path | None = None
-        self.image_dirs: Path | None = None
+        self.sources = set()
 
-        # The info file.
-        self.info: Path | None = None
 
-        # Bootstrap the workspace.
-        self._bootstrap()
+    # def _bootstrap(self):
 
-        # API tokens for various image sources
-        # ==================================================
-        self.tokens = {
-            src: self._env(f"{src.name.upper()}_TOKEN", None) for src in ImageSource
-        }
+    #     # Optional local directory for downloading data from the Global Streetscapes repo.
+    #     # Defaults to the local Huggingface cache directory.
+    #     self.local_dir = self._env.path("STREETSCAPES_LOCAL_DIR", None)
 
-    def _bootstrap(self):
+    #     # Load the info file.
+    #     self.info = self.get_global_file_path("info.csv")
 
-        # Optional local directory for downloading data from the Global Streetscapes repo.
-        # Defaults to the local Huggingface cache directory.
-        self.local_dir = self._env.path("STREETSCAPES_LOCAL_DIR", None)
+    #     # Now scan the cache directory to extract the paths
+    #     cache_dir = scan_cache_dir()
+    #     for repo in cache_dir.repos:
+    #         if repo.repo_id == self._repo_id:
+    #             self.local_dir = repo.repo_path
 
-        # Load the info file.
-        self.info = self.get_global_file_path("info.csv")
+    #     # Bootstrap subdirectories
+    #     # ==================================================
+    #     self.csv_dir = self.local_dir / "data"
+    #     self.parquet_dir = self.csv_dir / "parquet"
 
-        # Now scan the cache directory to extract the paths
-        cache_dir = scan_cache_dir()
-        for repo in cache_dir.repos:
-            if repo.repo_id == self._repo_id:
-                self.local_dir = repo.repo_path
-
-        # Bootstrap subdirectories
-        # ==================================================
-        self.csv_dir = self.local_dir / "data"
-        self.parquet_dir = self.csv_dir / "parquet"
-
-        # Bootstrap image subdirectories
-        # ==================================================
-        self.image_dirs = {
-            src: self.create_image_dir(src.name.lower()) for src in ImageSource
-        }
+    #     # Bootstrap image subdirectories
+    #     # ==================================================
+    #     self.image_dirs = {
+    #         src: self.create_image_dir(src.name.lower()) for src in Source
+    #     }
 
     def construct_path(
         self,
@@ -240,108 +227,6 @@ class SVWorkspace:
             path = path.with_suffix(f".{suffix}")
 
         return path
-
-    def get_global_file_path(
-        self,
-        filename: str | Path,
-    ):
-        """
-        Retrieve a single (potentially cached) file from the
-        Global Streetscapes HuggingFace dataset repo.
-
-        Args:
-            filename:
-                The file to retrieve.
-
-        Returns:
-            A Path object.
-        """
-
-        # Ensure that we are not passing a path to the functions below.
-        filename = str(filename)
-
-        # Try to load the file from the cache.
-        f = try_to_load_from_cache(
-            filename=filename,
-            repo_id=self._repo_id,
-            repo_type=self._repo_type,
-        )
-
-        if f is None:
-            # Download the file
-            f = hf_hub_download(
-                filename=filename,
-                repo_id=self._repo_id,
-                repo_type=self._repo_type,
-                local_dir=self.local_dir,
-            )
-
-        return Path(f)
-
-    def get_global_file_paths(
-        self,
-        filenames: list[str | Path],
-    ) -> list[Path]:
-        """
-        Retrieve multiple (potentially cached) files from the
-        Global Streetscapes HuggingFace dataset repo.
-
-        Args:
-            filenames:
-                The files to retrieve.
-
-        Returns:
-            A list of Path objects.
-        """
-        return [self.get_file_path(fname) for fname in filenames]
-
-    def load_global_csv_file(
-        self,
-        filename: str | Path,
-    ) -> ibis.Table:
-        """
-        Load a CSV file from the Global Streetscapes repository.
-
-        Args:
-            filename:
-                A CSV file to load.
-
-        Returns:
-            An Ibis table.
-        """
-
-        fpath = self.construct_path(
-            filename,
-            self.csv_dir,
-            self.local_dir,
-            "csv",
-        )
-
-        return ibis.read_csv(self.get_global_file_path(fpath))
-
-    def load_global_parquet_file(
-        self,
-        filename: str | Path,
-    ):
-        """
-        Load a Parquet file from the Global Streetscapes repository.
-
-        Args:
-            filename:
-                A Parquet file to load.
-
-        Returns:
-            An Ibis table.
-        """
-
-        fpath = self.construct_path(
-            filename,
-            self.parquet_dir,
-            self.local_dir,
-            "parquet",
-        )
-
-        return ibis.read_parquet(self.get_global_file_path(fpath))
 
     def load_csv_file(
         self,
@@ -404,385 +289,208 @@ class SVWorkspace:
             )
         )
 
-    # def convert_csv_to_parquet(
-    #     source: str = "streetscapes.parquet",
-    #     target: str = "streetscapes.parquet",
-    #     silent: bool = False,
-    # ):
+    # def get_missing_image_ids(
+    #     records: pd.DataFrame,
+    #     directory: Path,
+    #     image_paths: set[Path] = None,
+    # ) -> tuple[set[Path], set[int]]:
     #     """
-    #     Converts a list of global-streetscapes csv files into a single merged dataframe.
+    #     Extract the set of IDs for images that have not been downloaded yet.
 
     #     Args:
+    #         records (pd.DataFrame):
+    #             A Pandas dataframe containing image ID information.
 
-    #         source:
-    #             The name of the source CSV file.
+    #         directory (Path):
+    #             The directory to search.
 
-    #         target:
-    #             The name of the target Parquet file.
+    #         image_paths (set[Path], optional):
+    #             A set of paths that has already been collected. Defaults to None.
 
-    #         silent:
-    #             Do not prompt the user if the destination file exists.
-    #             Defaults to False.
-
-    #     Raises:
-    #         FileNotFoundError:
-    #             Error if the data directory does not exist.
+    #     Returns:
+    #         tuple[set[Path], set[int]]:
+    #             A tuple containing:
+    #                 1. A set of paths to existing images.
+    #                 2. A set of image IDs to download.
     #     """
 
-    #     csv_dir = Path(csv_dir)
+    #     if image_paths is None:
+    #         image_paths = set()
+    #     missing = set()
+    #     for record in records:
+    #         image_id = record["orig_id"]
+    #         image_path = directory / f"{image_id}.jpeg"
+    #         if image_path.exists():
+    #             image_paths.add(image_path)
+    #         else:
+    #             missing.add(image_id)
 
-    #     if not csv_dir.exists():
-    #         raise FileNotFoundError(
-    #             f"The specified directory '{csv_dir}' does not exist."
-    #         )
+    #     return (image_paths, missing)
 
-    #     parquet_dir = ensure_dir(parquet_dir)
-    #     parquet_file = parquet_dir / source
+    # def get_image_url(
+    #     image_id: int,
+    #     source: enums.Source,
+    #     resolution: int = 2048,
+    #     session: rq.Session = None,
+    # ) -> str:
+    #     """
+    #     Retrieve the URL for an image with the given ID.
 
-    #     if parquet_file.exists() and not silent:
-    #         ok = input("==[ The target filename exists. Overwrite? (y/[n]) ")
-    #         if not ok.lower().startswith("y"):
-    #             logger.info(f"Exiting.")
+    #     Args:
+    #         source (enums.Source):
+    #             The source map (cf. the SourceMap enum).
+
+    #         image_id (int):
+    #             The image ID.
+
+    #         resolution (int):
+    #             The resolution of the requested image (only valid for Mapillary for now).
+
+    #         session (rq.Session, optional):
+    #             An optional authenticated session to use
+    #             for retrieving the image.
+
+    #     Returns:
+    #         str:
+    #             The URL to query.
+    #     """
+
+    #     match source:
+    #         case enums.Source.Mapillary:
+    #             url = f"https://graph.mapillary.com/{image_id}?fields=thumb_{resolution}_url"
+
+    #             try:
+    #                 prq = rq.Request(
+    #                     "GET", url, params={"access_token": conf.MAPILLARY_TOKEN}
+    #                 )
+    #                 res = session.send(prq.prepare())
+    #                 image_url = json.loads(res.content.decode("utf-8"))[
+    #                     f"thumb_{resolution}_url"
+    #                 ]
+
+    #                 return image_url
+
+    #             except Exception as e:
+    #                 return
+
+    #         case enums.Source.KartaView:
+    #             url = f"https://api.openstreetcam.org/2.0/photo/?id={image_id}"
+    #             try:
+    #                 # Send the request
+    #                 r = rq.get(url)
+    #                 # Parse the response
+    #                 data = r.json()["result"]["data"][0]
+    #                 image_url = data["fileurlProc"]
+    #                 return image_url
+    #             except Exception as e:
+    #                 return
+
+    #         case _:
     #             return
 
-    #     csv_files = csv_dir.glob("*.csv")
+    # def download_image(
+    #     image_id: int,
+    #     directory: str | Path,
+    #     source: enums.Source,
+    #     resolution: int = 2048,
+    #     verbose: bool = True,
+    #     session: rq.Session = None,
+    # ) -> Path:
+    #     """
+    #     Download a single image from Mapillary.
 
-    #     csv_dfs = []
-    #     dtypes = {
-    #         "sequence_id": str,
-    #         "capital": str,
-    #         "pano_status": str,
-    #         "view_direction": str,
-    #     }
-    #     for file in csv_files:
-    #         logger.info(f"Processing file '{file.name}'...")
-    #         df = pd.read_csv(file, dtype=dtypes)
-    #         df["orig_id"] = df["orig_id"].astype("int64")
-    #         csv_dfs.append(df)
+    #     Args:
+    #         image_id (str):
+    #             The image ID.
 
-    #     logger.info(f"Merging files...")
-    #     merged_df = reduce(
-    #         lambda left, right: pd.merge(
-    #             left, right, on=["uuid", "source", "orig_id"], how="left"
-    #         ),
-    #         csv_dfs,
-    #     )
+    #         directory (str | Path):
+    #             The destination directory.
 
-    #     logger.info(f"Saving file '{parquet_file.name}'...")
-    #     merged_df.to_parquet(parquet_file, compression="zstd")
+    #         source (enums.SourceMap):
+    #             The source map.
+    #             Limited to Mapillary or KartaView at the moment.
 
-    def load_subset(
-        self,
-        subset: str,
-        criteria: dict = None,
-        columns: list | tuple | set = None,
-        recreate: bool = False,
-        save: bool = True,
-    ) -> ibis.Table:
-        """
-        Load and return a Parquet file for a specific city, if it exists.
+    #         resolution (int, optional):
+    #             The resolution to request. Defaults to 2048.
 
-        Args:
-            subset:
-                The subset to load.
+    #         verbose (bool, optional):
+    #             Print some output. Defaults to True.
 
-            criteria:
-                The criteria used to subset the Global Streetscapes dataset.
+    #         session (rq.Session, optional):
+    #             An optional authenticated session to use
+    #             for retrieving the image.
 
-            columns:
-                The columns to keep or retrieve.
+    #     Returns:
+    #         Path:
+    #             The path to the downloaded image file.
+    #     """
 
-            recreate:
-                Recreate the subset if it exists.
-                Defaults to False.
+    #     # Set up the image path
+    #     image_path = directory / f"{image_id}.jpeg"
 
-            save:
-                Save a newly created subset.
-                Defaults to True.
+    #     # Download the image
+    #     if not image_path.exists():
+    #         if verbose:
+    #             logger.info(f"Downloading image {image_id}.jpeg...")
 
-        Returns:
-            An Ibis table.
-        """
+    #         # Random sleep time so that we don't flood the servers.
+    #         time.sleep(random.uniform(0.1, 1))
 
-        fpath = self.construct_path(subset, suffix="parquet")
+    #         # NOTE: Specifically in the case of Mapillary,
+    #         # we have to send a request for that image
+    #         # straight after getting the URL.
+    #         # Collecting all the URLs in advance and requesting them
+    #         # one by one outside the loop doesn't work.
 
-        if recreate or not fpath.exists():
-            logger.info(f"Creating subset '{fpath.name}'...")
+    #         # Download the image
+    #         # ==================================================
+    #         match source:
+    #             case enums.Source.Mapillary:
+    #                 if session is None:
+    #                     session = get_session(source)
+    #                 url = get_image_url(image_id, source, resolution, session)
+    #                 response = session.get(url)
+    #             case enums.Source.KartaView:
+    #                 url = get_image_url(image_id, source, resolution)
+    #                 response = rq.get(url)
 
-            # First, load the entire dataset
-            gs_all = self.load_global_parquet_file("streetscapes")
-            subset = gs_all
+    #         # Save the image if it has been downloaded successfully
+    #         # ==================================================
+    #         if response.status_code == 200 and response.content is not None:
+    #             with open(image_path, "wb") as f:
+    #                 f.write(response.content)
 
-            if isinstance(criteria, dict):
+    #     return image_path
 
-                for lhs, criterion in criteria.items():
-
-                    if isinstance(criterion, (tuple, list, set)):
-                        if len(criterion) > 2:
-                            raise IndexError(f"Invalid criterion '{criterion}'")
-                        op, rhs = (
-                            (operator.eq, criterion[0])
-                            if len(criterion) == 1
-                            else criterion
-                        )
-
-                    else:
-                        op, rhs = operator.eq, criterion
-
-                    if not isinstance(op, tp.Callable):
-                        raise TypeError(f"The operator is not callable.")
-
-                    subset = subset[op(subset[lhs], rhs)]
-
-                if columns is not None:
-                    subset = subset.select(columns)
-
-                if save:
-                    subset.to_parquet(fpath)
-        else:
-            logger.info(f"Loading '{fpath.name}'...")
-
-            subset = self.load_parquet_file(fpath)
-            if columns is not None:
-                subset = subset.select(columns)
-
-        logger.info(f"Done")
-
-        return subset
-
-    def get_missing_image_ids(
-        records: pd.DataFrame,
-        directory: Path,
-        image_paths: set[Path] = None,
-    ) -> tuple[set[Path], set[int]]:
-        """
-        Extract the set of IDs for images that have not been downloaded yet.
-
-        Args:
-            records (pd.DataFrame):
-                A Pandas dataframe containing image ID information.
-
-            directory (Path):
-                The directory to search.
-
-            image_paths (set[Path], optional):
-                A set of paths that has already been collected. Defaults to None.
-
-        Returns:
-            tuple[set[Path], set[int]]:
-                A tuple containing:
-                    1. A set of paths to existing images.
-                    2. A set of image IDs to download.
-        """
-
-        if image_paths is None:
-            image_paths = set()
-        missing = set()
-        for record in records:
-            image_id = record["orig_id"]
-            image_path = directory / f"{image_id}.jpeg"
-            if image_path.exists():
-                image_paths.add(image_path)
-            else:
-                missing.add(image_id)
-
-        return (image_paths, missing)
-
-    def get_image_url(
-        image_id: int,
-        source: enums.ImageSource,
-        resolution: int = 2048,
-        session: rq.Session = None,
-    ) -> str:
-        """
-        Retrieve the URL for an image with the given ID.
-
-        Args:
-            source (enums.Source):
-                The source map (cf. the SourceMap enum).
-
-            image_id (int):
-                The image ID.
-
-            resolution (int):
-                The resolution of the requested image (only valid for Mapillary for now).
-
-            session (rq.Session, optional):
-                An optional authenticated session to use
-                for retrieving the image.
-
-        Returns:
-            str:
-                The URL to query.
-        """
-
-        match source:
-            case enums.ImageSource.Mapillary:
-                url = f"https://graph.mapillary.com/{image_id}?fields=thumb_{resolution}_url"
-
-                try:
-                    prq = rq.Request(
-                        "GET", url, params={"access_token": conf.MAPILLARY_TOKEN}
-                    )
-                    res = session.send(prq.prepare())
-                    image_url = json.loads(res.content.decode("utf-8"))[
-                        f"thumb_{resolution}_url"
-                    ]
-
-                    return image_url
-
-                except Exception as e:
-                    return
-
-            case enums.ImageSource.KartaView:
-                url = f"https://api.openstreetcam.org/2.0/photo/?id={image_id}"
-                try:
-                    # Send the request
-                    r = rq.get(url)
-                    # Parse the response
-                    data = r.json()["result"]["data"][0]
-                    image_url = data["fileurlProc"]
-                    return image_url
-                except Exception as e:
-                    return
-
-            case _:
-                return
-
-    def download_image(
-        image_id: int,
-        directory: str | Path,
-        source: enums.ImageSource,
-        resolution: int = 2048,
-        verbose: bool = True,
-        session: rq.Session = None,
-    ) -> Path:
-        """
-        Download a single image from Mapillary.
-
-        Args:
-            image_id (str):
-                The image ID.
-
-            directory (str | Path):
-                The destination directory.
-
-            source (enums.SourceMap):
-                The source map.
-                Limited to Mapillary or KartaView at the moment.
-
-            resolution (int, optional):
-                The resolution to request. Defaults to 2048.
-
-            verbose (bool, optional):
-                Print some output. Defaults to True.
-
-            session (rq.Session, optional):
-                An optional authenticated session to use
-                for retrieving the image.
-
-        Returns:
-            Path:
-                The path to the downloaded image file.
-        """
-
-        # Set up the image path
-        image_path = directory / f"{image_id}.jpeg"
-
-        # Download the image
-        if not image_path.exists():
-            if verbose:
-                logger.info(f"Downloading image {image_id}.jpeg...")
-
-            # Random sleep time so that we don't flood the servers.
-            time.sleep(random.uniform(0.1, 1))
-
-            # NOTE: Specifically in the case of Mapillary,
-            # we have to send a request for that image
-            # straight after getting the URL.
-            # Collecting all the URLs in advance and requesting them
-            # one by one outside the loop doesn't work.
-
-            # Download the image
-            # ==================================================
-            match source:
-                case enums.ImageSource.Mapillary:
-                    if session is None:
-                        session = get_session(source)
-                    url = get_image_url(image_id, source, resolution, session)
-                    response = session.get(url)
-                case enums.ImageSource.KartaView:
-                    url = get_image_url(image_id, source, resolution)
-                    response = rq.get(url)
-
-            # Save the image if it has been downloaded successfully
-            # ==================================================
-            if response.status_code == 200 and response.content is not None:
-                with open(image_path, "wb") as f:
-                    f.write(response.content)
-
-        return image_path
-
-    def get_session(source: enums.ImageSource):
-        """
-        Get an authenticated session for the supplied source.
-
-        Right now, we only need a session for working with Mapillary.
-
-        Args:
-            source (enums.SourceMap):
-                A `requests` session.
-        """
-
-        match source:
-            case enums.ImageSource.Mapillary:
-                session = rq.Session()
-                session.headers.update(
-                    {"Authorization": f"OAuth {conf.MAPILLARY_TOKEN}"}
-                )
-                return session
-
-            case _:
-                return
 
     def download_images(
-        df: pd.DataFrame,
-        directory: str | Path,
-        resolution: int = 2048,
+        df: ibis.Table,
         sample: bool = False,
         max_workers: int = None,
-        verbose: bool = False,
     ) -> list[Path]:
         """
         Download a set of images concurrently.
 
         Args:
-            df (pd.DataFrame):
+            df:
                 A dataframe containing image IDs.
 
-            directory (str | Path):
-                The destination directory.
-
-            resolution (int, optional):
-                The resolution to request. Defaults to 2048.
-
-            sample (int, optional):
+            sample:
                 Only download a sample set of images. Defaults to None.
 
-            max_workers (int, optional):
+            max_workers:
                 The number of workers (threads) to use. Defaults to None.
 
-            verbose (bool, optional):
+            verbose:
                 Print some output. Defaults to False.
 
         Returns:
-            list[Path]:
-                A list of image paths.
+            A list of image paths.
         """
 
         # Filter records by source
         filtered = {}
-        for source in enums.ImageSource:
+        for source in enums.Source:
             subset = df[df["source"].str.lower() == source.name.lower()]
             if len(subset) > 0:
                 filtered[source] = subset
@@ -845,6 +553,9 @@ class SVWorkspace:
                             pbar.update(1)
 
         return image_paths
+
+    def _add_source(self, source: Source):
+        self.sources.append(source)
 
     def as_rgb(
         image: np.ndarray,

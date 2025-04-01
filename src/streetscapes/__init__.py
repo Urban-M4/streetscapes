@@ -1,3 +1,4 @@
+from streetscapes.utils.logging import logger
 from streetscapes.info import render_info_csv
 # from streetscapes.utils.functions import mkdir
 # from streetscapes.utils.functions import make_colourmap
