@@ -1,17 +1,31 @@
 import enum
 
-class SourceMap(enum.StrEnum):
-    '''
-    An Enum class representing a source map.
-    Currently, only Mapillary and KartaView are supported.
-    '''
+
+class Source(enum.StrEnum):
+    """
+    An enum listing supported image sources.
+    """
+
+    GSS = enum.auto() # Global Streetscapes
     Mapillary = enum.auto()
     KartaView = enum.auto()
+    Amsterdam = enum.auto()
+    Google = enum.auto()
+
+
+class SegmentationModel(enum.StrEnum):
+    """
+    An enum listing supported segmentation models.
+    """
+
+    MaskFormer = enum.auto()
+    DinoSAM = enum.auto()
+
 
 class Attr(enum.StrEnum):
-    '''
+    """
     Instance attributes whose statistics can be computed.
-    '''
+    """
 
     R = enum.auto()
     G = enum.auto()
@@ -39,13 +53,11 @@ class Attr(enum.StrEnum):
 
 
 class Stat(enum.StrEnum):
-    '''
+    """
     Types of statistics.
-    '''
+    """
 
     Mean = enum.auto()
     Mode = enum.auto()
     Median = enum.auto()
     SD = enum.auto()
-
-
