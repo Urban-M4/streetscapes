@@ -1,28 +1,22 @@
 import enum
 
 
-class Source(enum.StrEnum):
+class CIEnum(enum.StrEnum):
     """
-    An enum listing supported image sources.
-    """
-
-    GSS = enum.auto() # Global Streetscapes
-    Mapillary = enum.auto()
-    KartaView = enum.auto()
-    Amsterdam = enum.auto()
-    Google = enum.auto()
-
-
-class SegmentationModel(enum.StrEnum):
-    """
-    An enum listing supported segmentation models.
+    Case-insensitive string enum.
     """
 
-    MaskFormer = enum.auto()
-    DinoSAM = enum.auto()
+    @classmethod
+    def _missing_(cls, value: str):
+        for member in cls:
+            if (
+                member.name.replace("_", "").casefold()
+                == value.replace("_", "").casefold()
+            ):
+                return member
 
 
-class Attr(enum.StrEnum):
+class Attr(CIEnum):
     """
     Instance attributes whose statistics can be computed.
     """
@@ -52,7 +46,7 @@ class Attr(enum.StrEnum):
         return [a.name.lower() for a in Attr.HSV.union(Attr.RGB)]
 
 
-class Stat(enum.StrEnum):
+class Stat(CIEnum):
     """
     Types of statistics.
     """

@@ -11,45 +11,108 @@ import numpy as np
 import matplotlib.pyplot as plt
 
 # --------------------------------------
-from streetscapes import models
+from streetscapes.models import ModelType
+from streetscapes.models import ModelBase
+from streetscapes.streetview.instance import SVInstance
 from streetscapes.streetview.segmentation import SVSegmentation
 
+
 class SVImage:
-    def __init__(self, path: Path):
+    def __init__(
+        self,
+        path: Path,
+        segmentations: dict[ModelType, SVSegmentation] | None = None,
+    ):
+        """
+        A convenience wrapper around an individual image.
+        The wrapper is source-agnostic, meaning that many different
+        image sources can be combined at a higher level.
+
+        Args:
+            path:
+                Path to the image file.
+
+            segmentations:
+                A dictionary of segmentations per segmentation model.
+                Defaults to None.
+        """
+
         self.path = path
-        self.image = Image.open(self.path)
-        self.image_array = np.asarray(self.image)
+        self.image = np.asarray(Image.open(self.path))
+        self.segmentations = {} if segmentations is None else segmentations
 
-        self.models = {}
+    @property
+    def tag(self) -> str:
+        """
+        Return a tag that identifies the image.
+        """
+        return self.path.stem
 
-    def id(self) -> int:
-        return int(self.path.stem)
+    def segmentation(
+        self,
+        model: ModelType,
+    ) -> SVSegmentation:
+        """
+        Return an SVSegmentation object for a given model.
 
-    def mask_path(self) -> Path:
+        Args:
+            model:
+                The model to use for segmentation.
 
-        # TODO: perhaps add the model that was used as subdir?
-        return self.path.with_suffix("npz")
+        Returns:
+            The SVSegmentation object.
+        """
 
-    def segment(self, model) -> models.BaseSegmenter:
-        if model not in self.models:
-            self.models[model] = models.load_model(model)
+        # Try to use the cached version
+        segmentation = self.segmentations.get(model)
 
-        self.models[model].segment(self.path)
+        if segmentation is None:
+            # Try to load a saved version
+            segmentation = SVSegmentation.from_saved(self.tag, self.path)
 
-    def plot(self):
+        if segmentation is None:
+
+            _model = ModelBase.load_model(model)
+            (image_map, masks, instances) = _model.segment_images(self.image)
+            self.segmentations[model] = SVSegmentation(image_map[self.id])
+            segmentation = self.segmentations[model]
+
+        return segmentation
+
+    def show(self):
+        """
+        Show the image
+        """
+
         plt.figure()
         plt.imshow(self.image)
 
-    @property
-    def segmentation(self) -> SVSegmentation:
-        return SVSegmentation.from_saved(self.path)
+    def get_instances(
+        self,
+        model: ModelType,
+        label: str,
+    ) -> list[SVInstance]:
+        """
+        Extract a list of instances.
 
-    def get_instances(self, label: str):
-        mask = self.segmentation.get_instances(label=label)
+        Args:
+            model:
+                The model to get instances for.
+
+            label:
+                Label for the requested instances.
+
+        Returns:
+            A list of instances.
+        """
+
+        mask = self.segmentation(model).get_instances(label=label)
+
         # TODO: return as Instance object, but currently that doesn't support RGB(A) images
         return np.ma.masked_array(self.image_array, mask=mask)
 
-    def plot_instances(self, label: str):
+    def show_instances(self, label: str):
+
         mask = self.segmentation.get_instances(label=label)
 
         rgba_image = np.array(self.image.convert("RGBA"))

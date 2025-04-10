@@ -1,36 +1,11 @@
 # --------------------------------------
-from __future__ import annotations
-
-# --------------------------------------
 import os
-
-# --------------------------------------
-import json
-
-# --------------------------------------
-import time
-
-# --------------------------------------
-import random
 
 # --------------------------------------
 from pathlib import Path
 
 # --------------------------------------
-import operator
-
-# --------------------------------------
-import requests
-
-# --------------------------------------
-from functools import reduce
-
-# --------------------------------------
-from concurrent.futures import ThreadPoolExecutor
-from concurrent.futures import as_completed
-
-# --------------------------------------
-import sys
+import itertools
 
 # --------------------------------------
 import ibis
@@ -42,95 +17,47 @@ from tqdm import tqdm
 import numpy as np
 
 # --------------------------------------
-import pandas as pd
-
-# --------------------------------------
-import platform
-
-# --------------------------------------
-import skimage as ski
-
-# --------------------------------------
 from environs import Env
 
 # --------------------------------------
-import requests as rq
-
-# --------------------------------------
-from huggingface_hub import hf_hub_download
-from huggingface_hub import CachedRepoInfo
-from huggingface_hub import try_to_load_from_cache
-from huggingface_hub import cached_assets_path
-from huggingface_hub import scan_cache_dir
-
-
-# --------------------------------------
-import matplotlib.pyplot as plt
-
-# --------------------------------------
-import typing as tp
-
-# --------------------------------------
-from streetscapes.utils import enums
-from streetscapes.utils.enums import Source
-from streetscapes.utils.logging import logger
+from streetscapes import utils
+from streetscapes.utils import logger
+from streetscapes.models import ModelBase
+from streetscapes.models import ModelType
+from streetscapes.sources import SourceBase
+from streetscapes.sources import SourceType
+from streetscapes.sources import ImageSourceBase
+from streetscapes.streetview import SVSegmentation
 
 
 class SVWorkspace:
 
     @staticmethod
-    def ensure_dir(path: Path | str) -> Path:
+    def restore(path: Path):
         """
-        Resolve and expand a directory path and
-        create the directory if it doesn't exist.
-
-        Args:
-            directory:
-                A directory path.
-
-        Returns:
-            The (potentially newly created) expanded path.
-        """
-
-        path = Path(path).expanduser().resolve().absolute()
-        path.mkdir(exist_ok=True, parents=True)
-        return path
-
-    @staticmethod
-    def create(
-        path: Path | str,
-        conf: Path | str | None = None,
-    ) -> SVWorkspace:
-        """
-        Create a workspace.
+        STUB
+        A method to restore a workspace from a saved session.
 
         Args:
             path:
-                The path to the workspace directory.
-
-            conf:
-                A configuration file. Defaults to None.
-
-        Raises:
-            FileExistsError:
-                Raised if the directory already exists.
-
-        Returns:
-            The created workspace.
+                The path to the workspace root directory.
         """
-
-        path = Path(path)
-        if path.exists():
-            raise FileExistsError("The specified path already exists.")
-
-        # Return a workspace
-        return SVWorkspace(SVWorkspace.ensure_dir(path), conf)
+        pass
 
     def __init__(
         self,
         path: Path | str,
         conf: Path | str | None = None,
+        create: bool = False,
     ):
+        # Directories and paths
+        # ==================================================
+        # The root directory of the workspace
+        self.root_dir = Path(path)
+        if not self.root_dir.exists():
+            if not create:
+                raise FileNotFoundError("The specified path does not exist.")
+            utils.ensure_dir(path)
 
         # Configuration
         # ==================================================
@@ -140,67 +67,42 @@ class SVWorkspace:
 
         self._env.read_env(conf)
 
-        # Repository details
+        # Sources
         # ==================================================
-        # self._repo_id = "NUS-UAL/global-streetscapes"
-        # self._repo_type = "dataset"
+        self.sources = {}
 
-        # Directories and paths
+        # Some internal convenience attributes
         # ==================================================
-        # The root directory of the workspace
-        self.root_dir = Path(path)
-        if not self.root_dir.exists():
-            raise FileNotFoundError("The specified path does not exist.")
+        self._source_col = "source"
+        self._id_col = "image_id"
 
-        self.sources = set()
+        # Metadata object.
+        # Can be used to save and reload a workspace.
+        # ==================================================
+        self.metadata = self._load_metadata()
 
+    def __repr__(self):
+        cls = self.__class__.__name__
+        return f"{cls}(root_dir={utils.hide_home(self.root_dir)!r})"
 
-    # def _bootstrap(self):
+    def _load_metadata(self) -> ibis.Table:
 
-    #     # Optional local directory for downloading data from the Global Streetscapes repo.
-    #     # Defaults to the local Huggingface cache directory.
-    #     self.local_dir = self._env.path("STREETSCAPES_LOCAL_DIR", None)
+        metadata = self.root_dir / "metadata.db"
+        if not metadata.exists():
+            ibis.connect(f"duckdb://{metadata}")
 
-    #     # Load the info file.
-    #     self.info = self.get_global_file_path("info.csv")
-
-    #     # Now scan the cache directory to extract the paths
-    #     cache_dir = scan_cache_dir()
-    #     for repo in cache_dir.repos:
-    #         if repo.repo_id == self._repo_id:
-    #             self.local_dir = repo.repo_path
-
-    #     # Bootstrap subdirectories
-    #     # ==================================================
-    #     self.csv_dir = self.local_dir / "data"
-    #     self.parquet_dir = self.csv_dir / "parquet"
-
-    #     # Bootstrap image subdirectories
-    #     # ==================================================
-    #     self.image_dirs = {
-    #         src: self.create_image_dir(src.name.lower()) for src in Source
-    #     }
-
-    def construct_path(
+    def get_path(
         self,
         path: str | Path,
-        parent: Path | None = None,
-        root: Path | None = None,
         suffix: str | None = None,
     ):
         """
-        Construct a path (a file or a directory) with optional modifications.
+        Construct a workspace path (a file or a directory)
+        with optional modifications.
 
         Args:
             path:
                 The original path.
-
-            parent:
-                A parent path. Defaults to None.
-
-            root:
-                An optional root path for computing a relative path.
-                Defaults to None.
 
             suffix:
                 An optional (replacement) suffix. Defaults to None.
@@ -209,26 +111,9 @@ class SVWorkspace:
             The path to the file.
         """
 
-        # Ensure that the path is a Path object.
-        path = Path(path)
+        return utils.make_path(path, self.root_dir, suffix=suffix)
 
-        # Optionally position the path relative to a parent path.
-        if not path.is_absolute():
-            if parent is None:
-                parent = self.root_dir
-
-            if root is None:
-                root = self.root_dir
-
-            path = parent.relative_to(root) / path
-
-        # Optionally replace or add a suffix.
-        if suffix is not None:
-            path = path.with_suffix(f".{suffix}")
-
-        return path
-
-    def load_csv_file(
+    def load_csv(
         self,
         filename: str | Path,
     ) -> ibis.Table:
@@ -243,11 +128,11 @@ class SVWorkspace:
             An Ibis table.
         """
 
-        filename = self.construct_path(filename, suffix="csv")
+        filename = self.get_path(filename, suffix="csv")
 
         return ibis.read_csv(filename)
 
-    def load_parquet_file(
+    def load_parquet(
         self,
         filename: str | Path,
     ) -> ibis.Table:
@@ -262,362 +147,542 @@ class SVWorkspace:
             An Ibis table.
         """
 
-        filename = self.construct_path(filename, suffix="parquet")
+        filename = self.get_path(filename, suffix="parquet")
 
         return ibis.read_parquet(filename)
 
-    def create_image_dir(
-        self,
-        subdir: str,
-    ) -> Path:
+    def show_contents(self) -> str | None:
         """
-        Create a managed image directory for a given image source.
+        Create and return a tree-like representation of a directory.
+        """
+        return utils.show_dir_tree(self.root_dir)
+
+    def add_source(
+        self,
+        source_type: SourceType,
+        root_dir: str | Path | None = None,
+        replace: bool = False,
+    ) -> SourceBase | None:
+        """
+        Add a source to this workspace.
 
         Args:
-            subdir:
-                A subdirectory corresponding to the image source.
+            source_type:
+                A SourceType enum.
+
+            root_dir:
+                An optional root directory for this source. Defaults to None.
+
+            replace:
+                A switch indicating that if the source already exists,
+                it should be replaced with the newly created one.
 
         Returns:
-            A Path to the image subdirectory.
+            An instance of the requested source type.
         """
 
-        return Path(
-            cached_assets_path(
-                library_name="streetscapes",
-                namespace="images",
-                subfolder=subdir,
+        if source_type in self.sources and not replace:
+            logger.warning(
+                f"Reusing an existing {source_type.name}, use the <green>replace</green> argument to override."
             )
-        )
+            return self.sources[source_type]
 
-    # def get_missing_image_ids(
-    #     records: pd.DataFrame,
-    #     directory: Path,
-    #     image_paths: set[Path] = None,
-    # ) -> tuple[set[Path], set[int]]:
-    #     """
-    #     Extract the set of IDs for images that have not been downloaded yet.
+        src = SourceBase.load_source(source_type, self._env, root_dir)
 
-    #     Args:
-    #         records (pd.DataFrame):
-    #             A Pandas dataframe containing image ID information.
+        if src is not None:
+            self.sources[source_type] = src
 
-    #         directory (Path):
-    #             The directory to search.
+        return src
 
-    #         image_paths (set[Path], optional):
-    #             A set of paths that has already been collected. Defaults to None.
+    def get_source(
+        self,
+        source_type: SourceType,
+    ) -> SourceBase | None:
+        """
+        Get a data source instance.
 
-    #     Returns:
-    #         tuple[set[Path], set[int]]:
-    #             A tuple containing:
-    #                 1. A set of paths to existing images.
-    #                 2. A set of image IDs to download.
-    #     """
+        Args:
+            source_type:
+                A SourceType enum.
 
-    #     if image_paths is None:
-    #         image_paths = set()
-    #     missing = set()
-    #     for record in records:
-    #         image_id = record["orig_id"]
-    #         image_path = directory / f"{image_id}.jpeg"
-    #         if image_path.exists():
-    #             image_paths.add(image_path)
-    #         else:
-    #             missing.add(image_id)
+        Returns:
+            The data source instance, if it exists.
+        """
+        return self.sources.get(source_type)
 
-    #     return (image_paths, missing)
+    def spawn_model(
+        self,
+        model_type: ModelType,
+        replace: bool = False,
+        *args,
+        **kwargs,
+    ) -> ModelBase | None:
+        """
+        Spawn a model.
 
-    # def get_image_url(
-    #     image_id: int,
-    #     source: enums.Source,
-    #     resolution: int = 2048,
-    #     session: rq.Session = None,
-    # ) -> str:
-    #     """
-    #     Retrieve the URL for an image with the given ID.
+        Args:
+            model_type:
+                The model type.
 
-    #     Args:
-    #         source (enums.Source):
-    #             The source map (cf. the SourceMap enum).
+        Returns:
+            A model instance.
+        """
+        if model_type in ModelBase.models and not replace:
+            logger.warning(
+                f"Reusing an existing {model_type.name} model, use the <green>replace</green> argument to override."
+            )
+            return ModelBase.models[model_type]
 
-    #         image_id (int):
-    #             The image ID.
+        model = ModelBase.load_model(model_type, *args, **kwargs)
 
-    #         resolution (int):
-    #             The resolution of the requested image (only valid for Mapillary for now).
+        if model is not None:
+            ModelBase.models[model_type] = model
 
-    #         session (rq.Session, optional):
-    #             An optional authenticated session to use
-    #             for retrieving the image.
+        return model
 
-    #     Returns:
-    #         str:
-    #             The URL to query.
-    #     """
+    def get_model(
+        self,
+        model_type: ModelType,
+    ) -> ModelBase | None:
+        """
+        Get a model object.
 
-    #     match source:
-    #         case enums.Source.Mapillary:
-    #             url = f"https://graph.mapillary.com/{image_id}?fields=thumb_{resolution}_url"
+        Args:
+            model_type:
+                A ModelType enum.
 
-    #             try:
-    #                 prq = rq.Request(
-    #                     "GET", url, params={"access_token": conf.MAPILLARY_TOKEN}
-    #                 )
-    #                 res = session.send(prq.prepare())
-    #                 image_url = json.loads(res.content.decode("utf-8"))[
-    #                     f"thumb_{resolution}_url"
-    #                 ]
+        Returns:
+            A model instance, if it exists.
+        """
+        return ModelBase.models.get(model_type)
 
-    #                 return image_url
+    def get_source_types_from_table(
+        self,
+        table: ibis.Table,
+    ) -> set:
+        """
+        Return a set of SourceType enums created by filtering the
+        table and checking what sources are contained inside.
 
-    #             except Exception as e:
-    #                 return
+        Args:
+            table: An Ibis table.
 
-    #         case enums.Source.KartaView:
-    #             url = f"https://api.openstreetcam.org/2.0/photo/?id={image_id}"
-    #             try:
-    #                 # Send the request
-    #                 r = rq.get(url)
-    #                 # Parse the response
-    #                 data = r.json()["result"]["data"][0]
-    #                 image_url = data["fileurlProc"]
-    #                 return image_url
-    #             except Exception as e:
-    #                 return
+        Returns:
+            A set of SourceType enums that can be used to perform custom actions by source type.
+        """
 
-    #         case _:
-    #             return
+        sources = set()
+        for s in table.select(self._source_col).distinct().to_pandas().values:
+            try:
+                sources.add(SourceType(s[0]))
 
-    # def download_image(
-    #     image_id: int,
-    #     directory: str | Path,
-    #     source: enums.Source,
-    #     resolution: int = 2048,
-    #     verbose: bool = True,
-    #     session: rq.Session = None,
-    # ) -> Path:
-    #     """
-    #     Download a single image from Mapillary.
+            except:
+                continue
 
-    #     Args:
-    #         image_id (str):
-    #             The image ID.
+        return sources
 
-    #         directory (str | Path):
-    #             The destination directory.
+    def check_image_status(
+        self,
+        dataset: ibis.Table,
+    ) -> tuple[set, set]:
+        """
+        Get the IDs of images that are missing from the local root directory.
 
-    #         source (enums.SourceMap):
-    #             The source map.
-    #             Limited to Mapillary or KartaView at the moment.
+        This method expects the colums corresponding to the source and the image ID
+        to be named in a certain way (cf. self._source_col and self._id_col, respectively).
+        This can be easily handled with Ibis by using .select() with a dictionary argument.
+        For instance, assuming a table that contains columns named "source" and "orig_id"
+        (as in the case of the Global Streetscapes dataset), we can obtain a new table
+        with columns named "source" and "image_id" by passing a dictionary mapping the
+        new column names to the existing ones:
 
-    #         resolution (int, optional):
-    #             The resolution to request. Defaults to 2048.
+        >>> t.select("source", "orig_id").columns
+        ('source', 'orig_id')
 
-    #         verbose (bool, optional):
-    #             Print some output. Defaults to True.
+        >>> t.select({'source': "source", "image_id": "orig_id"}).columns
+        ('source', 'image_id')
 
-    #         session (rq.Session, optional):
-    #             An optional authenticated session to use
-    #             for retrieving the image.
+        Here, 'source' is mapped unchanged to the original column called 'source'.
 
-    #     Returns:
-    #         Path:
-    #             The path to the downloaded image file.
-    #     """
+        Args:
+            dataset:
+                A dataset containing information about images that can be downloaded.
 
-    #     # Set up the image path
-    #     image_path = directory / f"{image_id}.jpeg"
+        Returns:
+            A tuple containing:
+                1. A set of existing images.
+                2. A set of missing images.
+        """
 
-    #     # Download the image
-    #     if not image_path.exists():
-    #         if verbose:
-    #             logger.info(f"Downloading image {image_id}.jpeg...")
+        sources = self.get_source_types_from_table(dataset)
 
-    #         # Random sleep time so that we don't flood the servers.
-    #         time.sleep(random.uniform(0.1, 1))
+        existing = {}
+        missing = {}
 
-    #         # NOTE: Specifically in the case of Mapillary,
-    #         # we have to send a request for that image
-    #         # straight after getting the URL.
-    #         # Collecting all the URLs in advance and requesting them
-    #         # one by one outside the loop doesn't work.
+        for src in sources:
+            if src not in self.sources:
+                continue
 
-    #         # Download the image
-    #         # ==================================================
-    #         match source:
-    #             case enums.Source.Mapillary:
-    #                 if session is None:
-    #                     session = get_session(source)
-    #                 url = get_image_url(image_id, source, resolution, session)
-    #                 response = session.get(url)
-    #             case enums.Source.KartaView:
-    #                 url = get_image_url(image_id, source, resolution)
-    #                 response = rq.get(url)
+            source = self.sources[src]
+            if isinstance(source, ImageSourceBase):
 
-    #         # Save the image if it has been downloaded successfully
-    #         # ==================================================
-    #         if response.status_code == 200 and response.content is not None:
-    #             with open(image_path, "wb") as f:
-    #                 f.write(response.content)
+                filtered = [
+                    str(s)
+                    for s in dataset.filter(
+                        dataset[self._source_col].ilike(f"%{src.name}")
+                    )
+                    .select(self._id_col)
+                    .to_pandas()
+                    .to_numpy()[:, 0]
+                    .tolist()
+                ]
 
-    #     return image_path
+                _existing, _missing = source.check_image_status(filtered)
 
+                existing[src] = _existing
+                missing[src] = _missing
+
+        return existing, missing
 
     def download_images(
-        df: ibis.Table,
-        sample: bool = False,
+        self,
+        dataset: ibis.Table,
+        sample: int | None = None,
         max_workers: int = None,
     ) -> list[Path]:
         """
         Download a set of images concurrently.
 
         Args:
-            df:
-                A dataframe containing image IDs.
+            dataset:
+                A dataset containing image IDs.
 
             sample:
-                Only download a sample set of images. Defaults to None.
+                Only download a sample of the images. Defaults to None.
 
             max_workers:
                 The number of workers (threads) to use. Defaults to None.
 
-            verbose:
-                Print some output. Defaults to False.
-
         Returns:
             A list of image paths.
         """
+        from concurrent.futures import ThreadPoolExecutor
+        from concurrent.futures import as_completed
 
-        # Filter records by source
-        filtered = {}
-        for source in enums.Source:
-            subset = df[df["source"].str.lower() == source.name.lower()]
-            if len(subset) > 0:
-                filtered[source] = subset
+        # Limit the table if only a sample is required
+        total = dataset.count().as_scalar().to_pandas()
+        if isinstance(sample, int) and sample < total:
+            dataset = ibis.memtable(dataset.to_pandas().sample(sample)).as_table()
 
-        # Set up the image directory
-        directory = ensure_dir(directory)
+        # Get the IDs of images that haven't been downloaded yet.
+        (existing, missing) = self.check_image_status(dataset)
 
-        image_paths = set()
-        for source, records in filtered.items():
-            # Limit the records if only a sample is required
-            if isinstance(sample, int):
-                records = records.sample(sample)
-
-            # Convert records to a dictionary
-            records = records.to_dict("records")
-
-            # Get the IDs of images that haven't been downloaded yet.
-            (image_paths, missing) = get_missing_image_ids(
-                records, directory, image_paths
-            )
+        # Download missing images
+        for source_type, image_ids in missing.items():
 
             # Download the images in parallel
             # ==================================================
-            if len(missing) > 0:
-                # Authenticated session for this source (if necessary)
-                session = get_session(source)
+            if len(image_ids) > 0:
 
                 if max_workers is None:
                     max_workers = os.cpu_count()
+
+                source = self.sources[source_type]
+
                 with ThreadPoolExecutor(max_workers=max_workers) as tpe:
-                    logger.info(
-                        f"Downloading {len(missing)} images from {source.name} into '{directory.name}'..."
-                    )
 
                     # Submit the image IDs for processing
                     futures = {
                         tpe.submit(
-                            download_image,
+                            source.download_image,
                             image_id,
-                            directory,
-                            source,
-                            resolution,
-                            verbose,
-                            session,
                         ): image_id
-                        for image_id in missing
+                        for image_id in image_ids
                     }
 
-                    with tqdm(total=len(missing), desc="Download progress: ") as pbar:
+                    desc = f"Downloading images | {source_type.name}"
+                    with tqdm(total=len(image_ids), desc=desc) as pbar:
                         for future in as_completed(futures):
                             try:
                                 image_id = futures[future]
-                                image_paths.add(future.result())
-                                if verbose:
-                                    logger.info(
-                                        f"Image {image_id} downloaded successuflly"
-                                    )
+                                result = future.result()
+                                existing[source_type].add(result)
+                                pbar.set_description_str(f"{desc} | {image_id:>20s}")
                             except Exception as exc:
-                                logger.debug(f"Error downloading image {image_id}")
-                            pbar.update(1)
+                                logger.info(
+                                    f"Error downloading image {image_id}:\n{exc}"
+                                )
+                            pbar.update()
+                        pbar.set_description_str(f"{desc} | Done")
 
-        return image_paths
+        return dataset
 
-    def _add_source(self, source: Source):
-        self.sources.append(source)
-
-    def as_rgb(
-        image: np.ndarray,
-        greyscale: bool = False,
-    ) -> np.ndarray:
+    def load_dataset(
+        self,
+        source: SourceType | SourceBase,
+        dataset: str,
+        criteria: dict = None,
+        columns: list | tuple | set = None,
+        recreate: bool = False,
+        save: bool = True,
+    ) -> ibis.Table | None:
         """
-        Convert an image into an RGB version.
+        Load and return a subset of the source, if it exists.
 
         Args:
-            image (np.ndarray):
-                The image to convert.
+            source:
+                The source to use.
 
-            greyscale (bool, optional):
-                Switch to convert the image to greyscale.
+            dataset:
+                The dataset to load.
+
+            criteria:
+                Optional criteria used to create a subset.
+
+            columns:
+                The columns to keep or retrieve.
+
+            recreate:
+                Recreate the dataset if it exists.
                 Defaults to False.
 
+            save:
+                Save a newly created dataset.
+                Defaults to True.
+
         Returns:
-            np.ndarray:
-                The RGB image.
+            An Ibis table.
         """
 
-        if len(image.shape) == 2:
-            # The image is already greyscale.
-            # Just convert it to RGB.
-            image = ski.color.gray2rgb(image)
+        # The path to the dataset.
+        fpath = self.get_path(dataset, suffix="parquet")
 
-        else:
-            if image.shape[-1] == 4:
-                # Remove the alpha channel if it's present
-                image = image[..., :-1]
+        desc = f"Dataset {dataset}"
+        with tqdm(total=1, desc=desc) as pbar:
+            if recreate or not fpath.exists():
 
-            # Check if it needs to be converted to greyscale
-            if greyscale:
-                image = ski.color.gray2rgb(ski.color.rgb2gray(image))
+                # Get the actual source if only the type is provided
+                if isinstance(source, SourceType):
+                    source = self.sources.get(source)
+                if source is None:
+                    return
 
-        # Convert the image to ubyte
-        image = ski.exposure.rescale_intensity(image, out_range=np.ubyte)
+                pbar.set_description_str(f"{desc} | Extracting...")
 
-        return image
+                dataset = source.load_dataset(criteria, columns)
 
-    def make_colourmap(
-        labels: dict | list | tuple,
-        cmap: str = "jet",
-    ) -> dict:
+                if save:
+                    pbar.set_description_str(f"{desc} | Saving...")
+                    utils.ensure_dir(fpath.parent)
+                    dataset.to_parquet(fpath)
+
+                pbar.update()
+            else:
+                pbar.set_description_str(f"{desc} | Loading...")
+
+                dataset = self.workspace.load_parquet(fpath)
+                if columns is not None:
+                    dataset = dataset.select(columns)
+
+                pbar.update()
+
+            pbar.set_description_str(f"{desc} | Done")
+
+        return (dataset, fpath)
+
+    def _save_results(
+        self,
+        segmentations: list[dict],
+        path: Path,
+        model_type: ModelType,
+    ):
         """
-        Create a dictionary of colours (used for visualising instances).
+        Save image segmentation masks to NPZ files.
 
         Args:
-            labels (dict | list | tuple):
-                A dictionary of labels.
 
-            cmap (str, optional):
-                Colourmap. Defaults to "jet".
+            segmentations:
+                A list of dictionaries containing image segmentation information.
 
-        Returns:
-            dict:
-                Dictionary of class/colour associations.
+            path:
+                The path to use for saving segmentations.
+
+            model_type:
+                The model used for segmenting the images.
         """
 
-        if len(labels) == 0:
-            return {}
+        # Make sure that the paths exists
+        path = utils.ensure_dir(path)
 
-        cmap = plt.get_cmap(cmap, len(labels))
-        cmap = cmap(np.linspace(0, 1, cmap.N))[:, :3]
-        return {label: colour for label, colour in zip(labels, cmap)}
+        # The model name
+        # Masks and instances are saved in separate directories for each model.
+        model_name = model_type.name.lower()
+        mask_dir = utils.ensure_dir(utils.make_path(f"masks/{model_name}", path))
+        instance_dir = utils.ensure_dir(
+            utils.make_path(f"instances/{model_name}", path)
+        )
+
+        for segmentation in segmentations:
+
+            # Check if this mask has already been saved.
+            if "mask_path" in segmentation:
+                continue
+
+            image_path = segmentation["image_path"]
+
+            # Save the mask as a compressed NumPy array.
+            # ==================================================
+            mask_path = mask_dir / image_path.with_suffix(".npz").name
+            np.savez_compressed(mask_path, segmentation["mask"])
+            segmentation["mask"] = mask_path
+
+            # Save the instances as a Parquet file
+            # ==================================================
+            instance_path = instance_dir / image_path.with_suffix(".parquet").name
+
+            ibis.memtable(
+                list(segmentation["instances"].items()),
+                columns=["instance", "label"],
+            ).to_parquet(instance_path)
+            segmentation["instances"] = instance_path
+
+    def save_stats(
+        self,
+        stats: dict,
+        path: Path | None = None,
+    ) -> list[Path]:
+        """
+        Save image metadata to a Parquet file.
+
+        Args:
+
+            stats:
+                A list of metadata entries.
+
+            path:
+                A directory where the stats should be saved.
+                Defaults to None.
+
+        Returns:
+            list[Path]:
+                A list of paths to the saved files.
+        """
+
+        if path is None:
+            path = conf.PARQUET_DIR
+
+        path = scs.mkdir(path)
+
+        files = []
+
+        for orig_id, stat in stats.items():
+
+            # File path
+            fpath = path / f"{orig_id}.stat.parquet"
+
+            # Convert the stats into a JSON object and
+            # then into an Awkward array.
+            arr = ak.from_json(json.dumps(stat))
+
+            # Save the array to a Parquet file.
+            ak.to_parquet(arr, fpath)
+
+            files.append(fpath)
+
+        return files
+
+    def segment_from_dataset(
+        self,
+        dataset: ibis.Table,
+        model: ModelType | ModelBase,
+        labels: dict,
+        ensure: list[str] | None = None,
+        batch_size: int = 10,
+        download: bool = True,
+    ) -> ibis.Table:
+        """
+        Retrieve the paths of local images from a dataset.
+
+        Args:
+            dataset:
+                The dataset (an Ibis table).
+
+            model:
+                A ModelType or a model instance to use for the segmentation.
+
+            labels:
+                A flattened set of labels to look for,
+                with optional subsets of labels that should be
+                checked in order to eliminate overlaps.
+                Cf. `BaseSegmenter._flatten_labels()`
+
+            ensure:
+                A list of columns whose values must be set (not null or empty).
+                Defaults to None.
+
+            batch_size:
+                Process the images in batches of this size.
+                Defaults to 10.
+
+            download:
+                A toggle indicating whether missing images should be downloaded.
+                Defaults to True.
+
+        Returns:
+            A table of information about the segmentations.
+        """
+
+        if ensure is not None:
+            dataset = dataset.drop_null(ensure)
+
+        existing, missing = self.check_image_status(dataset)
+
+        if download:
+            # TODO: Download the missing images.
+            # For now, we rely on the user having done that already.
+            pass
+
+        if isinstance(model, ModelType):
+            model = self.get_model(model)
+
+        if model is None:
+            logger.warning(f"Error loading model of type {model_type}")
+            return
+
+        # Segment the images and save the results
+        # ==================================================
+        segmentations = []
+
+        for source_type, image_paths in existing.items():
+
+            source = self.get_source(source_type)
+            if source is None or not isinstance(source, ImageSourceBase):
+                logger.warning(
+                    f"Invalid image source '{source_type.name}', moving on..."
+                )
+                continue
+
+            # Compute the number of batches
+            total = len(image_paths) // batch_size
+            if total * batch_size != len(image_paths):
+                total += 1
+
+            # Model type (used for saving the metadata)
+            model_type = model.get_model_type()
+
+            # Segment the images and extract the metadata
+            pbar = tqdm(total=total, desc=f"Segmenting {source_type.name} images...")
+            for path_batch in itertools.batched(list(image_paths), batch_size):
+                results = model.segment_images(path_batch, labels)
+                self._save_results(results, source.root_dir, model_type)
+                segmentations.extend(results)
+                pbar.update()
+
+            pbar.set_description_str("Done")
+
+        segmentations = [
+            SVSegmentation(model_type, segmentation["image_path"])
+            for segmentation in segmentations
+        ]
+
+        return segmentations

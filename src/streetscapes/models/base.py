@@ -1,4 +1,11 @@
 # --------------------------------------
+from __future__ import annotations
+
+# --------------------------------------
+from abc import ABC
+from abc import abstractmethod
+
+# --------------------------------------
 from pathlib import Path
 
 # --------------------------------------
@@ -7,14 +14,12 @@ from PIL import Image
 import PIL.ImageFile
 
 PIL.ImageFile.LOAD_TRUNCATED_IMAGES = True
+
+# --------------------------------------
+import enum
+
 # --------------------------------------
 import json
-
-# --------------------------------------
-import ibis
-
-# --------------------------------------
-import itertools
 
 # --------------------------------------
 from tqdm import tqdm
@@ -26,37 +31,89 @@ import numpy as np
 import scipy
 
 # --------------------------------------
-import torch as pt
-
-# --------------------------------------
-import pandas as pd
-
-# --------------------------------------
-import awkward as ak
-
-# --------------------------------------
 import skimage as ski
 
 # --------------------------------------
-from matplotlib.colors import hex2color
-import matplotlib.pyplot as plt
-import matplotlib.patches as mpatches
+import typing as tp
 
 # --------------------------------------
 import streetscapes as scs
-from streetscapes.utils.enums import Stat
-from streetscapes.utils.enums import Attr
-from streetscapes.utils.enums import SegmentationModel
-# from streetscapes import conf
+from streetscapes import utils
 from streetscapes.utils import logger
+from streetscapes.utils import CIEnum
+from streetscapes.utils.enums import Attr
+from streetscapes.utils.enums import Stat
 
 ImagePath = Path | str | list[Path | str]
 
 
-class BaseSegmenter:
+class ModelType(CIEnum):
+    """
+    An enum listing supported models.
+    """
 
-    model_type = None
+    MaskFormer = enum.auto()
+    DinoSAM = enum.auto()
+
+
+class ModelBase(ABC):
+
     models = {}
+
+    @staticmethod
+    @abstractmethod
+    def get_model_type() -> ModelType:
+        """
+        Get the enum corresponding to this model.
+        """
+        pass
+
+    @staticmethod
+    def _get_derived(
+        parent: tp.Any | None = None,
+        models: dict | None = None,
+    ) -> dict[ModelType, tp.Any]:
+
+        if models is None:
+            models = {}
+
+        if parent is None:
+            parent = ModelBase
+
+        for model_cls in parent.__subclasses__():
+            try:
+
+                mtype = model_cls.get_model_type()
+                if mtype is not None:
+                    models[mtype] = model_cls
+            except AttributeError as e:
+                pass
+
+            # Recurse
+            ModelBase._get_derived(model_cls, models)
+
+        return models
+
+    @staticmethod
+    def load_model(model_type: ModelType, *args, **kwargs) -> ModelBase:
+        """
+        Load a model.
+
+        Args:
+            model:
+                An enum specifying the model to load.
+
+        Returns:
+            The loaded model.
+        """
+        if model_type not in ModelBase.models:
+            model_cls = ModelBase._get_derived().get(model_type)
+            if model_cls is None:
+                return
+
+            ModelBase.models[model_type] = model_cls(*args, **kwargs)
+
+        return ModelBase.models[model_type]
 
     def __init__(
         self,
@@ -66,49 +123,45 @@ class BaseSegmenter:
         A model serving as the base for all segmentation models.
 
         Args:
-            device (str, optional):
+            device:
                 Device to use for processign. Defaults to None.
-
         """
+        import torch
+
+        # Name
+        # ==================================================
+        self.name = self.get_model_type().name
+        self.env_prefix = utils.camel2snake(self.name).upper()
+
         # Set up the device
+        # ==================================================
         if device is None:
-            device = "cuda" if pt.cuda.is_available() else "cpu"
-        self.device = pt.device(device)
+            device = "cuda" if torch.cuda.is_available() else "cpu"
+        self.device = torch.device(device)
 
         # Mapping of label ID to label
         self.id_to_label = {}
         self.label_to_id = {}
 
-    @staticmethod
-    def _load_model(model: SegmentationModel):
-        return BaseSegmenter.models.get(model)
-
-    @staticmethod
-    def _register_models():
-        for m in BaseSegmenter.__subclasses__():
-            mt = getattr(m, "model_type", None)
-            if mt is not None:
-                BaseSegmenter.models[mt] = m
-
-    def _load(self, *args, **kwargs):
+    @abstractmethod
+    def _from_pretrained(self, *args, **kwargs):
         """
-        Convenience function for loading a pretrained model.
+        Load a pretrained model.
 
-        Raises:
-            NotImplementedError:
-                An error if this method is not overridden.
+        NOTE
+        This method that should be overriden in derived classes.
         """
-        raise NotImplementedError("Please implement this method in a derived class")
+        pass
 
-    def segment(self, *args, **kwargs):
+    @abstractmethod
+    def segment_images(self, *args, **kwargs):
         """
-        Convenience function for segmenting images.
+        Segments a list of images and looks for the requested labels.
 
-        Raises:
-            NotImplementedError:
-                An error if this method is not overridden.
+        NOTE
+        This method that should be overriden in derived classes.
         """
-        raise NotImplementedError("Please implement this method in a derived class")
+        pass
 
     def load_stats(
         self,
@@ -166,10 +219,10 @@ class BaseSegmenter:
 
         Args:
 
-            stats (list[dict]):
+            stats:
                 A list of metadata entries.
 
-            path (Path | None, optional):
+            path:
                 A directory where the stats should be saved.
                 Defaults to None.
 
@@ -310,7 +363,8 @@ class BaseSegmenter:
                     for attr in attrs:
                         if attr == Attr.Area:
                             computed.setdefault(attr, []).append(
-                                np.count_nonzero(inst_mask) / np.prod(rgb_image.shape[:2])
+                                np.count_nonzero(inst_mask)
+                                / np.prod(rgb_image.shape[:2])
                             )
                         else:
                             computed.setdefault(attr, {stat: [] for stat in stats})
@@ -342,75 +396,6 @@ class BaseSegmenter:
 
         return image_stats
 
-    def save_masks(
-        self,
-        masks: dict,
-        path: Path | None = None,
-    ) -> list[Path]:
-        """
-        Save image segmentation masks to NPZ files.
-
-        Args:
-
-            masks (list[dict]):
-                A dictionary containing image segmentation masks.
-
-            path (Path | None, optional):
-                A directory where the masks should be saved.
-                Defaults to None.
-
-        Returns:
-            list[Path]:
-                A list of paths to the saved files.
-        """
-
-        if path is None:
-            path = conf.IMAGE_DIR
-
-        path = scs.mkdir(path)
-
-        files = []
-
-        for orig_id, mask in masks.items():
-
-            # File path
-            fpath = path / f"{orig_id}.npz"
-
-            # Save the mask as a compressed NumPy array.
-            np.savez_compressed(fpath, mask)
-
-            files.append(fpath)
-
-        return files
-
-    def load_masks(
-        self,
-        paths: str | Path | list[str | Path],
-    ) -> dict[int, np.ndarray]:
-        """
-        Load segmentation masks from NumPy archives.
-
-        Args:
-            paths (str | Path | list[str | Path]):
-                Path(s) to the archives.
-
-        Returns:
-            dict[int, np.ndarray]:
-                A dictionary mapping origin IDs to NumPy arrays
-                containing the segmentation masks.
-        """
-
-        # Ensure that we have a list of path objects
-        if isinstance(paths, str):
-            paths = [paths]
-        paths = [Path(p) for p in paths]
-
-        masks = {}
-
-        for path in paths:
-            masks[int(path.stem)] = np.load(path, allow_pickle=False)["arr_0"]
-
-        return masks
 
     def load_images(
         self,
@@ -420,7 +405,7 @@ class BaseSegmenter:
         A list of images or paths to image files.
 
         Args:
-            images (ImagePath):
+            images:
                 A path or a list of paths to image files.
 
         Returns:
@@ -459,211 +444,6 @@ class BaseSegmenter:
 
         return int(path.stem), np.array(Image.open(path))
 
-    def visualise_segmentation(
-        self,
-        image: np.ndarray,
-        mask: np.ndarray,
-        instances: dict,
-        labels: list[str] = None,
-        opacity: float = 0.5,
-        title: str = None,
-        figsize: tuple[int, int] = (16, 6),
-    ) -> tuple[plt.Figure, plt.Axes]:
-        """
-        Visualise the instances of different objects in an image.
-
-        Args:
-            image (np.ndarray):
-                Image being segmented.
-
-            mask (np.ndarray):
-                The segmentation mask.
-
-            instances (dict):
-                A dictionary of instances and their labels.
-
-            labels (list[str]):
-                Labels for the instance categories that should be plotted.
-
-            opacity (float, optional):
-                Opacity to use for the segmentation overlay.
-                Defaults to 0.5.
-
-            title (str | None, optional):
-                The figure title.
-                Defaults to None.
-
-            figsize (tuple[int, int], optional):
-                Figure size. Defaults to (16, 6).
-
-        Returns:
-            tuple[plt.Figure, plt.Axes]:
-                A tuple containing:
-                    - A Figure object.
-                    - An Axes object that allows further annotations to be added.
-        """
-
-        # Prepare the greyscale version of the image for plotting instances.
-        greyscale = scs.as_rgb(image, greyscale=True)
-
-        # Create a figure
-        (fig, axes) = plt.subplots(1, 2, figsize=figsize)
-
-        # Prepare the colour dictionary and the layers
-        # necessary for plotting the category patches.
-        colourmap = scs.make_colourmap(labels)
-
-        # Label handles for the plot legend.
-        handles = {}
-
-        # Loop over the segmentation list
-        for instance_id, label in instances.items():
-
-            if label not in labels:
-                # Skip labels that have been removed.
-                continue
-
-            if label not in handles:
-                # Add a basic coloured label to the legend
-                handles[label] = mpatches.Patch(
-                    color=colourmap[label],
-                    label=label,
-                )
-
-            # Extract the mask
-            inst_mask = mask == instance_id
-            if not np.any(inst_mask):
-                continue
-
-            greyscale[inst_mask] = (
-                (1 - opacity) * greyscale[inst_mask] + 255 * opacity * colourmap[label]
-            ).astype(np.ubyte)
-
-        # Plot the original image and the segmented one.
-        # If any of the requested categories exist in the
-        # image, they will be overlaid as coloured patches
-        # with the given opacity over the original image.
-        # ==================================================
-        axes[0].imshow(image)
-        axes[0].axis("off")
-        axes[1].imshow(greyscale)
-        axes[1].axis("off")
-        axes[1].legend(
-            handles=handles.values(), loc="upper left", bbox_to_anchor=(1, 1)
-        )
-        if title is not None:
-            fig.suptitle(title, fontsize=16)
-
-        return (fig, axes)
-
-    def segment_from_dataset(
-        self,
-        dataset: Path | str | ibis.Table | pd.DataFrame,
-        labels: dict,
-        sample: int | None = None,
-        batch_size: int = 10,
-        ensure: list[str] | None = None,
-        attrs: set[Attr] | None = None,
-        stats: set[Stat] | None = None,
-    ) -> tuple[dict, Path | None]:
-        """
-        Segment images specified in a Parquet data (sub)set.
-
-        Args:
-            dataset (Path | str | ibis.Table | pd.DataFrame):
-                The input dataset (a Parquet file, an Ibis table or a Pandas dataframe).
-
-            labels (dict):
-                A flattened set of labels to look for,
-                with optional subsets of labels that should be
-                checked in order to eliminate overlaps.
-                Cf. `BaseSegmenter._flatten_labels()`
-
-            sample (int, optional):
-                The size of the sample (used for testing purposes).
-                Defaults to None.
-
-            batch_size (int, optional):
-                Process the images in batches of this size.
-                Defaults to 10.
-
-            ensure (list[str] | None, optional):
-                A list of columns whose values must be set (not null or empty).
-                Defaults to None.
-
-            attrs (set[Attr] | None, optional):
-                Attributes to use for computing the segmentation.
-                Defaults to None.
-
-            stats (set[Stat] | None, optional):
-                Statistics to compute for each attribute.
-                Defaults to None.
-
-        Returns:
-            list[dict]:
-                The statistics for all the segmented images.
-        """
-
-        # Load the Parquet dataset.
-        # ==================================================
-        if isinstance(dataset, (str, Path)):
-            # Read the valuate to a Pandas dataframe
-            dataset = ibis.read_parquet(dataset)
-
-        if isinstance(dataset, ibis.Table):
-            # Evaluate to a Pandas dataframe
-            dataset = dataset.to_pandas()
-
-        # Drop rows with missing values
-        if ensure is not None:
-            dataset = dataset.dropna(subset=ensure)
-
-        # Build a list of paths from the file names.
-        paths = [conf.IMAGE_DIR / f"{orig_id}.jpeg" for orig_id in dataset["orig_id"]]
-
-        # Extract the coordinates of the image (latitude and longitude).
-        coords = {
-            orig_id: (lat, lon)
-            for orig_id, lat, lon in zip(
-                dataset["orig_id"], dataset["lat"], dataset["lon"]
-            )
-        }
-
-        # Extract a sample of a certain size.
-        if sample is not None:
-            paths = list(Path(n) for n in np.random.choice(paths, sample))
-
-        # Ensure that the attrs and stats are sets
-        attrs = set(attrs) if attrs is not None else set()
-        stats = set(stats) if stats is not None else set()
-
-        # Segment the images and save the results
-        # ==================================================
-        total = len(paths) // batch_size
-        if total * batch_size != len(paths):
-            total += 1
-
-        # Lists of paths to the saved segmentations and stats
-        image_paths = []
-        mask_paths = []
-        stat_paths = []
-
-        # Segment the images and extract the metadata
-        for path_batch in tqdm(itertools.batched(list(paths), batch_size), total=total):
-            images, masks, instances = self.segment(path_batch, labels)
-
-            image_paths.extend(path_batch)
-
-            if stats is not None:
-                image_stats = self.extract_stats(images, masks, instances, attrs, stats)
-                for orig_id in image_stats:
-                    image_stats[orig_id][Attr.Coords] = coords[orig_id]
-
-            mask_paths.extend(self.save_masks(masks))
-            stat_paths.extend(self.save_stats(image_stats))
-
-        return image_paths, mask_paths, stat_paths
-
     def _flatten_labels(
         self,
         labels: dict,
@@ -693,14 +473,13 @@ class BaseSegmenter:
         taken into acount.
 
         Args:
-            tree (dict):
+            labels:
                 The labels as a tree (dictionary of dictionaries).
 
         Returns:
-            dict:
-                A flattened category tree where each key is a
-                category and the corresponding value is a list of
-                masks that should be subtracted from it.
+            A flattened category tree where each key is a
+            category and the corresponding value is a list of
+            masks that should be subtracted from it.
         """
 
         def _flatten(
@@ -743,7 +522,3 @@ class BaseSegmenter:
             return _subtree
 
         return _flatten(labels)
-
-
-def load_model(model: SegmentationModel):
-    return BaseSegmenter._load_model(model)

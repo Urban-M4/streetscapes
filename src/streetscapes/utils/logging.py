@@ -16,8 +16,6 @@ log_config = {
             "sink": sys.stderr,
             "format": "<magenta>Streetscapes</magenta> | <cyan>{time:YYYY-MM-DD@HH:mm:ss}</cyan> | <level>{message}</level>",
             "level": "INFO",
-            "enqueue": True,
-            "diagnose": False,
         }
     ]
 }

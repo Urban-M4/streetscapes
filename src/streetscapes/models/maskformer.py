@@ -1,20 +1,24 @@
 # --------------------------------------
-import torch as pt
+from tqdm import tqdm
 
 # --------------------------------------
-from transformers import Mask2FormerImageProcessor
-from transformers import Mask2FormerForUniversalSegmentation
+from pathlib import Path
 
 # --------------------------------------
 from streetscapes.utils import logger
-from streetscapes.models import BaseSegmenter
 from streetscapes.models import ImagePath
-from streetscapes.utils.enums import SegmentationModel
+from streetscapes.models import ModelType
+from streetscapes.models import ModelBase
 
 
-class MaskFormer(BaseSegmenter):
+class MaskFormer(ModelBase):
 
-    model_type = SegmentationModel.MaskFormer
+    @staticmethod
+    def get_model_type() -> ModelType:
+        """
+        Get the enum corresponding to this model.
+        """
+        return ModelType.MaskFormer
 
     # All the labels recognised by Mask2Former.
     id_to_label = {
@@ -106,25 +110,25 @@ class MaskFormer(BaseSegmenter):
         post_process_panoptic_segmentation() method of the image processor.
 
         Args:
-            model_id (str, optional):
+            model_id:
                 Mask2Former model to load.
                 Defaults to "facebook/mask2former-swin-large-mapillary-vistas-panoptic".
 
-            threshold (float, optional):
+            threshold:
                 The probability score threshold to keep predicted instance masks.
                 Defaults to 0.5.
 
-            mask_threshold (float, optional):
+            mask_threshold:
                 Threshold to use when turning the predicted masks into binary values.
                 Defaults to 0.5.
 
-            overlap_mask_area_threshold (float, optional):
+            overlap_mask_area_threshold:
                 The overlap mask area threshold to merge or discard small disconnected
                 parts within each binary instance mask.The overlap mask area threshold
                 to merge or discard small disconnected parts within each binary instance mask.
                 Defaults to 0.8.
 
-            labels_to_fuse (list, optional):
+            labels_to_fuse:
                 The labels in this state will have all their instances be fused together.
                 For instance, we could say there can only be one sky in an image, but several
                 persons, so the label ID for sky would be in that set, but not the one for person.
@@ -132,6 +136,7 @@ class MaskFormer(BaseSegmenter):
                 strings instead of integers (the strings are converted to their IDs using the ).
                 Defaults to None.
         """
+        import transformers as tform
 
         # Initialise the base
         super().__init__(*args, **kwargs)
@@ -162,27 +167,28 @@ class MaskFormer(BaseSegmenter):
 
         # Processors and models
         # ==================================================
-        self.processor: Mask2FormerImageProcessor = None
-        self.model: Mask2FormerForUniversalSegmentation = None
-        self._load()
+        self.processor: tform.Mask2FormerImageProcessor = None
+        self.model: tform.Mask2FormerForUniversalSegmentation = None
+        self._from_pretrained()
 
-    def _load(self):
+    def _from_pretrained(self):
         """
         Convenience method for loading processors and models.
         """
+        import transformers as tform
 
         # Mask2Former model
         # ==================================================
-        self.processor = Mask2FormerImageProcessor.from_pretrained(
+        self.processor = tform.Mask2FormerImageProcessor.from_pretrained(
             self.model_id,
             use_fast=True,
         )
-        self.model = Mask2FormerForUniversalSegmentation.from_pretrained(
+        self.model = tform.Mask2FormerForUniversalSegmentation.from_pretrained(
             self.model_id
         ).to(self.device)
         self.model.eval()
 
-    def segment(
+    def segment_images(
         self,
         images: ImagePath,
         labels: dict,
@@ -191,20 +197,19 @@ class MaskFormer(BaseSegmenter):
         Segment the provided sequence of images.
 
         Args:
-            images (ImagePath):
+            images:
                 A list of images to process.
 
-            labels (dict):
+            labels:
                 A flattened set of labels to look for,
                 with optional subsets of labels that should be
                 checked in order to eliminate overlaps.
                 Cf. `BaseSegmenter._flatten_labels()`
 
         Returns:
-            list[dict]:
-                A list of dictionary objects containing
-                instance-level segment information.
+            A list of dictionaries containing instance-level segmentation information.
         """
+        import torch
 
         # Load the images as NumPy arrays
         image_paths, image_list = self.load_images(images)
@@ -222,12 +227,7 @@ class MaskFormer(BaseSegmenter):
             _labels[k] = list(vdiff) if len(vdiff) > 0 else None
         labels = _labels
 
-        logger.info("Segmenting images...")
-
-        # Perform the segmentation.
-        # ==================================================
-        logger.info("Detecting objects...")
-        with pt.no_grad():
+        with torch.no_grad():
             # Process the image with the processor
             inputs = self.processor(images=image_list, return_tensors="pt")
             inputs.to(self.device)
@@ -248,27 +248,24 @@ class MaskFormer(BaseSegmenter):
 
             # Some containers for intermediate results that can be
             # accessed during the segmentation phase.
-            masks = {}
-            instances = {}
-            image_map = {}
+            segmentations = []
 
             for idx, result in enumerate(segmented):
 
-                orig_id = int(image_paths[idx].stem)
-                image_map[orig_id] = image_list[idx]
+                # Dictionary that will hold all the information about the segmentation.
+                segmentation = {"image_path": image_paths[idx]}
 
-                # Sort out instances and their labels
-                mask = result["segmentation"].detach().clone().cpu().numpy()
-                masks[orig_id] = mask
-
-                instances[orig_id] = {}
-                for instance in result["segments_info"]:
-                    inst_id = instance["id"]
-                    inst_label = self.id_to_label[instance["label_id"]]
-                    instances[orig_id][inst_id] = inst_label
-
-                logger.info(
-                    f"[ <yellow>{image_paths[idx].name}</yellow> ] Extracted {len(instances)} instances for {len(set(instances[orig_id].values()))} labels."
+                # Extract and store the mask.
+                segmentation["mask"] = (
+                    result["segmentation"].detach().clone().cpu().numpy()
                 )
 
-        return image_map, masks, instances
+                # Extract and store the instances.
+                segmentation["instances"] = {
+                    instance["id"]: self.id_to_label[instance["label_id"]]
+                    for instance in result["segments_info"]
+                }
+
+                segmentations.append(segmentation)
+
+        return segmentations
