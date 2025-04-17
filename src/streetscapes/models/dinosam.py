@@ -1,21 +1,16 @@
 # --------------------------------------
-import typing as tp
-
-# --------------------------------------
 import numpy as np
-
-# --------------------------------------
-import sam2.sam2_image_predictor
-from tqdm import tqdm
 
 # --------------------------------------
 import skimage as ski
 
 # --------------------------------------
-from streetscapes.models import ImagePath
-from streetscapes.models import ModelType
-from streetscapes.models import ModelBase
+import typing as tp
 
+# --------------------------------------
+from streetscapes.models import ImagePath
+from streetscapes.models import ModelBase
+from streetscapes.models import ModelType
 
 class DinoSAM(ModelBase):
 
@@ -40,16 +35,16 @@ class DinoSAM(ModelBase):
         Inspired by [LangSAM](https://github.com/luca-medeiros/lang-segment-anything) and [SamGeo](https://samgeo.gishub.org/samgeo/).
 
         Args:
-            sam_model_id (str, optional):
+            sam_model_id:
                 SAM2 model.
                 Possible options include 'facebook/sam2.1-hiera-tiny', 'facebook/sam2.1-hiera-small' and 'facebook/sam2.1-hiera-large'.
                 Defaults to 'sam2.1-hiera-large'.
 
-            dino_model_id (str, optional):
+            dino_model_id:
                 A GroundingDINO model.
                 Defaults to "IDEA-Research/grounding-dino-base"
 
-            box_threshold (float, optional):
+            box_threshold:
                 This parameter is used for modulating the identification of objects in the images.
                 The box threshold is related to the model confidence,
                 so a higher value makes the model more selective because
@@ -58,7 +53,7 @@ class DinoSAM(ModelBase):
                 Defaults to 0.3.
 
             text_threshold:
-                This parameter is also used for influencing the selectivity of the model,
+                This parameter is also used for influencing the selectivity of the model
                 by requiring a stronger association between the prompt and the segment.
                 Defaults to 0.3.
         """
@@ -112,6 +107,19 @@ class DinoSAM(ModelBase):
         image: np.ndarray,
         instance_masks: dict,
     ) -> dict[str, tp.Any]:
+        '''
+        Merge separate instance masks.
+
+        Args:
+            image:
+                The image being segmented.
+
+            instance_masks:
+                A dictionary of instance masks.
+
+        Returns:
+            A dictionary of merged masks.
+        '''
 
         # A global mask.
         # All instances will be accessible via this mask.
@@ -158,10 +166,10 @@ class DinoSAM(ModelBase):
         Segment a single image.
 
         Args:
-            image (np.ndarray):
+            image:
                 Image as a NumPy array.
 
-            bbox (np.ndarray):
+            bbox:
                 A bounding box in XYXY format.
 
         Returns:
@@ -183,10 +191,10 @@ class DinoSAM(ModelBase):
         Segment a batch of images.
 
         Args:
-            images (list[np.ndarray]):
+            images:
                 Images to process.
 
-            bboxes (list[np.ndarray]):
+            bboxes:
                 Bounding boxes for all images in XYXY format.
 
         Returns:
@@ -215,16 +223,16 @@ class DinoSAM(ModelBase):
         Remove overap between masks based on the specified label hierarchy.
 
         Args:
-            image (np.ndarray):
+            image:
                 The image being segmented.
 
-            masks (dict[int, np.ndarray]):
+            masks:
                 A dictionary of instances and their coordinates.
 
-            insstances (dict[str, list[int]]):
+            insstances:
                 A dictionary of labels mapped to instances of that label.
 
-            labels (dict[str, list[str] | None]):
+            labels:
                 A dictionary of labels and their dependencies
                 that should be removed from the corresponding masks.
                 (cf. `BaseSegmenter.flatten_labels()`).

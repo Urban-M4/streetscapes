@@ -1,15 +1,6 @@
-# --------------------------------------
-from tqdm import tqdm
-
-# --------------------------------------
-from pathlib import Path
-
-# --------------------------------------
-from streetscapes.utils import logger
 from streetscapes.models import ImagePath
-from streetscapes.models import ModelType
 from streetscapes.models import ModelBase
-
+from streetscapes.models import ModelType
 
 class MaskFormer(ModelBase):
 
@@ -133,7 +124,7 @@ class MaskFormer(ModelBase):
                 For instance, we could say there can only be one sky in an image, but several
                 persons, so the label ID for sky would be in that set, but not the one for person.
                 This differs slightly from the original parameter because it can also accept
-                strings instead of integers (the strings are converted to their IDs using the ).
+                strings instead of integers (the strings are converted to their IDs).
                 Defaults to None.
         """
         import transformers as tform

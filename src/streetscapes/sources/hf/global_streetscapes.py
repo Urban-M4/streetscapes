@@ -16,9 +16,7 @@ import typing as tp
 # --------------------------------------
 from streetscapes import utils
 from streetscapes.sources import SourceType
-from streetscapes.utils.logging import logger
 from streetscapes.sources.hf.base import HFSourceBase
-
 
 class GlobalStreetscapesSource(HFSourceBase):
 

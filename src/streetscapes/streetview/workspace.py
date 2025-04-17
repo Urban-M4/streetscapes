@@ -17,7 +17,13 @@ from tqdm import tqdm
 import numpy as np
 
 # --------------------------------------
+import skimage as ski
+
+# --------------------------------------
 from environs import Env
+
+# --------------------------------------
+from typing import Any
 
 # --------------------------------------
 from streetscapes import utils
@@ -28,7 +34,6 @@ from streetscapes.sources import SourceBase
 from streetscapes.sources import SourceType
 from streetscapes.sources import ImageSourceBase
 from streetscapes.streetview import SVSegmentation
-
 
 class SVWorkspace:
 
@@ -47,7 +52,7 @@ class SVWorkspace:
     def __init__(
         self,
         path: Path | str,
-        conf: Path | str | None = None,
+        env: Path | str | None = None,
         create: bool = False,
     ):
         # Directories and paths
@@ -62,10 +67,10 @@ class SVWorkspace:
         # Configuration
         # ==================================================
         self._env = Env(expand_vars=True)
-        if conf is None and (local_env := Path.cwd() / ".env").exists():
-            conf = local_env
+        if env is None and (local_env := self.root_dir / ".env").exists():
+            env = local_env
 
-        self._env.read_env(conf)
+        self._env.read_env(env)
 
         # Sources
         # ==================================================
@@ -91,7 +96,63 @@ class SVWorkspace:
         if not metadata.exists():
             ibis.connect(f"duckdb://{metadata}")
 
-    def get_path(
+    def _save_segmentations(
+        self,
+        segmentations: list[dict],
+        path: Path,
+        model_type: ModelType,
+    ):
+        """
+        Save image segmentation masks to NPZ files.
+
+        Args:
+
+            segmentations:
+                A list of dictionaries containing image segmentation information.
+
+            path:
+                The path to use for saving segmentations.
+
+            model_type:
+                The model used for segmenting the images.
+        """
+
+        # Make sure that the paths exists
+        path = utils.ensure_dir(path)
+
+        # The model name
+        # Masks and instances are saved in separate directories for each model.
+        model_name = model_type.name.lower()
+        mask_dir = utils.ensure_dir(utils.make_path(f"masks/{model_name}", path))
+        instance_dir = utils.ensure_dir(
+            utils.make_path(f"instances/{model_name}", path)
+        )
+
+        for segmentation in segmentations:
+
+            # Check if this mask has already been saved.
+            if "mask_path" in segmentation:
+                continue
+
+            image_path = segmentation["image_path"]
+
+            # Save the mask as a compressed NumPy array.
+            # ==================================================
+            mask_path = mask_dir / image_path.with_suffix(".npz").name
+            np.savez_compressed(mask_path, segmentation["mask"])
+            segmentation["mask"] = mask_path
+
+            # Save the instances as a Parquet file
+            # ==================================================
+            instance_path = instance_dir / image_path.with_suffix(".parquet").name
+
+            ibis.memtable(
+                list(segmentation["instances"].items()),
+                columns=["instance", "label"],
+            ).to_parquet(instance_path)
+            segmentation["instances"] = instance_path
+
+    def get_workspace_path(
         self,
         path: str | Path,
         suffix: str | None = None,
@@ -128,7 +189,7 @@ class SVWorkspace:
             An Ibis table.
         """
 
-        filename = self.get_path(filename, suffix="csv")
+        filename = self.get_workspace_path(filename, suffix="csv")
 
         return ibis.read_csv(filename)
 
@@ -147,7 +208,7 @@ class SVWorkspace:
             An Ibis table.
         """
 
-        filename = self.get_path(filename, suffix="parquet")
+        filename = self.get_workspace_path(filename, suffix="parquet")
 
         return ibis.read_parquet(filename)
 
@@ -455,7 +516,7 @@ class SVWorkspace:
         """
 
         # The path to the dataset.
-        fpath = self.get_path(dataset, suffix="parquet")
+        fpath = self.get_workspace_path(dataset, suffix="parquet")
 
         desc = f"Dataset {dataset}"
         with tqdm(total=1, desc=desc) as pbar:
@@ -490,66 +551,10 @@ class SVWorkspace:
 
         return (dataset, fpath)
 
-    def _save_results(
-        self,
-        segmentations: list[dict],
-        path: Path,
-        model_type: ModelType,
-    ):
-        """
-        Save image segmentation masks to NPZ files.
-
-        Args:
-
-            segmentations:
-                A list of dictionaries containing image segmentation information.
-
-            path:
-                The path to use for saving segmentations.
-
-            model_type:
-                The model used for segmenting the images.
-        """
-
-        # Make sure that the paths exists
-        path = utils.ensure_dir(path)
-
-        # The model name
-        # Masks and instances are saved in separate directories for each model.
-        model_name = model_type.name.lower()
-        mask_dir = utils.ensure_dir(utils.make_path(f"masks/{model_name}", path))
-        instance_dir = utils.ensure_dir(
-            utils.make_path(f"instances/{model_name}", path)
-        )
-
-        for segmentation in segmentations:
-
-            # Check if this mask has already been saved.
-            if "mask_path" in segmentation:
-                continue
-
-            image_path = segmentation["image_path"]
-
-            # Save the mask as a compressed NumPy array.
-            # ==================================================
-            mask_path = mask_dir / image_path.with_suffix(".npz").name
-            np.savez_compressed(mask_path, segmentation["mask"])
-            segmentation["mask"] = mask_path
-
-            # Save the instances as a Parquet file
-            # ==================================================
-            instance_path = instance_dir / image_path.with_suffix(".parquet").name
-
-            ibis.memtable(
-                list(segmentation["instances"].items()),
-                columns=["instance", "label"],
-            ).to_parquet(instance_path)
-            segmentation["instances"] = instance_path
-
     def save_stats(
         self,
-        stats: dict,
-        path: Path | None = None,
+        stats: ibis.Table,
+        path: Path,
     ) -> list[Path]:
         """
         Save image metadata to a Parquet file.
@@ -564,14 +569,11 @@ class SVWorkspace:
                 Defaults to None.
 
         Returns:
-            list[Path]:
-                A list of paths to the saved files.
+            A list of paths to the saved files.
         """
 
-        if path is None:
-            path = conf.PARQUET_DIR
-
-        path = scs.mkdir(path)
+        path = self.get_workspace_path(path)
+        path = utils.ensure_dir(path)
 
         files = []
 
@@ -580,16 +582,142 @@ class SVWorkspace:
             # File path
             fpath = path / f"{orig_id}.stat.parquet"
 
-            # Convert the stats into a JSON object and
-            # then into an Awkward array.
-            arr = ak.from_json(json.dumps(stat))
-
-            # Save the array to a Parquet file.
-            ak.to_parquet(arr, fpath)
-
+            # Save the stats table to a Parquet file
+            stats.to_parquet(fpath)
             files.append(fpath)
 
         return files
+
+    def extract_stats(
+        self,
+        images: dict[int, np.ndarray],
+        masks: dict[int, np.ndarray],
+        instances: dict[int, dict],
+    ) -> dict[int, dict]:
+        """
+        Compute colour statistics and other metadata
+        for a list of segmented images.
+
+        Args:
+
+            images:
+                A dictionary of images as NumPy arrays.
+
+            masks:
+                A dictionary of masks as NumPy arrays.
+
+            instances:
+                A dictionary of instances containing instance-level segmentation details.
+                Each instance is denoted with its ID (= the keys in the `instances` dictionary).
+
+        Returns:
+            dict[int, dict]:
+                A dictionary of metadata.
+        """
+
+        logger.info("Extracting metadata...")
+
+        # Statistics about instances in the images
+        image_stats = {}
+
+        # Ensure that the attrs and stats are sets
+        attrs = set(attrs) if attrs is not None else set()
+        stats = set(stats) if stats is not None else set()
+
+        rgb = len(attrs.intersection(Attr.RGB)) > 0
+        hsv = len(attrs.intersection(Attr.HSV)) > 0
+
+        # Loop over the segmented images and compute
+        # some statistics for each instance.
+        for orig_id, image in images.items():
+
+            # Create a new dictionary to hold the results
+            computed = image_stats.setdefault(
+                orig_id,
+                {
+                    "instance": [],
+                    "label": [],
+                },
+            )
+
+            # Convert the image colour space to floating-point RGB and HSV
+            if rgb or hsv:
+                rgb_image = ski.exposure.rescale_intensity(image, out_range=(0, 1))
+            if hsv:
+                hsv_image = ski.color.convert_colorspace(rgb_image, "RGB", "HSV")
+
+            # Ensure that the mask and the instances for this image are available
+            mask = masks.get(orig_id)
+            if mask is None:
+                continue
+
+            image_instances = instances.get(orig_id)
+            if image_instances is None:
+                continue
+
+            with tqdm(total=len(image_instances)) as pbar:
+                for inst_id, label in image_instances.items():
+                    computed["instance"].append(inst_id)
+                    computed["label"].append(label)
+
+                    # Extract the patches corresponding to the mask
+                    patches = {}
+                    inst_mask = mask == inst_id
+                    if rgb:
+                        rgb_patch = rgb_image[inst_mask]
+                        patches.update(
+                            {
+                                Attr.R: rgb_patch[..., 0],
+                                Attr.G: rgb_patch[..., 1],
+                                Attr.B: rgb_patch[..., 2],
+                            }
+                        )
+                    if hsv:
+                        hsv_patch = hsv_image[inst_mask]
+                        patches.update(
+                            {
+                                Attr.H: hsv_patch[..., 0],
+                                Attr.S: hsv_patch[..., 1],
+                                Attr.V: hsv_patch[..., 2],
+                            }
+                        )
+
+                    # Extract the statistics for the requested attributes.
+                    for attr in attrs:
+                        if attr == Attr.Area:
+                            computed.setdefault(attr, []).append(
+                                np.count_nonzero(inst_mask)
+                                / np.prod(rgb_image.shape[:2])
+                            )
+                        else:
+                            computed.setdefault(attr, {stat: [] for stat in stats})
+                            for stat in stats:
+                                match stat:
+                                    case Stat.Median:
+                                        value = np.nan_to_num(
+                                            np.median(patches[attr]), nan=0.0
+                                        )
+                                    case Stat.Mode:
+                                        value = np.nan_to_num(
+                                            scipy.stats.mode(patches[attr])[0], nan=0.0
+                                        )
+                                    case Stat.Mean:
+                                        value = np.nan_to_num(
+                                            np.mean(patches[attr]), nan=0.0
+                                        )
+                                    case Stat.SD:
+                                        value = np.nan_to_num(
+                                            np.std(patches[attr]), nan=0.0
+                                        )
+                                    case _:
+                                        value = None
+
+                                if value is not None:
+                                    computed[attr][stat].append(value)
+
+                    pbar.update()
+
+        return image_stats
 
     def segment_from_dataset(
         self,
@@ -674,7 +802,7 @@ class SVWorkspace:
             pbar = tqdm(total=total, desc=f"Segmenting {source_type.name} images...")
             for path_batch in itertools.batched(list(image_paths), batch_size):
                 results = model.segment_images(path_batch, labels)
-                self._save_results(results, source.root_dir, model_type)
+                self._save_segmentations(results, source.root_dir, model_type)
                 segmentations.extend(results)
                 pbar.update()
 
