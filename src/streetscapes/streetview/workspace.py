@@ -156,6 +156,7 @@ class SVWorkspace:
         self,
         path: str | Path,
         suffix: str | None = None,
+        create: bool = False,
     ):
         """
         Construct a workspace path (a file or a directory)
@@ -168,11 +169,17 @@ class SVWorkspace:
             suffix:
                 An optional (replacement) suffix. Defaults to None.
 
+            create:
+                Indicates that the path should be created if it doesn't exist.
+                Defaults to False.
+
         Returns:
             The path to the file.
         """
 
-        return utils.make_path(path, self.root_dir, suffix=suffix)
+        path = utils.make_path(path, self.root_dir, suffix=suffix)
+
+        return utils.ensure_dir(path) if create else path
 
     def load_csv(
         self,
