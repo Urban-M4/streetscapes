@@ -19,6 +19,7 @@ from huggingface_hub.constants import HF_HUB_CACHE
 from huggingface_hub.file_download import repo_folder_name
 
 # --------------------------------------
+from streetscapes import utils
 from streetscapes.sources.base import SourceBase
 
 
@@ -79,6 +80,10 @@ class HFSourceBase(SourceBase, ABC):
         # ==================================================
         # Ensure that the root directory is valid
         if root_dir is None:
+
+            # Ensure that the HF cache directory exists
+            if not (cache_path := Path(HF_HUB_CACHE)).exists():
+                utils.ensure_dir(cache_path)
 
             # Scan the HF cache directory to extract the cached repos.
             cache = scan_cache_dir()
