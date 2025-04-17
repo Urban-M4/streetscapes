@@ -11,9 +11,7 @@ from environs import Env
 import json
 
 # --------------------------------------
-from streetscapes import logger
 from streetscapes.sources import SourceType
-from streetscapes.streetview.workspace import SVWorkspace
 from streetscapes.sources.image.base import ImageSourceBase
 
 
