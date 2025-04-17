@@ -177,7 +177,9 @@ class SVWorkspace:
             The path to the file.
         """
 
-        path = utils.make_path(path, self.root_dir, suffix=suffix)
+        path = utils.make_path(path, self.root_dir, suffix=suffix).relative_to(self.root_dir)
+
+        print(f"==[ ws path: {path}")
 
         return utils.ensure_dir(path) if create else path
 
@@ -548,7 +550,7 @@ class SVWorkspace:
             else:
                 pbar.set_description_str(f"{desc} | Loading...")
 
-                dataset = self.workspace.load_parquet(fpath)
+                dataset = self.load_parquet(fpath)
                 if columns is not None:
                     dataset = dataset.select(columns)
 
