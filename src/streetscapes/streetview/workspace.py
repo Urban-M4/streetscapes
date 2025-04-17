@@ -417,7 +417,7 @@ class SVWorkspace:
         dataset: ibis.Table,
         sample: int | None = None,
         max_workers: int = None,
-    ) -> list[Path]:
+    ) -> ibis.Table:
         """
         Download a set of images concurrently.
 
@@ -432,7 +432,7 @@ class SVWorkspace:
                 The number of workers (threads) to use. Defaults to None.
 
         Returns:
-            A list of image paths.
+            An Ibis table containing information about the downloaded images.
         """
         from concurrent.futures import ThreadPoolExecutor
         from concurrent.futures import as_completed
