@@ -84,13 +84,13 @@ class DinoSAM(ModelBase):
         """
         Convenience method for loading processors and models.
         """
-        import sam2
+        from sam2.sam2_image_predictor import SAM2ImagePredictor
         import transformers as tform
 
         # SAM2 model.
         # ==================================================
         # Thre is no image processor for SAM.
-        self.sam_model = sam2.sam2_image_predictor.SAM2ImagePredictor.from_pretrained(
+        self.sam_model = SAM2ImagePredictor.from_pretrained(
             self.sam_model_id, device=self.device
         )
 
