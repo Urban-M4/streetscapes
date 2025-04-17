@@ -179,8 +179,6 @@ class SVWorkspace:
 
         path = utils.make_path(path, self.root_dir, suffix=suffix).relative_to(self.root_dir)
 
-        print(f"==[ ws path: {path}")
-
         return utils.ensure_dir(path) if create else path
 
     def load_csv(
