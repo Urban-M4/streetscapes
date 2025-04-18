@@ -35,6 +35,7 @@ from streetscapes.sources import SourceType
 from streetscapes.sources import ImageSourceBase
 from streetscapes.streetview import SVSegmentation
 
+
 class SVWorkspace:
 
     @staticmethod
@@ -58,11 +59,13 @@ class SVWorkspace:
         # Directories and paths
         # ==================================================
         # The root directory of the workspace
-        self.root_dir = Path(path)
-        if not self.root_dir.exists():
+        path = Path(path)
+        if not path.exists():
             if not create:
                 raise FileNotFoundError("The specified path does not exist.")
-            utils.ensure_dir(path)
+            path = utils.ensure_dir(path)
+
+        self.root_dir = path.expanduser().resolve().absolute()
 
         # Configuration
         # ==================================================
@@ -177,9 +180,13 @@ class SVWorkspace:
             The path to the file.
         """
 
-        path = utils.make_path(path, self.root_dir, suffix=suffix).relative_to(self.root_dir)
+        path = self.root_dir / utils.make_path(
+            path,
+            self.root_dir,
+            suffix=suffix,
+        ).relative_to(self.root_dir)
 
-        return utils.ensure_dir(path) if create else path
+        return utils.ensure_dir(path) if create else path.expanduser().resolve().absolute()
 
     def load_csv(
         self,
@@ -251,7 +258,7 @@ class SVWorkspace:
 
         if source_type in self.sources and not replace:
             logger.warning(
-                f"Reusing an existing {source_type.name}, use the <green>replace</green> argument to override."
+                f"Reusing an existing {source_type.name} source, use the <green>replace</green> argument to override."
             )
             return self.sources[source_type]
 
