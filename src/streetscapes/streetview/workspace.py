@@ -389,8 +389,11 @@ class SVWorkspace:
 
         for src in sources:
 
-            # Get the source object
+            # Get the source object or add it if it's missing
             source = self.sources.get(src, self.add_source(src))
+            if source is None:
+                continue
+
             if isinstance(source, ImageSourceBase):
 
                 filtered = [
