@@ -2,6 +2,7 @@
 from pathlib import Path
 
 # --------------------------------------
+import ibis
 import requests
 
 # --------------------------------------
@@ -181,4 +182,4 @@ class MapillarySource(ImageSourceBase):
             )
             df = pd.concat([df, lat_lon], axis=1)
 
-        return df
+        return ibis.memtable(df)
