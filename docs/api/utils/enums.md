@@ -1,5 +1,5 @@
 # The `enums` module
 
-::: streetscapes.enums
+::: streetscapes.utils.enums
     :automodule:
     :autoclass:

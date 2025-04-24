@@ -2,6 +2,7 @@ site_name: Streetscapes
 repo_url: https://github.com/Urban-M4/streetscapes
 nav:
   - Overview: index.md
+  - Tutorials: tutorials/workspace.ipynb
   - Examples:
       - Exploring the Global Streetscapes: examples/explore_data.ipynb
       - Converting CSV files into Parquet: examples/convert_csv_to_parquet.ipynb
@@ -9,17 +10,21 @@ nav:
       - Plotting data from a city subset: examples/plot_city.ipynb
       - Mapillary example: examples/mapillary_example.ipynb
       - Downloading images from Mapillary: examples/download_city_images.ipynb
-      - Segmenting downloaded images:
-          - Using MaskFormer: examples/segmentation/maskformer.ipynb
+      - Segmenting downloaded images: examples/segmentation/maskformer.ipynb
+      - Rasterise data: examples/rasterise.ipynb
   - API:
-      - Streetscapes:
-         - Models:
-            - BaseSegmenter: api/streetscapes/models/base_segmenter.md
-            - MaskFormer: api/streetscapes/models/maskformer.md
+      - Models:
+          - Base: api/models/base.md
+          - MaskFormer: api/models/maskformer.md
+          - DinoSam: api/models/dinosam.md
+      - Sources:
+          - Hugging Face: api/sources/hf.md
+          - Images: api/sources/image.md
+      - Utils:
+          - Functions: api/utils/functions.md
+          - Logging: api/utils/logging.md
+          - Enums: api/utils/enums.md
       - Main: api/main.md
-      - Functions: api/functions.md
-      - Conf: api/conf.md
-      - Enums: api/enums.md
   - About:
       - Licence: about/licence.md
       - Contributing: about/contributing.md

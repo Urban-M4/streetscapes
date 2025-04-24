@@ -1,6 +1,6 @@
 # The `functions` module
 
-::: streetscapes.functions
+::: streetscapes.utils.logging
     :automodule:
     :members:
     :special-members:

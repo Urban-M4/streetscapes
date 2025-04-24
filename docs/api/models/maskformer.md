@@ -3,6 +3,6 @@
 ::: streetscapes.models
     :docstring:
 
-::: streetscapes.models.base.BaseSegmenter
+::: streetscapes.models.maskformer.MaskFormer
     :docstring:
     :members:
