@@ -27,7 +27,7 @@ from streetscapes.sources.base import SourceBase
 
 
 class ImageSourceBase(SourceBase, ABC):
-
+    """TODO: Add docstrings"""
     # Regex of extensions for some common image formats.
     # TODO: Parameterise the file extensions.
     # PIL.Image.registered_extensions() is perhaps an overkill.

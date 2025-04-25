@@ -16,7 +16,7 @@ from streetscapes.sources.image.base import ImageSourceBase
 import pandas as pd
 
 class MapillarySource(ImageSourceBase):
-
+    """TODO: Add docstrings"""
     @staticmethod
     def get_source_type() -> SourceType:
         """

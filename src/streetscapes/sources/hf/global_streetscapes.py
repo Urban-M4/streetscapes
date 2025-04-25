@@ -19,7 +19,7 @@ from streetscapes.sources import SourceType
 from streetscapes.sources.hf.base import HFSourceBase
 
 class GlobalStreetscapesSource(HFSourceBase):
-
+    """TODO: Add docstrings"""
     @staticmethod
     def get_source_type() -> SourceType:
         """

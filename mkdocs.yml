@@ -10,7 +10,7 @@ nav:
       - Plotting data from a city subset: examples/plot_city.ipynb
       - Mapillary example: examples/mapillary_example.ipynb
       - Downloading images from Mapillary: examples/download_city_images.ipynb
-      - Segmenting downloaded images: examples/segmentation/maskformer.ipynb
+      - Segmenting downloaded images: examples/maskformer.ipynb
       - Rasterise data: examples/rasterise.ipynb
   - API:
       - Models:
@@ -22,7 +22,6 @@ nav:
           - Images: api/sources/image.md
       - Utils:
           - Functions: api/utils/functions.md
-          - Logging: api/utils/logging.md
           - Enums: api/utils/enums.md
       - Main: api/main.md
   - About:

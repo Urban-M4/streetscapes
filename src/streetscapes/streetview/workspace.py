@@ -37,7 +37,7 @@ from streetscapes.streetview import SVSegmentation
 
 
 class SVWorkspace:
-
+    """TODO: Add docstrings"""
     @staticmethod
     def restore(path: Path):
         """

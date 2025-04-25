@@ -2,6 +2,7 @@ import numpy as np
 
 
 class SVInstance:
+    """TODO: Add docstrings"""
     def __init__(
         self,
         mask: np.ma.MaskedArray,
