@@ -4,13 +4,10 @@ nav:
   - Overview: index.md
   - Tutorials: tutorials/workspace.ipynb
   - Examples:
-      - Exploring the Global Streetscapes: examples/explore_data.ipynb
+      - Exploring Global Streetscapes: examples/explore_global_streetscapes.ipynb
       - Converting CSV files into Parquet: examples/convert_csv_to_parquet.ipynb
-      - Creating a city subset: examples/subset_data.ipynb
-      - Plotting data from a city subset: examples/plot_city.ipynb
-      - Mapillary example: examples/mapillary_example.ipynb
-      - Downloading images from Mapillary: examples/download_city_images.ipynb
-      - Segmenting downloaded images: examples/maskformer.ipynb
+      - Using data sources: examples/use_data_sources.ipynb
+      - Segmenting downloaded images: examples/segmentation.ipynb
       - Rasterise data: examples/rasterise.ipynb
   - API:
       - Models:
