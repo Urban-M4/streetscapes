@@ -85,7 +85,7 @@ class MapillarySource(ImageSourceBase):
         session.headers.update({"Authorization": f"OAuth {self.token}"})
         return session
 
-    def fetch_image_ids(self, bbox, fields=None, limit=100, extract_latlon=True):
+    def fetch_image_ids(self, bbox, fields=None, limit=500, extract_latlon=True):
         """
         Fetch Mapillary image IDs within a bounding box.
 
