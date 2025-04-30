@@ -18,7 +18,7 @@ from streetscapes.streetview.instance import SVInstance
 
 
 class SVSegmentation:
-
+    """TODO: Add docstrings"""
     @staticmethod
     def from_saved(
         path: Path,

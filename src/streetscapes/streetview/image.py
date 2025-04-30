@@ -18,6 +18,7 @@ from streetscapes.streetview.segmentation import SVSegmentation
 
 
 class SVImage:
+    """TODO: Add docstrings"""
     def __init__(
         self,
         path: Path,

@@ -17,7 +17,7 @@ from streetscapes.sources.image.base import ImageSourceBase
 import pandas as pd
 
 class MapillarySource(ImageSourceBase):
-
+    """TODO: Add docstrings"""
     @staticmethod
     def get_source_type() -> SourceType:
         """
@@ -86,7 +86,7 @@ class MapillarySource(ImageSourceBase):
         session.headers.update({"Authorization": f"OAuth {self.token}"})
         return session
 
-    def fetch_image_ids(self, bbox, fields=None, limit=100, extract_latlon=True):
+    def fetch_image_ids(self, bbox, fields=None, limit=500, extract_latlon=True):
         """
         Fetch Mapillary image IDs within a bounding box.
 
