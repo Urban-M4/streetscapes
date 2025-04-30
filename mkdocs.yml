@@ -1,0 +1,72 @@
+site_name: Streetscapes
+repo_url: https://github.com/Urban-M4/streetscapes
+nav:
+  - Overview: index.md
+  - Tutorial: tutorials/workspace.ipynb
+  - Examples:
+      - Exploring Global Streetscapes: examples/explore_global_streetscapes.ipynb
+      - Converting CSV files into Parquet: examples/convert_csv_to_parquet.ipynb
+      - Using data sources: examples/use_data_sources.ipynb
+      - Segmenting downloaded images: examples/segmentation.ipynb
+      - Rasterise data: examples/rasterise.ipynb
+  - API:
+      - Models:
+          - Base: api/models/base.md
+          - MaskFormer: api/models/maskformer.md
+          - DinoSam: api/models/dinosam.md
+      - Sources:
+          - Hugging Face: api/sources/hf.md
+          - Images: api/sources/image.md
+      - Utils:
+          - Functions: api/utils/functions.md
+          - Enums: api/utils/enums.md
+      - Main: api/main.md
+  - About:
+      - Licence: about/licence.md
+      - Contributing: about/contributing.md
+      - Citation: about/citation.md
+theme:
+  name: material
+  palette:
+    - scheme: default
+      toggle:
+        icon: material/brightness-7
+        name: Switch to dark mode
+      primary: blue grey
+      accent: cyan
+    - scheme: slate
+      toggle:
+        icon: material/brightness-4
+        name: Switch to light mode
+      primary: blue grey
+      accent: cyan
+
+  features:
+    - navigation.footer
+  font:
+    text: Roboto
+    code: Roboto Mono
+  locale: en
+  highlightjs: true
+  color_mode: auto
+  user_color_mode_toggle: true
+  nav_style: dark
+plugins:
+  - search
+  - mkdocstrings:
+      handlers:
+        python:
+          paths: [..]
+          options:
+            show_source: false
+            group_by_category: false
+            relative_crossrefs: true
+  - mkdocs-jupyter:
+      execute: false
+      ignore_h1_titles: true
+      include_source: true
+extra:
+  version:
+    provider: mike
+extra_css:
+  - stylesheets/extra.css

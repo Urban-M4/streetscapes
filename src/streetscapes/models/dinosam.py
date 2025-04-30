@@ -1,30 +1,25 @@
 # --------------------------------------
-import typing as tp
-
-# --------------------------------------
-import torch as pt
-
-# --------------------------------------
 import numpy as np
-
-# --------------------------------------
-from sam2.automatic_mask_generator import SAM2AutomaticMaskGenerator
-from sam2.sam2_image_predictor import SAM2ImagePredictor
-
-# --------------------------------------
-from transformers import AutoModelForZeroShotObjectDetection
-from transformers import AutoProcessor
 
 # --------------------------------------
 import skimage as ski
 
 # --------------------------------------
-from streetscapes.conf import logger
-from streetscapes.models import BaseSegmenter
+import typing as tp
+
+# --------------------------------------
 from streetscapes.models import ImagePath
+from streetscapes.models import ModelBase
+from streetscapes.models import ModelType
 
+class DinoSAM(ModelBase):
 
-class DinoSAM(BaseSegmenter):
+    @staticmethod
+    def get_model_type() -> ModelType:
+        """
+        Get the enum corresponding to this model.
+        """
+        return ModelType.DinoSAM
 
     def __init__(
         self,
@@ -40,16 +35,16 @@ class DinoSAM(BaseSegmenter):
         Inspired by [LangSAM](https://github.com/luca-medeiros/lang-segment-anything) and [SamGeo](https://samgeo.gishub.org/samgeo/).
 
         Args:
-            sam_model_id (str, optional):
+            sam_model_id:
                 SAM2 model.
                 Possible options include 'facebook/sam2.1-hiera-tiny', 'facebook/sam2.1-hiera-small' and 'facebook/sam2.1-hiera-large'.
                 Defaults to 'sam2.1-hiera-large'.
 
-            dino_model_id (str, optional):
+            dino_model_id:
                 A GroundingDINO model.
                 Defaults to "IDEA-Research/grounding-dino-base"
 
-            box_threshold (float, optional):
+            box_threshold:
                 This parameter is used for modulating the identification of objects in the images.
                 The box threshold is related to the model confidence,
                 so a higher value makes the model more selective because
@@ -58,10 +53,12 @@ class DinoSAM(BaseSegmenter):
                 Defaults to 0.3.
 
             text_threshold:
-                This parameter is also used for influencing the selectivity of the model,
+                This parameter is also used for influencing the selectivity of the model
                 by requiring a stronger association between the prompt and the segment.
                 Defaults to 0.3.
         """
+        import sam2
+        import transformers as tform
 
         # Initialise the base
         super().__init__(*args, **kwargs)
@@ -75,16 +72,20 @@ class DinoSAM(BaseSegmenter):
 
         # Processors and models
         # ==================================================
-        self.sam_model: SAM2ImagePredictor = None
-        self.sam_mask_generator: SAM2AutomaticMaskGenerator = None
-        self.dino_processor: AutoProcessor = None
-        self.dino_model: AutoModelForZeroShotObjectDetection = None
-        self._load()
+        self.sam_model: sam2.sam2_image_predictor.SAM2ImagePredictor = None
+        self.sam_mask_generator: (
+            sam2.automatic_mask_generator.SAM2AutomaticMaskGenerator
+        ) = None
+        self.dino_processor: tform.AutoProcessor = None
+        self.dino_model: tform.AutoModelForZeroShotObjectDetection = None
+        self._from_pretrained()
 
-    def _load(self):
+    def _from_pretrained(self):
         """
         Convenience method for loading processors and models.
         """
+        from sam2.sam2_image_predictor import SAM2ImagePredictor
+        import transformers as tform
 
         # SAM2 model.
         # ==================================================
@@ -95,10 +96,8 @@ class DinoSAM(BaseSegmenter):
 
         # GroundingDINO model.
         # ==================================================
-        self.dino_processor = AutoProcessor.from_pretrained(
-            self.dino_model_id
-        )
-        self.dino_model = AutoModelForZeroShotObjectDetection.from_pretrained(
+        self.dino_processor = tform.AutoProcessor.from_pretrained(self.dino_model_id)
+        self.dino_model = tform.AutoModelForZeroShotObjectDetection.from_pretrained(
             self.dino_model_id
         ).to(self.device)
         self.dino_model.eval()
@@ -108,6 +107,19 @@ class DinoSAM(BaseSegmenter):
         image: np.ndarray,
         instance_masks: dict,
     ) -> dict[str, tp.Any]:
+        '''
+        Merge separate instance masks.
+
+        Args:
+            image:
+                The image being segmented.
+
+            instance_masks:
+                A dictionary of instance masks.
+
+        Returns:
+            A dictionary of merged masks.
+        '''
 
         # A global mask.
         # All instances will be accessible via this mask.
@@ -145,115 +157,6 @@ class DinoSAM(BaseSegmenter):
             # Store the merged mask for this label
             merged_masks[label] = merged_mask
 
-    def segment(
-        self,
-        images: ImagePath,
-        labels: dict,
-    ) -> list[dict]:
-        """
-        Segment the provided sequence of images.
-
-        Args:
-            images (ImagePath):
-                A list of images to process.
-
-            labels (dict):
-                A flattened set of labels to look for,
-                with optional subsets of labels that should be
-                checked in order to eliminate overlaps.
-                Cf. `BaseSegmenter._flatten_labels()`
-
-        Returns:
-            list[dict]:
-                A list of dictionary objects containing
-                instance-level segment information.
-        """
-
-        # Load the images as NumPy arrays
-        image_paths, image_list = self.load_images(images)
-
-        # Flatten the label dictionary
-        labels = self._flatten_labels(labels)
-
-        # Split the prompt if it is provided as a single string.
-        prompt = " ".join([f"{lbl.strip()}." for lbl in labels if len(lbl) > 0])
-
-        # Detect objects with GroundingDINO
-        # ==================================================
-
-        masks = {}
-        instances = {}
-        image_map = {}
-
-        for idx, image in enumerate(image_list):
-            orig_id = int(image_paths[idx].stem)
-            image_map[orig_id] = image
-
-            logger.info(f"[ <yellow>{orig_id}</yellow> ] Detecting objects...")
-
-            inputs = self.dino_processor(
-                images=[image],
-                text=prompt,
-                return_tensors="pt",
-            ).to(self.device)
-
-            # Run the model on the input images
-            with pt.no_grad():
-                outputs = self.dino_model(**inputs)
-
-            # Process the results to detect objects and bounding boxes
-            dino_results = self.dino_processor.post_process_grounded_object_detection(
-                outputs,
-                inputs["input_ids"],
-                box_threshold=self.box_threshold,
-                text_threshold=self.text_threshold,
-                target_sizes=[image.shape[:2]],
-            )[0]
-
-            if not dino_results["labels"]:
-                # No objects found, move on...
-                continue
-
-            # Bounding boxes
-            bboxes = dino_results["boxes"].cpu().numpy()
-
-            # Segment the objects with SAM
-            # ==================================================
-            logger.info(f"[ <yellow>{orig_id}</yellow> ] Performing segmentation...")
-
-            # Use SAM to segment any images that contain objects.
-            sam_masks = self._segment_single(image, bboxes=bboxes)
-
-            # Labels from GroundingDINO
-            dino_labels = dino_results["labels"]
-
-            # Label to instance IDs
-            insts_by_label = {}
-
-            # Dictionary of final masks
-            inst_masks = {}
-
-            # A new dictionary of instances for this image
-            instances[orig_id] = {}
-            for inst_label, sam_mask in zip(dino_labels, sam_masks):
-                _inst_id = len(inst_masks) + 1
-                instances[orig_id][_inst_id] = inst_label
-                insts_by_label.setdefault(inst_label, []).append(_inst_id)
-                inst_masks[_inst_id] = sam_mask
-
-            # Remove overlaps between labelled masks.
-            logger.info(f"[ <yellow>{orig_id}</yellow> ] Removing overlaps...")
-
-            # Computer and store the mask
-            mask = self._remove_overlaps(image, inst_masks, insts_by_label, labels)
-            masks[orig_id] = mask
-
-            logger.info(
-                f"[ <yellow>{orig_id}</yellow> ] Extracted {len(inst_masks)} instances for {len(insts_by_label)} labels."
-            )
-
-        return image_map, masks, instances
-
     def _segment_single(
         self,
         image: np.ndarray,
@@ -263,10 +166,10 @@ class DinoSAM(BaseSegmenter):
         Segment a single image.
 
         Args:
-            image (np.ndarray):
+            image:
                 Image as a NumPy array.
 
-            bbox (np.ndarray):
+            bbox:
                 A bounding box in XYXY format.
 
         Returns:
@@ -288,10 +191,10 @@ class DinoSAM(BaseSegmenter):
         Segment a batch of images.
 
         Args:
-            images (list[np.ndarray]):
+            images:
                 Images to process.
 
-            bboxes (list[np.ndarray]):
+            bboxes:
                 Bounding boxes for all images in XYXY format.
 
         Returns:
@@ -320,16 +223,16 @@ class DinoSAM(BaseSegmenter):
         Remove overap between masks based on the specified label hierarchy.
 
         Args:
-            image (np.ndarray):
+            image:
                 The image being segmented.
 
-            masks (dict[int, np.ndarray]):
+            masks:
                 A dictionary of instances and their coordinates.
 
-            insstances (dict[str, list[int]]):
+            insstances:
                 A dictionary of labels mapped to instances of that label.
 
-            labels (dict[str, list[str] | None]):
+            labels:
                 A dictionary of labels and their dependencies
                 that should be removed from the corresponding masks.
                 (cf. `BaseSegmenter.flatten_labels()`).
@@ -378,3 +281,104 @@ class DinoSAM(BaseSegmenter):
             mask[inst_mask > 0] = inst_id
 
         return mask
+
+    def segment_images(
+        self,
+        images: ImagePath,
+        labels: dict,
+    ) -> list[dict]:
+        """
+        Segment the provided sequence of images.
+
+        Args:
+            images:
+                A list of images to process.
+
+            labels:
+                A flattened set of labels to look for,
+                with optional subsets of labels that should be
+                checked in order to eliminate overlaps.
+                Cf. `BaseSegmenter._flatten_labels()`
+
+        Returns:
+            A list of dictionaries containing instance-level segmentation information.
+        """
+        import torch
+
+        # Load the images as NumPy arrays
+        image_paths, image_list = self.load_images(images)
+
+        # Flatten the label dictionary
+        labels = self._flatten_labels(labels)
+
+        # Split the prompt if it is provided as a single string.
+        prompt = " ".join([f"{lbl.strip()}." for lbl in labels if len(lbl) > 0])
+
+        # Detect objects with GroundingDINO
+        # ==================================================
+        segmentations = []
+
+        for idx, image in enumerate(image_list):
+
+            # Dictionary that will hold all the information about the segmentation
+            segmentation = {"image_path": image_paths[idx]}
+
+            # Detect objects
+            inputs = self.dino_processor(
+                images=[image],
+                text=prompt,
+                return_tensors="pt",
+            ).to(self.device)
+
+            # Run the model on the input images
+            with torch.no_grad():
+                outputs = self.dino_model(**inputs)
+
+            # Process the results to detect objects and bounding boxes
+            dino_results = self.dino_processor.post_process_grounded_object_detection(
+                outputs,
+                inputs["input_ids"],
+                box_threshold=self.box_threshold,
+                text_threshold=self.text_threshold,
+                target_sizes=[image.shape[:2]],
+            )[0]
+
+            if not dino_results["labels"]:
+                # No objects found, move on...
+                continue
+
+            # Bounding boxes
+            bboxes = dino_results["boxes"].cpu().numpy()
+
+            # Segment the objects with SAM
+            # ==================================================
+            # Use SAM to segment any images that contain objects.
+            sam_masks = self._segment_single(image, bboxes=bboxes)
+
+            # Instance labels from GroundingDINO
+            instance_labels = dino_results["labels"]
+
+            # Map of label to instance ID
+            instances_by_label = {}
+
+            # Dictionary of final masks
+            instance_masks = {}
+
+            # A new dictionary of instances for this image
+            instances = {}
+            for instance_label, sam_mask in zip(instance_labels, sam_masks):
+                instance_id = len(instance_masks) + 1
+                instances[instance_id] = instance_label
+                instances_by_label.setdefault(instance_label, []).append(instance_id)
+                instance_masks[instance_id] = sam_mask
+
+            # Extract and store the mask.
+            segmentation["mask"] = self._remove_overlaps(
+                image, instance_masks, instances_by_label, labels
+            )
+
+            # Extract and store the instances.
+            segmentation["instances"] = instances
+            segmentations.append(segmentation)
+
+        return segmentations

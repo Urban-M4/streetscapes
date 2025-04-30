@@ -13,6 +13,7 @@ dependencies = [
     "contextily",
     "duckdb",
     "ephem",
+    "environs",
     "fiona",
     "geodatasets",
     "geopandas",
@@ -30,10 +31,10 @@ dependencies = [
     "pandas",
     "pyarrow",
     "pyproj",
-    "python-decouple",
     "rasterio",
     "rich",
     "sam2",
+    "seedir",
     "scikit-image",
     "scipy",
     "timezonefinder",
@@ -57,6 +58,7 @@ streetscapes = "streetscapes.main:main"
 [project.optional-dependencies]
 dev = [
     "ruff",
+    "py-spy",
     "mike",
     "mkdocs",
     "mkdocstrings[python]",
