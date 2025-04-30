@@ -35,7 +35,7 @@ class SourceType(CIEnum):
 
 
 class SourceBase(ABC):
-
+    """TODO: Add docstrings"""
     @staticmethod
     @abstractmethod
     def get_source_type() -> SourceType:

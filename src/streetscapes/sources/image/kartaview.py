@@ -10,7 +10,7 @@ from streetscapes.sources.image.base import ImageSourceBase
 
 
 class KartaViewSource(ImageSourceBase):
-
+    """TODO: Add docstrings"""
     @staticmethod
     def get_source_type() -> SourceType:
         """
