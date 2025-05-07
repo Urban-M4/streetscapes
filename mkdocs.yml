@@ -2,7 +2,7 @@ site_name: Streetscapes
 repo_url: https://github.com/Urban-M4/streetscapes
 nav:
   - Overview: index.md
-  - Tutorial: tutorial/workspace.ipynb
+  - Tutorial: tutorial/tutorial.ipynb
   - Examples:
       - Exploring Global Streetscapes: examples/explore_global_streetscapes.ipynb
       - Converting CSV files into Parquet: examples/convert_csv_to_parquet.ipynb

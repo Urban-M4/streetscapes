@@ -11,18 +11,17 @@ import numpy as np
 import matplotlib.pyplot as plt
 
 # --------------------------------------
-from streetscapes.models import ModelType
-from streetscapes.models import ModelBase
 from streetscapes.streetview.instance import SVInstance
 from streetscapes.streetview.segmentation import SVSegmentation
 
 
 class SVImage:
     """TODO: Add docstrings"""
+
     def __init__(
         self,
         path: Path,
-        segmentations: dict[ModelType, SVSegmentation] | None = None,
+        segmentations: list[SVSegmentation] | None = None,
     ):
         """
         A convenience wrapper around an individual image.
@@ -34,7 +33,7 @@ class SVImage:
                 Path to the image file.
 
             segmentations:
-                A dictionary of segmentations per segmentation model.
+                A list of segmentations.
                 Defaults to None.
         """
 
@@ -49,12 +48,11 @@ class SVImage:
         """
         return self.path.stem
 
-    def segmentation(
-        self,
-        model: ModelType,
-    ) -> SVSegmentation:
+    def segmentation(self) -> SVSegmentation:
         """
         Return an SVSegmentation object for a given model.
+
+        TODO: fix logic
 
         Args:
             model:
@@ -64,21 +62,21 @@ class SVImage:
             The SVSegmentation object.
         """
 
-        # Try to use the cached version
-        segmentation = self.segmentations.get(model)
+        # # Try to use the cached version
+        # segmentation = self.segmentations.get(model)
 
-        if segmentation is None:
-            # Try to load a saved version
-            segmentation = SVSegmentation.from_saved(self.tag, self.path)
+        # if segmentation is None:
+        #     # Try to load a saved version
+        #     segmentation = SVSegmentation.load(self.tag, self.path)
 
-        if segmentation is None:
+        # if segmentation is None:
 
-            _model = ModelBase.load_model(model)
-            (image_map, masks, instances) = _model.segment_images(self.image)
-            self.segmentations[model] = SVSegmentation(image_map[self.id])
-            segmentation = self.segmentations[model]
+        #     _model = ModelBase.load_model(model)
+        #     (image_map, masks, instances) = _model._segment_images(self.image)
+        #     self.segmentations[model] = SVSegmentation(image_map[self.id])
+        #     segmentation = self.segmentations[model]
 
-        return segmentation
+        # return segmentation
 
     def show(self):
         """
@@ -90,7 +88,7 @@ class SVImage:
 
     def get_instances(
         self,
-        model: ModelType,
+        model: str,
         label: str,
     ) -> list[SVInstance]:
         """
