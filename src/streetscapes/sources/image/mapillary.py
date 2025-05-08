@@ -171,8 +171,9 @@ class Mapillary(ImageSourceBase):
         # Extract latitude and longitude from computed_geometry if present
         if extract_latlon and "computed_geometry" in mt.columns:
 
-            coords = mt.computed_geometry.lift().coordinates
-            coords = coords.as_table().select({"lon": coords[0], "lat": coords[1]})
-            mt = mt.join(coords)
+            mt = mt.mutate(
+                lon=mt.computed_geometry.coordinates[0],
+                lat=mt.computed_geometry.coordinates[1],
+            )
 
         return mt
