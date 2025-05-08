@@ -19,7 +19,6 @@ nav:
           - Images: api/sources/image.md
       - Utils:
           - Functions: api/utils/functions.md
-          - Enums: api/utils/enums.md
       - Main: api/main.md
   - About:
       - Licence: about/licence.md
