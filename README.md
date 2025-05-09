@@ -45,8 +45,6 @@ cd streetscapes
 pip install -e .
 ```
 
-⚠️ Installing `streetscapes` is necessary in order to run any of the example notebooks.
-
 ⚠️ If one or more dependencies fail to install, check the Python version - it might be too _new_. While `streetscapes` itself specifies only the _minimal_ required Python verion, some dependencies might be slow to make releases for the latest Python version.
 
 ### Configuring the package for development
