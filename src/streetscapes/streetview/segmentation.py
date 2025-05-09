@@ -11,159 +11,248 @@ import ibis
 import numpy as np
 
 # --------------------------------------
+import awkward as ak
+
+# --------------------------------------
+import skimage as ski
+
+# --------------------------------------
+import typing as tp
+
+# --------------------------------------
 from streetscapes import utils
-from streetscapes.utils import logger
-from streetscapes.models import ModelType
 from streetscapes.streetview.instance import SVInstance
 
 
 class SVSegmentation:
     """TODO: Add docstrings"""
-    @staticmethod
-    def from_saved(
-        path: Path,
-    ):
-        """Load mask and labels from previously saved segmentation."""
-
-        mask_file = path.with_suffix("npz")
-        label_file = path.with_suffix("stat.parquet")
-
-        try:
-            mask = np.load(mask_file, allow_pickle=False)["arr_0"]
-        except FileNotFoundError as exc:
-            raise FileNotFoundError(
-                "Mask file not found. Have you segmented the image?"
-            ) from exc
-
-        try:
-            stats = ibis.read_parquet(label_file).loc[0]
-            labels = dict(zip(stats.instance.tolist(), stats.label))
-        except FileNotFoundError as exc:
-            raise FileNotFoundError(
-                "Label file not found. Have you segmented the image with stats calculation?"
-            ) from exc
-
-        return SVSegmentation(mask, labels)
 
     def __init__(
         self,
-        model: ModelType | str,
-        image_path: Path | str,
+        path: Path | str,
     ):
-        '''
+        """
         A class that acts as an interface to an image segmentation
         and the object instances that are part of it.
 
         Args:
-            model:
-                The model used for segmenting the image.
 
-            image_path:
-                The path to the image.
-        '''
-        self.model = ModelType(model) if isinstance(model, str) else model
-        self.image_path = image_path
+            path:
+                Path to the segmentation archive.
+        """
 
-        # Extract the mask and instance paths
-        # ==================================================
-        root_dir = self.image_path.parent
-        name = f"{self.model.name.lower()}/{self.image_path.name}"
-        self.mask_path = utils.make_path(f"masks/{name}", root_dir, "npz")
-        self.instance_path = utils.make_path(f"instances/{name}", root_dir, "parquet")
+        # Path to the segmentation file
+        self.path = Path(path)
+
+        if not self.path.is_file():
+            raise FileNotFoundError(
+                f"The segmentation mask for {self.path.name} does not exist."
+            )
+
+        # The model that was used to create this segmentation
+        self.model = self.path.parent.name
+
+        # Path to the image file
+        # TODO: Handle different image types (resp. extensions).
+        image_name = self._get_value("image_name")
+        self.image_path = path.parent.parent.parent / image_name
 
         # Cache
-        self._mask: np.ndarray | None = None
-        self._instances: ibis.Table | None = None
+        self._image: np.ndarray | None = None
+        self._masks: np.ndarray | None = None
+        self._instances: dict | None = None
 
     def __repr__(self):
-        return f"Segmentation(mask={self.mask_path}"
+        return f"SVSegmentation(path={self.path}"
 
-    def get_image(self) -> np.ndarray:
+    def _get_value(self, key: str) -> tp.Any:
+        """
+        Retrieve a value for a given key from the segmentation file.
+
+        Args:
+            key: The key to load from the parquet file.
+
+        Returns:
+            The extracted value.
+        """
+        return ak.from_parquet(self.path)[key]
+
+    def _remove_overlaps(
+        self,
+        instances: dict[int: np.ndarray],
+        exclude: str | list[str],
+    ) -> np.ndarray:
+        """
+        Remove overlaps between labels.
+
+        Args:
+
+            labels:
+                Masks corresponding to instances of interest.
+
+            excluded:
+                One or more labels for instances that should be excluded.
+
+        Returns:
+            The masks with undesired overlapping instances removed.
+        """
+
+        if isinstance(exclude, str):
+            exclude = [exclude]
+
+        # The original image
+        image = self.get_image()
+
+        # Make new positive and negative blank mask canvases
+        canvas = np.zeros(image.shape[:2], dtype=np.uint32)
+
+        # Mask with all instances
+        for iid, mask in instances.items():
+            canvas[mask[0], mask[1]] = iid
+
+        # Remove overlaps
+        for label in exclude:
+            for instance in self.get_instances(label):
+                canvas[instance.mask[0], instance.mask[1]] = 0
+
+        return {iid: np.where(canvas == iid) for iid in instances}
+
+    def get_image(
+        self,
+        cache: bool = False,
+    ) -> np.ndarray:
         """
         Loads the image from the stored path.
+
+        Args:
+            cache:
+                A toggle to indicate whether the image should be cached
+                for slightly faster retrieval.
+                Defaults to True.
 
         Returns:
             The image as a NumPy array.
         """
-        return np.asarray(Image.open(self.image_path))
 
-    def get_mask(
+        if cache:
+            if self._image is None:
+                self._image = utils.open_image(self.image_path)
+            return self._image
+
+        return utils.open_image(self.image_path)
+
+    def get_masks(
         self,
         cache: bool = False,
-    ) -> np.ndarray | None:
+    ) -> np.ndarray:
         """
-        Load the saved mask as a NumPy array.
+        Load the saved masks as a NumPy array.
 
         Args:
             cache:
                 A toggle to indicate whether the mask should be cached
-                for slightly faster retrieval. Defaults to False.
+                for slightly faster retrieval.
+                Defaults to True.
 
         Returns:
             The mask as a NumPy array (if it exists).
         """
 
         # Ensure that we have a list of path objects
-        if self._mask is not None:
-            return self._mask
+        if cache and self._masks is not None:
+            return self._masks
 
-        if self.mask_path is None or not self.mask_path.exists():
-            raise FileNotFoundError(
-                "The mask does not exist. Have you segmented the image?"
-            )
-
-        mask = np.load(self.mask_path, allow_pickle=False)["arr_0"]
+        masks = {
+            iid: np.array(arr, dtype=np.uint32)
+            for iid, arr in self._get_value("masks").tolist()
+        }
 
         if cache:
-            self._mask = mask
+            self._masks = masks
 
-        return mask
+        return masks
 
-    def get_instance_table(
+    def get_instance_labels(
         self,
         cache: bool = False,
-    ) -> ibis.Table | None:
+        as_table: bool = False,
+    ) -> dict | ibis.Table:
         """
-        Load the saved instances as an Ibis table.
+        Load the saved instances with their labels.
 
         Args:
             cache:
                 A toggle to indicate whether the instances should be cached
-                for slightly faster retrieval. Defaults to False.
+                for slightly faster retrieval.
+                Defaults to True.
+
+            as_table:
+                If this is True, the instance labels will be returned
+                as an Ibis table instead of a dictionary.
+                Defaults to False.
 
         Returns:
-            The instances as an Ibis table.
+            The instances as a dictionary.
         """
 
         # Ensure that we have a
-        if self._instances is not None:
-            return self._instances
+        if cache and self._instances is not None:
+            instances = self._instances
 
-        if self.instance_path is None or not self.instance_path.exists():
-            raise FileNotFoundError(
-                "The instance path not exist. Have you segmented the image?"
-            )
-
-        instances = ibis.read_parquet(self.instance_path)
+        else:
+            instances = dict(self._get_value("instances").tolist())
 
         if cache:
             self._instances = instances
+
+        if as_table:
+            return ibis.memtable(
+                [
+                    {
+                        "id": k,
+                        "label": v,
+                    }
+                    for k, v in instances.items()
+                ]
+            )
 
         return instances
 
     def get_instances(
         self,
         label: str,
+        exclude: str | list[str] | None = None,
+        merge: bool = False,
     ) -> list[SVInstance]:
         """
         Return an array of instances corresponding to label.
+
+        Args:
+            label:
+                Extract the instances for a given label.
+
+            exclude:
+                Mask labels to exclude. Defaults to None.
+
+        Returns:
+            The (potentially merged and de-overlapped) instances for this label.
         """
-        instance_ids = [k for _, (k, v) in self.get_instance_table().to_pandas().iterrows() if v == label]
-        mask = self.get_mask()
-        if mask is None:
-            return []
-        instance_masks = [mask == index for index in instance_ids]
-        return [SVInstance(mask, label) for mask in instance_masks]
+
+        instance_ids = set([k for k, v in self.get_instance_labels().items() if v == label])
+        masks = {iid: mask for iid, mask in self.get_masks(cache=False).items() if iid in instance_ids}
+
+        if exclude is not None:
+            masks = self._remove_overlaps(masks, exclude)
+
+        if merge:
+            masks = {0: np.concatenate(list(masks.values()), axis=1)}
+
+        instances = [
+            SVInstance(self.image_path, mask, label, iid)
+            for iid, mask in masks.items()
+        ]
+
+        return instances[0] if merge else instances
 
     def visualise(
         self,
@@ -198,23 +287,22 @@ class SVSegmentation:
         """
         from matplotlib import pyplot as plt
         from matplotlib import patches as mpatches
-        from matplotlib.colors import hex2color
 
         # Prepare the greyscale version of the image for plotting instances.
         image = self.get_image()
         greyscale = utils.as_rgb(image, greyscale=True)
 
-        # Load the mask
-        mask = self.get_mask()
+        # Load the masks
+        masks = self.get_masks()
 
         # Create a figure
         (fig, axes) = plt.subplots(1, 2, figsize=figsize)
 
-        # Load the instances
-        instances = self.get_instance_table()
+        # Load the instance labels
+        instances = self.get_instance_labels()
 
         if labels is None:
-            labels = instances.distinct().select("label").to_pandas().to_numpy()[:, 0]
+            labels = set(instances.values())
 
         elif isinstance(labels, str):
             labels = [labels]
@@ -227,7 +315,7 @@ class SVSegmentation:
         handles = {}
 
         # Loop over the segmentation list
-        for row, (instance_id, label) in instances.to_pandas().iterrows():
+        for instance_id, label in instances.items():
 
             if label not in labels:
                 # Skip labels that have been removed.
@@ -241,12 +329,12 @@ class SVSegmentation:
                 )
 
             # Extract the mask
-            inst_mask = mask == instance_id
-            if not np.any(inst_mask):
+            mask = masks[instance_id]
+            if mask.size == 0:
                 continue
 
-            greyscale[inst_mask] = (
-                (1 - opacity) * greyscale[inst_mask] + 255 * opacity * colourmap[label]
+            greyscale[mask[0], mask[1]] = (
+                (1 - opacity) * greyscale[mask[0], mask[1]] + 255 * opacity * colourmap[label]
             ).astype(np.ubyte)
 
         # Plot the original image and the segmented one.

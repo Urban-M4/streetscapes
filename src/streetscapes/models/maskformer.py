@@ -1,15 +1,8 @@
-from streetscapes.models import ImagePath
-from streetscapes.models import ModelBase
-from streetscapes.models import ModelType
+from streetscapes.models.base import PathLike
+from streetscapes.models.base import ModelBase
+
 
 class MaskFormer(ModelBase):
-
-    @staticmethod
-    def get_model_type() -> ModelType:
-        """
-        Get the enum corresponding to this model.
-        """
-        return ModelType.MaskFormer
 
     # All the labels recognised by Mask2Former.
     id_to_label = {
@@ -179,16 +172,16 @@ class MaskFormer(ModelBase):
         ).to(self.device)
         self.model.eval()
 
-    def segment_images(
+    def _segment_images(
         self,
-        images: ImagePath,
+        paths: PathLike,
         labels: dict,
     ) -> list[dict]:
         """
         Segment the provided sequence of images.
 
         Args:
-            images:
+            paths:
                 A list of images to process.
 
             labels:
@@ -203,7 +196,7 @@ class MaskFormer(ModelBase):
         import torch
 
         # Load the images as NumPy arrays
-        image_paths, image_list = self.load_images(images)
+        image_paths, image_list = self.load_images(paths)
 
         # Flatten the label dictionary
         labels = self._flatten_labels(labels)
@@ -218,7 +211,10 @@ class MaskFormer(ModelBase):
             _labels[k] = list(vdiff) if len(vdiff) > 0 else None
         labels = _labels
 
+        segmentations = []
+
         with torch.no_grad():
+
             # Process the image with the processor
             inputs = self.processor(images=image_list, return_tensors="pt")
             inputs.to(self.device)
@@ -237,26 +233,22 @@ class MaskFormer(ModelBase):
                 target_sizes=[img.shape[:2] for img in image_list],
             )
 
-            # Some containers for intermediate results that can be
-            # accessed during the segmentation phase.
-            segmentations = []
-
-            for idx, result in enumerate(segmented):
+            for idx, item in enumerate(segmented):
 
                 # Dictionary that will hold all the information about the segmentation.
                 segmentation = {"image_path": image_paths[idx]}
 
-                # Extract and store the mask.
-                segmentation["mask"] = (
-                    result["segmentation"].detach().clone().cpu().numpy()
-                )
-
                 # Extract and store the instances.
                 segmentation["instances"] = {
                     instance["id"]: self.id_to_label[instance["label_id"]]
-                    for instance in result["segments_info"]
+                    for instance in item["segments_info"]
                 }
 
+                # Extract the masks.
+                masks = item["segmentation"].detach().clone().cpu().numpy()
+                segmentation["masks"] = {iid: masks.where(masks == iid) for iid in segmentation['instances']}
+
+                # Extract and store the segmentations.
                 segmentations.append(segmentation)
 
         return segmentations
