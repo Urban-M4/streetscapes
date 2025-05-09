@@ -5,7 +5,7 @@
 
 # Overview
 
-`streetscapes` is a package to extract metadata, download, segment and analyse street view images from various open sources, such as [Mapillary](https://www.mapillary.com/), [Kartaview](https://kartaview.org/landing) and [Amsterdam Open Panorama](https://amsterdam.github.io/projects/open-panorama/). The package also builds upon the [Global Streetscapes](https://ual.sg/project/global-streetscapes/), making it possible to download and use the dataset analysis or downloading images with certain properties. 
+`streetscapes` is a package to extract metadata, download, segment and analyse street view images from various open sources, such as [Mapillary](https://www.mapillary.com/), [Kartaview](https://kartaview.org/landing) and [Amsterdam Open Panorama](https://amsterdam.github.io/projects/open-panorama/). The package also builds upon the [Global Streetscapes](https://ual.sg/project/global-streetscapes/), making it possible to use the dataset for analysis and download images with certain properties. 
 
 This package is a subproject of ([Urban-M4](https://github.com/Urban-M4)), which aims to model the Urban Heat Island effect by evaluating the properties of individual objects in the images (such as buildings, roads and sidewalks).
 
