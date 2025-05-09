@@ -5,9 +5,9 @@
 
 # Overview
 
-`streetscapes` is a package to extract metadata, download, segment and analyse street view images from various open sources, such as [Mapillary](https://www.mapillary.com/), [Kartaview](https://kartaview.org/landing) and [Amsterdam Open Panorama](https://amsterdam.github.io/projects/open-panorama/). `streetscapes` also builds upon the [Global Streetscapes](https://ual.sg/project/global-streetscapes/), making it possible to download and use the dataset analysis or downloading images with certain properties. 
+`streetscapes` is a package to extract metadata, download, segment and analyse street view images from various open sources, such as [Mapillary](https://www.mapillary.com/), [Kartaview](https://kartaview.org/landing) and [Amsterdam Open Panorama](https://amsterdam.github.io/projects/open-panorama/). The package also builds upon the [Global Streetscapes](https://ual.sg/project/global-streetscapes/), making it possible to download and use the dataset analysis or downloading images with certain properties. 
 
-`streetscapes` is a subproject of ([Urban-M4](https://github.com/Urban-M4)), which aims to model the Urban Heat Island effect by evaluating the properties of individual objects in the images (such as buildings, roads and sidewalks).
+This package is a subproject of ([Urban-M4](https://github.com/Urban-M4)), which aims to model the Urban Heat Island effect by evaluating the properties of individual objects in the images (such as buildings, roads and sidewalks).
 
 For more information, please refer to the [documentation](https://streetscapes.readthedocs.io/en/latest/).
 
@@ -15,14 +15,14 @@ For more information, please refer to the [documentation](https://streetscapes.r
 
 Create and activate a virtual environment using the tool of your choice, such as [venv](https://docs.python.org/3/library/venv.html). You can also use [Conda](https://anaconda.org/) (or [Mamba](https://mamba.readthedocs.io/en/latest/installation/mamba-installation.html)) if you prefer, but please note that all dependencies are installed by `pip` from `PyPI`.
 
-Using 'venv':
+Using `venv`:
 
 ```sh
 python -m venv .venv
 source .venv/bin/activate
 ```
 
-Using 'conda':
+Using `conda`:
 
 ```sh
 conda create -n myenv -c conda-forge python=3.12 pip
