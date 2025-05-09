@@ -57,12 +57,11 @@ cd streetscapes
 pip install -e .[dev]
 ```
 
-#### Building and running documentation
+#### Building and running the documentation
 
-The `streetscapes` project documentation is based on [MkDocs](https://www.mkdocs.org/). To compile the documentation, build them from the `docs` directory:
+The `streetscapes` project documentation is based on [MkDocs](https://www.mkdocs.org/). To build  and view the documentation:
 
 ```shell
-cd docs
 mkdocs build
 ```
 
