@@ -8,18 +8,11 @@ import skimage as ski
 import typing as tp
 
 # --------------------------------------
-from streetscapes.models import ImagePath
-from streetscapes.models import ModelBase
-from streetscapes.models import ModelType
+from streetscapes.models.base import PathLike
+from streetscapes.models.base import ModelBase
+
 
 class DinoSAM(ModelBase):
-
-    @staticmethod
-    def get_model_type() -> ModelType:
-        """
-        Get the enum corresponding to this model.
-        """
-        return ModelType.DinoSAM
 
     def __init__(
         self,
@@ -107,7 +100,7 @@ class DinoSAM(ModelBase):
         image: np.ndarray,
         instance_masks: dict,
     ) -> dict[str, tp.Any]:
-        '''
+        """
         Merge separate instance masks.
 
         Args:
@@ -119,7 +112,7 @@ class DinoSAM(ModelBase):
 
         Returns:
             A dictionary of merged masks.
-        '''
+        """
 
         # A global mask.
         # All instances will be accessible via this mask.
@@ -212,79 +205,9 @@ class DinoSAM(ModelBase):
         ]
         return masks
 
-    def _remove_overlaps(
+    def _segment_images(
         self,
-        image: np.ndarray,
-        masks: dict[int, np.ndarray],
-        instances: dict[str, list[int]],
-        labels: dict[str, list[str] | None],
-    ) -> np.ndarray:
-        """
-        Remove overap between masks based on the specified label hierarchy.
-
-        Args:
-            image:
-                The image being segmented.
-
-            masks:
-                A dictionary of instances and their coordinates.
-
-            insstances:
-                A dictionary of labels mapped to instances of that label.
-
-            labels:
-                A dictionary of labels and their dependencies
-                that should be removed from the corresponding masks.
-                (cf. `BaseSegmenter.flatten_labels()`).
-
-        Returns:
-            np.ndarray:
-                A mask representing all segmented instances.
-        """
-
-        # A dictionary of merged masks for each label.
-        label_masks = {}
-
-        # Filtered instance masks
-        filtered_instances = {}
-
-        for label, inst_ids in instances.items():
-            label_mask = np.zeros(image.shape[:2], dtype=bool)
-            for inst_id in inst_ids:
-
-                # Merge the instance
-                label_mask |= masks[inst_id] > 0
-
-                # Store the instance with its label.
-                # This is used below for creating the global mask.
-                filtered_instances[inst_id] = [label, masks[inst_id]]
-
-            # Store the merged mask for this label
-            label_masks[label] = label_mask
-
-        # Iterate over all merged masks and remove overlaps.
-        # and merge all masks into the global mask.
-        # ==================================================
-
-        # The final mask.
-        # All instances will be accessible via this mask.
-        mask = np.zeros(image.shape[:2], dtype=np.uint32)
-        for inst_id, (label, inst_mask) in filtered_instances.items():
-
-            # Remove any overlapping nested categories ("dependencies").
-            if dep_labels := labels.get(label):
-                for dep_label in dep_labels:
-                    if dep_label in label_masks:
-                        inst_mask[label_masks[dep_label]] = 0
-
-            # Merge the instance into the global mask.
-            mask[inst_mask > 0] = inst_id
-
-        return mask
-
-    def segment_images(
-        self,
-        images: ImagePath,
+        images: PathLike,
         labels: dict,
     ) -> list[dict]:
         """
@@ -370,14 +293,12 @@ class DinoSAM(ModelBase):
                 instance_id = len(instance_masks) + 1
                 instances[instance_id] = instance_label
                 instances_by_label.setdefault(instance_label, []).append(instance_id)
-                instance_masks[instance_id] = sam_mask
+                instance_masks[instance_id] = np.where(sam_mask > 0)
 
             # Extract and store the mask.
-            segmentation["mask"] = self._remove_overlaps(
-                image, instance_masks, instances_by_label, labels
-            )
+            segmentation["masks"] = instance_masks
 
-            # Extract and store the instances.
+            # Extract and store the segmentations.
             segmentation["instances"] = instances
             segmentations.append(segmentation)
 

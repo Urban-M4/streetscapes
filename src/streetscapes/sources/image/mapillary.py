@@ -1,33 +1,29 @@
 # --------------------------------------
+import json
+
+# --------------------------------------
 from pathlib import Path
 
 # --------------------------------------
 import ibis
-import requests
 
 # --------------------------------------
 from environs import Env
 
 # --------------------------------------
-import json
+import requests
 
 # --------------------------------------
-from streetscapes.sources import SourceType
+from streetscapes import logger
 from streetscapes.sources.image.base import ImageSourceBase
-import pandas as pd
 
-class MapillarySource(ImageSourceBase):
+
+class Mapillary(ImageSourceBase):
     """TODO: Add docstrings"""
-    @staticmethod
-    def get_source_type() -> SourceType:
-        """
-        Get the enum corresponding to this source.
-        """
-        return SourceType.Mapillary
 
     def __init__(
         self,
-        env: Env,
+        env: Env = None,
         root_dir: str | Path | None = None,
     ):
         """
@@ -70,9 +66,9 @@ class MapillarySource(ImageSourceBase):
         rq = requests.Request("GET", url, params={"access_token": self.token})
         res = self.session.send(rq.prepare())
         if res.status_code == 200:
-            return json.loads(res.content.decode("utf-8"))[
-                f"thumb_original_url"
-            ]
+            return json.loads(res.content.decode("utf-8"))[f"thumb_original_url"]
+
+        logger.warning(f"Failed to fetch the URL for image {image_id}.")
 
     def create_session(self) -> requests.Session:
         """
@@ -86,20 +82,26 @@ class MapillarySource(ImageSourceBase):
         session.headers.update({"Authorization": f"OAuth {self.token}"})
         return session
 
-    def fetch_image_ids(self, bbox, fields=None, limit=500, extract_latlon=True):
+    def fetch_image_ids(
+        self,
+        bbox: list[float],
+        fields: list[str] | None = None,
+        limit: int = 500,
+        extract_latlon: bool = True,
+    ):
         """
         Fetch Mapillary image IDs within a bounding box.
 
         See https://www.mapillary.com/developer/api-documentation/#image
 
         Parameters:
-            bbox (list): [west, south, east, north]
-            fields (list): List of fields to include in the results. If None, a standard set of fields is returned.
-            limit (int): Number of images to request per page (pagination size).
-            extract_latlon (bool): Whether to extract latitude and longitude from computed_geometry.
+            bbox: [west, south, east, north]
+            fields: List of fields to include in the results. If None, a standard set of fields is returned.
+            limit: Number of images to request per page (pagination size).
+            extract_latlon: Whether to extract latitude and longitude from computed_geometry.
 
         Returns:
-            pd.DataFrame: DataFrame containing image data for the selected fields.
+            Ibis table containing image data for the selected fields.
         """
         base_url = "https://graph.mapillary.com/images"
         default_fields = [
@@ -164,22 +166,14 @@ class MapillarySource(ImageSourceBase):
             params = {}
 
         # Convert to Dataframe
-        df = pd.DataFrame(all_records)
+        mt = ibis.memtable(all_records)
 
         # Extract latitude and longitude from computed_geometry if present
-        if extract_latlon and "computed_geometry" in df.columns:
+        if extract_latlon and "computed_geometry" in mt.columns:
 
-            def get_coords(geom):
-                # geom is GeoJSON-like dict: {'type':'Point','coordinates':[lon, lat]}
-                try:
-                    coords = geom.get("coordinates", [None, None])
-                    return coords[1], coords[0]
-                except Exception:
-                    return None, None
-
-            lat_lon = df["computed_geometry"].apply(
-                lambda g: pd.Series(get_coords(g), index=["latitude", "longitude"])
+            mt = mt.mutate(
+                lon=mt.computed_geometry.coordinates[0],
+                lat=mt.computed_geometry.coordinates[1],
             )
-            df = pd.concat([df, lat_lon], axis=1)
 
-        return ibis.memtable(df)
+        return mt

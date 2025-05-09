@@ -16,93 +16,31 @@ import PIL.ImageFile
 PIL.ImageFile.LOAD_TRUNCATED_IMAGES = True
 
 # --------------------------------------
-import enum
+import json
 
 # --------------------------------------
-import json
+import itertools
+
+# --------------------------------------
+import ibis
+
+# --------------------------------------
+from tqdm import tqdm
 
 # --------------------------------------
 import numpy as np
 
 # --------------------------------------
-import typing as tp
+import awkward as ak
 
 # --------------------------------------
 from streetscapes import utils
-from streetscapes.utils import CIEnum
-from streetscapes.utils.enums import Attr
-from streetscapes.utils.enums import Stat
+from streetscapes.streetview import SVSegmentation
 
-ImagePath = Path | str | list[Path | str]
-
-
-class ModelType(CIEnum):
-    """
-    An enum listing supported models.
-    """
-
-    MaskFormer = enum.auto()
-    DinoSAM = enum.auto()
+PathLike = Path | str | list[Path | str]
 
 
 class ModelBase(ABC):
-
-    models = {}
-
-    @staticmethod
-    @abstractmethod
-    def get_model_type() -> ModelType:
-        """
-        Get the enum corresponding to this model.
-        """
-        pass
-
-    @staticmethod
-    def _get_derived(
-        parent: tp.Any | None = None,
-        models: dict | None = None,
-    ) -> dict[ModelType, tp.Any]:
-
-        if models is None:
-            models = {}
-
-        if parent is None:
-            parent = ModelBase
-
-        for model_cls in parent.__subclasses__():
-            try:
-
-                mtype = model_cls.get_model_type()
-                if mtype is not None:
-                    models[mtype] = model_cls
-            except AttributeError as e:
-                pass
-
-            # Recurse
-            ModelBase._get_derived(model_cls, models)
-
-        return models
-
-    @staticmethod
-    def load_model(model_type: ModelType, *args, **kwargs) -> ModelBase:
-        """
-        Load a model.
-
-        Args:
-            model:
-                An enum specifying the model to load.
-
-        Returns:
-            The loaded model.
-        """
-        if model_type not in ModelBase.models:
-            model_cls = ModelBase._get_derived().get(model_type)
-            if model_cls is None:
-                return
-
-            ModelBase.models[model_type] = model_cls(*args, **kwargs)
-
-        return ModelBase.models[model_type]
 
     def __init__(
         self,
@@ -119,7 +57,7 @@ class ModelBase(ABC):
 
         # Name
         # ==================================================
-        self.name = self.get_model_type().name
+        self.name = self.__class__.__name__.lower()
         self.env_prefix = utils.camel2snake(self.name).upper()
 
         # Set up the device
@@ -141,6 +79,52 @@ class ModelBase(ABC):
         This method that should be overriden in derived classes.
         """
         pass
+
+    @abstractmethod
+    def _segment_images(self, *args, **kwargs):
+        """
+        Segments a list of images and looks for the requested labels.
+
+        NOTE
+        This method that should be overriden in derived classes.
+        """
+        pass
+
+    def _save_segmentation(
+        self,
+        segmentation: dict,
+    ):
+        """
+        Save an image segmentation mask and the corresponding instances.
+
+        Args:
+            segmentation:
+                A dictionary containing image segmentation information.
+        """
+
+        # Masks and instances are saved in separate directories for each model,
+        # so it's useful to have the model name handy.
+        model_name = self.name.lower()
+
+        # The directory where the image is stored
+        image_path = segmentation["image_path"]
+        image_dir = image_path.parent
+
+        # Derive the mask and instance directories from the image directory
+        segmentation_dir = utils.ensure_dir(image_dir / f"segmentations/{model_name}")
+
+        # Reformat the dictionary values and save.
+        # ==================================================
+        to_save = {
+            "image_name": image_path.name,
+            "masks": list(segmentation["masks"].items()),
+            "instances": list(segmentation["instances"].items()),
+        }
+
+        path = segmentation_dir / image_path.with_suffix(".parquet").name
+        ak.to_parquet(to_save, path)
+
+        return path
 
     def _flatten_labels(
         self,
@@ -220,64 +204,54 @@ class ModelBase(ABC):
 
         return _flatten(labels)
 
-    @abstractmethod
-    def segment_images(self, *args, **kwargs):
-        """
-        Segments a list of images and looks for the requested labels.
+    # def load_stats(
+    #     self,
+    #     path: str | Path | list[str | Path],
+    # ) -> dict[int, dict]:
+    #     """
+    #     Load metadata from a Parquet file.
 
-        NOTE
-        This method that should be overriden in derived classes.
-        """
-        pass
+    #     Args:
+    #         paths:
+    #             The paths to the Parquet file containing image statistics.
 
-    def load_stats(
-        self,
-        path: str | Path | list[str | Path],
-    ) -> dict[int, dict]:
-        """
-        Load metadata from a Parquet file.
+    #     Returns:
+    #         A dictionary mapping origin IDs to dictionaries
+    #         containing statistics about the segmented images.
+    #     """
 
-        Args:
-            paths:
-                The paths to the Parquet file containing image statistics.
+    #     # Ensure that we have a list of path objects
+    #     if isinstance(path, str):
+    #         path = [path]
+    #     path = [Path(p) for p in path]
 
-        Returns:
-            A dictionary mapping origin IDs to dictionaries
-            containing statistics about the segmented images.
-        """
+    #     stats = {}
 
-        # Ensure that we have a list of path objects
-        if isinstance(path, str):
-            path = [path]
-        path = [Path(p) for p in path]
+    #     # Load the statistics
+    #     for path in path:
+    #         orig_id = int(str(path.name).removesuffix("".join(path.suffixes)))
+    #         stats[orig_id] = {}
+    #         loaded = json.loads(ak.to_json(ak.from_parquet(path))).items()
+    #         for attr, attr_data in loaded:
+    #             try:
+    #                 attr = Attr[attr.capitalize()]
+    #             except:
+    #                 attr = attr.lower()
+    #             match attr:
+    #                 case "instance" | "label" | Attr.Area | Attr.Coords:
+    #                     stats[orig_id][attr] = attr_data
+    #                 case _:
+    #                     # Statistics
+    #                     stats[orig_id][attr] = {}
+    #                     for stat, stat_data in attr_data.items():
+    #                         stat = Stat[stat.capitalize()]
+    #                         stats[orig_id][attr][stat] = stat_data
 
-        stats = {}
-
-        # Load the statistics
-        for path in path:
-            orig_id = int(str(path.name).removesuffix("".join(path.suffixes)))
-            stats[orig_id] = {}
-            loaded = json.loads(ak.to_json(ak.from_parquet(path))).items()
-            for attr, attr_data in loaded:
-                try:
-                    attr = Attr[attr.capitalize()]
-                except:
-                    attr = attr.lower()
-                match attr:
-                    case "instance" | "label" | Attr.Area | Attr.Coords:
-                        stats[orig_id][attr] = attr_data
-                    case _:
-                        # Statistics
-                        stats[orig_id][attr] = {}
-                        for stat, stat_data in attr_data.items():
-                            stat = Stat[stat.capitalize()]
-                            stats[orig_id][attr][stat] = stat_data
-
-        return stats
+    #     return stats
 
     def load_images(
         self,
-        images: ImagePath,
+        images: PathLike,
     ) -> tuple[list[Path], list[np.ndarray]]:
         """
         A list of images or paths to image files.
@@ -319,3 +293,59 @@ class ModelBase(ABC):
         """
 
         return int(path.stem), np.array(Image.open(path))
+
+    def segment(
+        self,
+        paths: PathLike,
+        labels: dict,
+        batch_size: int = 10,
+    ) -> ibis.Table:
+        """
+        Retrieve the paths of local images from a dataset.
+
+        Args:
+            paths:
+                Path(s) to image file(s).
+
+            labels:
+                A flattened set of labels to look for,
+                with optional subsets of labels that should be
+                checked in order to eliminate overlaps.
+                Cf. `BaseSegmenter._flatten_labels()`
+
+            batch_size:
+                Process the images in batches of this size.
+                Defaults to 10.
+
+        Returns:
+            A table of information about the segmentations.
+        """
+
+        # Segment the images and save the results
+        # ==================================================
+        segmentations = []
+
+        # Make sure that we are processing a list
+        single = isinstance(paths, (str, Path))
+        if single:
+            paths = [paths]
+
+        # Compute the number of batches
+        total = len(paths) // batch_size
+        if total * batch_size != len(paths):
+            total += 1
+
+        # Segment the images and extract the metadata
+        with tqdm(total=total, desc=f"Segmenting images...") as pbar:
+            for path_batch in itertools.batched(list(paths), batch_size):
+                segmentations.extend(self._segment_images(path_batch, labels))
+                pbar.update()
+
+        # Save the segmentations
+        paths = [self._save_segmentation(seg) for seg in segmentations]
+
+        # Create SVSegmentation instances
+        segmentations = [SVSegmentation(path) for path in paths]
+        pbar.set_description_str("Done")
+
+        return segmentations[0] if single else segmentations

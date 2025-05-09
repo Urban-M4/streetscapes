@@ -2,22 +2,16 @@
 from pathlib import Path
 
 # --------------------------------------
-from environs import Env
 import ibis
 
 # --------------------------------------
-from streetscapes.sources import SourceType
+from environs import Env
+
+# --------------------------------------
 from streetscapes.sources.image.base import ImageSourceBase
 
-
-class KartaViewSource(ImageSourceBase):
+class KartaView(ImageSourceBase):
     """TODO: Add docstrings"""
-    @staticmethod
-    def get_source_type() -> SourceType:
-        """
-        Get the enum corresponding to this source.
-        """
-        return SourceType.KartaView
 
     def __init__(
         self,
