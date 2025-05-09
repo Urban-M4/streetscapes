@@ -5,9 +5,9 @@
 
 # Overview
 
-Streetscapes is a project within a project. The aim of the parent project ([Urban-M4](https://github.com/Urban-M4)) is to model the Urban Heat Island effect with the help of various software tools. As part of the `Urban-M4` ecosystem, Streetscapes provides a streamlined API for downloading, segmenting and analysing street view imagery (SVI). Specifically, the analysis is geared towards evaluating the properties of individual objects in the images (such as buildings, roads and sidewalks) that could help estimate the amount of heat trapped in urban environments. Streetscapes is based on and builds upon the results of the [Global Streetscapes](https://ual.sg/project/global-streetscapes/) project.
+Streetscapes is a package to extract metadata, download, segment and analyse street view images from various open sources, such as Mapillary, Kartaview and Amsterdam Open Panorama. 'streetscapes' also builds upon the [Global Streetscapes](https://ual.sg/project/global-streetscapes/), making it possible to download and use the dataset analysis or downloading images with certain properties. 
 
-This repository contains information and code for downloading, segmenting and analysing images from Mapillary and KartaView, using information from [global-streetscapes](https://github.com/ualsg/global-streetscapes/tree/main) dataset.
+'streetscapes' is a subproject of ([Urban-M4](https://github.com/Urban-M4)), which aims to model the Urban Heat Island effect by evaluating the properties of individual objects in the images (such as buildings, roads and sidewalks) that could help estimate the amount of heat trapped in urban environments.
 
 For more information, plese refer to the [documentation](https://streetscapes.readthedocs.io/en/latest/).
 
