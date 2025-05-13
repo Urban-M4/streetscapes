@@ -52,18 +52,19 @@ class SVSegmentation:
         # The model that was used to create this segmentation
         self.model = self.path.parent.name
 
+        # Cache
+        self._image: np.ndarray | None = None
+        self._masks: np.ndarray | None = None
+        self._instances: dict | None = None
+        self._metadata: dict | None = None
+
         # Path to the image file
         # TODO: Handle different image types (resp. extensions).
         image_name = self._get_value("image_name")
         self.image_path = path.parent.parent.parent / image_name
 
-        # Cache
-        self._image: np.ndarray | None = None
-        self._masks: np.ndarray | None = None
-        self._instances: dict | None = None
-
     def __repr__(self):
-        return f"SVSegmentation(path={self.path}"
+        return f"SVSegmentation(path={utils.hide_home(self.path)!r}"
 
     def _get_value(self, key: str) -> tp.Any:
         """
@@ -75,7 +76,10 @@ class SVSegmentation:
         Returns:
             The extracted value.
         """
-        return ak.from_parquet(self.path)[key]
+
+        if self._metadata is None:
+            self._metadata = np.load(self.path, allow_pickle=True)["arr_0"].item()
+        return self._metadata[key]
 
     def _remove_overlaps(
         self,
@@ -164,7 +168,7 @@ class SVSegmentation:
 
         masks = {
             iid: np.array(arr, dtype=np.uint32)
-            for iid, arr in self._get_value("masks").tolist()
+            for iid, arr in self._get_value("masks")
         }
 
         if cache:
@@ -200,7 +204,7 @@ class SVSegmentation:
             instances = self._instances
 
         else:
-            instances = dict(self._get_value("instances").tolist())
+            instances = dict(self._get_value("instances"))
 
         if cache:
             self._instances = instances
