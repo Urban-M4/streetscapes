@@ -1,4 +1,6 @@
 from streetscapes.utils.logging import logger
+from streetscapes.utils.functions import exit_register
+from streetscapes.utils.functions import is_notebook
 from streetscapes.utils.functions import ensure_dir
 from streetscapes.utils.functions import hide_home
 from streetscapes.utils.functions import show_dir_tree
