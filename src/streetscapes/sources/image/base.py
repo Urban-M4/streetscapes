@@ -1,21 +1,15 @@
 # --------------------------------------
+import re
+
+# --------------------------------------
 from abc import ABC
 from abc import abstractmethod
 
 # --------------------------------------
-import time
-
-# --------------------------------------
-import random
+from pathlib import Path
 
 # --------------------------------------
 from tqdm import tqdm
-
-# --------------------------------------
-import os
-
-# --------------------------------------
-from pathlib import Path
 
 # --------------------------------------
 from environs import Env
@@ -24,8 +18,8 @@ from environs import Env
 import requests
 
 # --------------------------------------
-from streetscapes import logger
 from streetscapes import utils
+from streetscapes import logger
 from streetscapes.sources.base import SourceBase
 
 
@@ -76,6 +70,18 @@ class ImageSourceBase(SourceBase, ABC):
         # A session for requesting images
         # ==================================================
         self.session = self.create_session()
+
+    @property
+    def images(self) -> list[Path]:
+        """Return a list of paths to all images in the root directory."""
+
+        files = []
+        for x in self.root_dir.iterdir():
+            a = re.search(ImageSourceBase.image_pattern, str(x))
+            if a is not None:
+                files.append(Path(a.group()))
+
+        return files
 
     @abstractmethod
     def get_image_url(
@@ -201,7 +207,9 @@ class ImageSourceBase(SourceBase, ABC):
             urls = [None] * len(image_ids)
 
         if len(urls) != len(image_ids):
-            raise AttributeError("Please ensure that the URL list is the same size as the list of image IDs.")
+            raise AttributeError(
+                "Please ensure that the URL list is the same size as the list of image IDs."
+            )
 
         # Download the images
         # ==================================================

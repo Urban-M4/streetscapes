@@ -2,6 +2,9 @@
 from __future__ import annotations
 
 # --------------------------------------
+import os
+
+# --------------------------------------
 from abc import ABC
 from abc import abstractmethod
 
@@ -14,9 +17,6 @@ from PIL import Image
 import PIL.ImageFile
 
 PIL.ImageFile.LOAD_TRUNCATED_IMAGES = True
-
-# --------------------------------------
-import json
 
 # --------------------------------------
 import itertools
@@ -38,6 +38,12 @@ from streetscapes import utils
 from streetscapes.streetview import SVSegmentation
 
 PathLike = Path | str | list[Path | str]
+
+# HACK
+# PyTorch configuration options.
+# This should go into a dedicated configuration module.
+# ==================================================
+os.environ["PYTORCH_CUDA_ALLOC_CONF"] = "expandable_segments:True"
 
 
 class ModelBase(ABC):
@@ -121,8 +127,10 @@ class ModelBase(ABC):
             "instances": list(segmentation["instances"].items()),
         }
 
-        path = segmentation_dir / image_path.with_suffix(".parquet").name
-        ak.to_parquet(to_save, path)
+        path = segmentation_dir / image_path.with_suffix(".npz").name
+
+        # ak.to_parquet(to_save, path)
+        np.savez_compressed(path, to_save)
 
         return path
 
@@ -203,51 +211,6 @@ class ModelBase(ABC):
             return _subtree
 
         return _flatten(labels)
-
-    # def load_stats(
-    #     self,
-    #     path: str | Path | list[str | Path],
-    # ) -> dict[int, dict]:
-    #     """
-    #     Load metadata from a Parquet file.
-
-    #     Args:
-    #         paths:
-    #             The paths to the Parquet file containing image statistics.
-
-    #     Returns:
-    #         A dictionary mapping origin IDs to dictionaries
-    #         containing statistics about the segmented images.
-    #     """
-
-    #     # Ensure that we have a list of path objects
-    #     if isinstance(path, str):
-    #         path = [path]
-    #     path = [Path(p) for p in path]
-
-    #     stats = {}
-
-    #     # Load the statistics
-    #     for path in path:
-    #         orig_id = int(str(path.name).removesuffix("".join(path.suffixes)))
-    #         stats[orig_id] = {}
-    #         loaded = json.loads(ak.to_json(ak.from_parquet(path))).items()
-    #         for attr, attr_data in loaded:
-    #             try:
-    #                 attr = Attr[attr.capitalize()]
-    #             except:
-    #                 attr = attr.lower()
-    #             match attr:
-    #                 case "instance" | "label" | Attr.Area | Attr.Coords:
-    #                     stats[orig_id][attr] = attr_data
-    #                 case _:
-    #                     # Statistics
-    #                     stats[orig_id][attr] = {}
-    #                     for stat, stat_data in attr_data.items():
-    #                         stat = Stat[stat.capitalize()]
-    #                         stats[orig_id][attr][stat] = stat_data
-
-    #     return stats
 
     def load_images(
         self,
@@ -336,10 +299,13 @@ class ModelBase(ABC):
             total += 1
 
         # Segment the images and extract the metadata
-        with tqdm(total=total, desc=f"Segmenting images...") as pbar:
-            for path_batch in itertools.batched(list(paths), batch_size):
-                segmentations.extend(self._segment_images(path_batch, labels))
-                pbar.update()
+        pbar = tqdm(total=total, desc=f"Segmenting images...")
+        for path_batch in itertools.batched(list(paths), batch_size):
+            segmentations.extend(self._segment_images(path_batch, labels))
+            pbar.update()
+
+        # Save the images
+        pbar.set_description_str("Saving segmentations...")
 
         # Save the segmentations
         paths = [self._save_segmentation(seg) for seg in segmentations]
