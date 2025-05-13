@@ -153,63 +153,6 @@ class GlobalStreetscapesSource(HFSourceBase):
 
         return subset
 
-    def load_dataset(
-        self,
-        dataset: str,
-        criteria: dict = None,
-        columns: list | tuple | set = None,
-        recreate: bool = False,
-        save: bool = True,
-    ) -> ibis.Table | None:
-        """
-        Load and return a subset of the source, if it exists.
-
-        Args:
-
-            dataset:
-                The dataset to load.
-
-            criteria:
-                Optional criteria used to create a subset.
-
-            columns:
-                The columns to keep or retrieve.
-
-            recreate:
-                Recreate the dataset if it exists.
-                Defaults to False.
-
-            save:
-                Save a newly created dataset.
-                Defaults to True.
-
-        Returns:
-            An Ibis table.
-        """
-
-        # The path to the dataset.
-        fpath = self.get_workspace_path(dataset, suffix="parquet")
-
-        desc = f"Dataset {dataset}"
-        if recreate or not fpath.exists():
-
-            logger.info(f"{desc} | Extracting...")
-
-            dataset = self.load_dataset(criteria, columns)
-
-            if save:
-                logger.info(f"{desc} | Saving...")
-                utils.ensure_dir(fpath.parent)
-                dataset.to_parquet(fpath)
-
-        else:
-            logger.info(f"{desc} | Loading...")
-
-            dataset = self.load_parquet(fpath)
-            if columns is not None:
-                dataset = dataset.select(columns)
-
-        return (dataset, fpath)
 
     def check_image_status(
         self,
