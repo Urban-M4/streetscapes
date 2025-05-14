@@ -155,11 +155,12 @@ class GlobalStreetscapesSource(HFSourceBase):
 
     def fetch_image_urls(
             self, 
-            df,
+            table: ibis.Table,
             mp,
             kv 
-            ):
-        df_urls = df.copy()
+    ) -> ibis.Table:
+        """Fetch image URLs from Mapillary and KartaView."""
+        df_urls = table.execute()
         for index, row in df_urls.iterrows():
             if row["source"] == "Mapillary":
                 image_url = mp.get_image_url(row["image_id"]) 
@@ -169,10 +170,17 @@ class GlobalStreetscapesSource(HFSourceBase):
                 df_urls.at[index, "image_url"] = image_url
             else:
                 logger.warning(f"Source not recognised for image {row["image_id"]}.")
-        return df_urls
+        urls = ibis.memtable(df_urls)
+        return urls
         
-    def dowload_images(self, df, mp, kv):
+    def dowload_images(self, 
+                       table: ibis.Table, 
+                       mp, 
+                       kv
+    ) -> list[Path]:
+        """Download images from Mapillary and KartaView."""
         paths = []
+        df =  table.execute()
         for index, row in df.iterrows():
             if row["source"] == "Mapillary":
                 path = mp.download_image(row["image_id"], row["image_url"])
