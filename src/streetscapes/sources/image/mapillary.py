@@ -42,7 +42,7 @@ class Mapillary(ImageSourceBase):
         super().__init__(
             env,
             root_dir=root_dir,
-            url=f"https://graph.mapillary.com",
+            url="https://graph.mapillary.com",
         )
 
     def get_image_url(
@@ -60,15 +60,14 @@ class Mapillary(ImageSourceBase):
             str:
                 The URL to query.
         """
-
-        url = f"{self.url}/{image_id}?fields=thumb_original_url"
+        url = f"{self.url}/{image_id}?fields=thumb_2048_url"
 
         rq = requests.Request("GET", url, params={"access_token": self.token})
         res = self.session.send(rq.prepare())
         if res.status_code == 200:
-            return json.loads(res.content.decode("utf-8"))[f"thumb_original_url"]
-
-        logger.warning(f"Failed to fetch the URL for image {image_id}.")
+            return json.loads(res.content.decode("utf-8"))["thumb_2048_url"]
+        else:
+            logger.warning(f"Failed to fetch the URL for image {image_id}.")
 
     def create_session(self) -> requests.Session:
         """
@@ -177,3 +176,4 @@ class Mapillary(ImageSourceBase):
             )
 
         return mt
+    
