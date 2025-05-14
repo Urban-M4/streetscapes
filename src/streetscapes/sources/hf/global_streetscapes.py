@@ -152,3 +152,34 @@ class GlobalStreetscapesSource(HFSourceBase):
                 subset = subset.select(columns)
 
         return subset
+
+    def fetch_image_urls(
+            self, 
+            df,
+            mp,
+            kv 
+            ):
+        df_urls = df.copy()
+        for index, row in df_urls.iterrows():
+            if row["source"] == "Mapillary":
+                image_url = mp.get_image_url(row["image_id"]) 
+                df_urls.at[index, "image_url"] = image_url
+            elif row["source"] == "KartaView":
+                image_url = kv.get_image_url(row["image_id"])
+                df_urls.at[index, "image_url"] = image_url
+            else:
+                logger.warning(f"Source not recognised for image {row["image_id"]}.")
+        return df_urls
+        
+    def dowload_images(self, df, mp, kv):
+        paths = []
+        for index, row in df.iterrows():
+            if row["source"] == "Mapillary":
+                path = mp.download_image(row["image_id"], row["image_url"])
+                paths.append(path)
+            elif row["source"] == "KartaView":
+                path = kv.download_image(row["image_id"], row["image_url"])
+                paths.append(path)
+            else:
+                logger.warning(f"Source not recognised for image {row["image_id"]}.")
+        return paths
