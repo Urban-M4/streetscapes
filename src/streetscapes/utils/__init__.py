@@ -1,5 +1,6 @@
-from streetscapes.utils.enums import CIEnum
 from streetscapes.utils.logging import logger
+from streetscapes.utils.functions import exit_register
+from streetscapes.utils.functions import is_notebook
 from streetscapes.utils.functions import ensure_dir
 from streetscapes.utils.functions import hide_home
 from streetscapes.utils.functions import show_dir_tree
@@ -7,5 +8,7 @@ from streetscapes.utils.functions import filter_files
 from streetscapes.utils.functions import create_asset_dir
 from streetscapes.utils.functions import make_path
 from streetscapes.utils.functions import as_rgb
+from streetscapes.utils.functions import as_hsv
 from streetscapes.utils.functions import make_colourmap
+from streetscapes.utils.functions import open_image
 from streetscapes.utils.functions import camel2snake

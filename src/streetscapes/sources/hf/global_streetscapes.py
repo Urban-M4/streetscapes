@@ -15,17 +15,11 @@ import typing as tp
 
 # --------------------------------------
 from streetscapes import utils
-from streetscapes.sources import SourceType
+from streetscapes import logger
 from streetscapes.sources.hf.base import HFSourceBase
 
 class GlobalStreetscapesSource(HFSourceBase):
     """TODO: Add docstrings"""
-    @staticmethod
-    def get_source_type() -> SourceType:
-        """
-        Get the enum corresponding to this source.
-        """
-        return SourceType.GlobalStreetscapes
 
     def __init__(
         self,
@@ -150,7 +144,7 @@ class GlobalStreetscapesSource(HFSourceBase):
                     op, rhs = operator.eq, criterion
 
                 if not isinstance(op, tp.Callable):
-                    raise TypeError(f"The operator is not callable.")
+                    raise TypeError("The operator is not callable.")
 
                 subset = subset.filter(op(subset[lhs], rhs))
 
@@ -158,3 +152,42 @@ class GlobalStreetscapesSource(HFSourceBase):
                 subset = subset.select(columns)
 
         return subset
+
+    def fetch_image_urls(
+            self, 
+            table: ibis.Table,
+            mp,
+            kv 
+    ) -> ibis.Table:
+        """Fetch image URLs from Mapillary and KartaView."""
+        df_urls = table.execute()
+        for index, row in df_urls.iterrows():
+            if row["source"] == "Mapillary":
+                image_url = mp.get_image_url(row["image_id"]) 
+                df_urls.at[index, "image_url"] = image_url
+            elif row["source"] == "KartaView":
+                image_url = kv.get_image_url(row["image_id"])
+                df_urls.at[index, "image_url"] = image_url
+            else:
+                logger.warning(f"Source not recognised for image {row["image_id"]}.")
+        urls = ibis.memtable(df_urls)
+        return urls
+        
+    def dowload_images(self, 
+                       table: ibis.Table, 
+                       mp, 
+                       kv
+    ) -> list[Path]:
+        """Download images from Mapillary and KartaView."""
+        paths = []
+        df =  table.execute()
+        for index, row in df.iterrows():
+            if row["source"] == "Mapillary":
+                path = mp.download_image(row["image_id"], row["image_url"])
+                paths.append(path)
+            elif row["source"] == "KartaView":
+                path = kv.download_image(row["image_id"], row["image_url"])
+                paths.append(path)
+            else:
+                logger.warning(f"Source not recognised for image {row["image_id"]}.")
+        return paths

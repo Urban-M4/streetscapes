@@ -11,18 +11,17 @@ import numpy as np
 import matplotlib.pyplot as plt
 
 # --------------------------------------
-from streetscapes.models import ModelType
-from streetscapes.models import ModelBase
 from streetscapes.streetview.instance import SVInstance
 from streetscapes.streetview.segmentation import SVSegmentation
 
 
 class SVImage:
     """TODO: Add docstrings"""
+
     def __init__(
         self,
         path: Path,
-        segmentations: dict[ModelType, SVSegmentation] | None = None,
+        segmentations: list[SVSegmentation] | None = None,
     ):
         """
         A convenience wrapper around an individual image.
@@ -34,51 +33,40 @@ class SVImage:
                 Path to the image file.
 
             segmentations:
-                A dictionary of segmentations per segmentation model.
+                A list of segmentations.
                 Defaults to None.
         """
 
         self.path = path
         self.image = np.asarray(Image.open(self.path))
-        self.segmentations = {} if segmentations is None else segmentations
 
     @property
-    def tag(self) -> str:
-        """
-        Return a tag that identifies the image.
-        """
+    def iid(self) -> str:
+        """Return the ID of the image."""
         return self.path.stem
 
-    def segmentation(
-        self,
-        model: ModelType,
-    ) -> SVSegmentation:
+    def segmentations(self) -> list[SVSegmentation]:
         """
-        Return an SVSegmentation object for a given model.
-
-        Args:
-            model:
-                The model to use for segmentation.
+        Return a dictionary of models mapped to SVSegmentation objects.
 
         Returns:
-            The SVSegmentation object.
+            A dictionary of SVSegmentation objects with the model as key.
         """
 
-        # Try to use the cached version
-        segmentation = self.segmentations.get(model)
+        segmentations = {}
 
-        if segmentation is None:
-            # Try to load a saved version
-            segmentation = SVSegmentation.from_saved(self.tag, self.path)
+        # Search the segmentation directory
+        seg_dir = self.path / "segmentations"
+        if not seg_dir.exists():
+            return segmentations
 
-        if segmentation is None:
+        for model_subdir in seg_dir.glob("*"):
+            if model_subdir.is_dir():
+                seg_file = model_subdir / self.path.with_suffix(".npz").name
+                if seg_file.is_file():
+                    segmentations[model_subdir.name] = SVSegmentation(seg_file)
 
-            _model = ModelBase.load_model(model)
-            (image_map, masks, instances) = _model.segment_images(self.image)
-            self.segmentations[model] = SVSegmentation(image_map[self.id])
-            segmentation = self.segmentations[model]
-
-        return segmentation
+        return segmentations
 
     def show(self):
         """
@@ -90,7 +78,7 @@ class SVImage:
 
     def get_instances(
         self,
-        model: ModelType,
+        model: str,
         label: str,
     ) -> list[SVInstance]:
         """

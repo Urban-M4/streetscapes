@@ -5,16 +5,64 @@ import re
 from pathlib import Path
 
 # --------------------------------------
+import numpy as np
+
+# --------------------------------------
 import seedir as sd
 
 # --------------------------------------
-import numpy as np
+from IPython import get_ipython
+
+# --------------------------------------
+import skimage as ski
 
 # --------------------------------------
 from huggingface_hub import cached_assets_path
 
-# --------------------------------------
-import skimage as ski
+# Courtesy of
+# https://stackoverflow.com/questions/40186622/atexit-alternative-for-ipython
+# ==================================================
+try:
+
+    def exit_register(fun, *args, **kwargs):
+        """Decorator that registers at post_execute.
+        After its execution it unregisters itself for subsequent runs."""
+
+        def callback():
+            fun(*args, **kwargs)
+            ip.events.unregister("post_execute", callback)
+
+        ip.events.register("post_execute", callback)
+
+    ip = get_ipython()
+except NameError:
+    from atexit import register as exit_register
+
+
+def is_notebook() -> bool:
+    """Determine if the caller is running in a Jupyter notebook.
+
+    Courtesy of https://stackoverflow.com/a/39662359/4639195.
+
+    Returns:
+        bool:
+            True if running in a notebook.
+    """
+    try:
+        shell = get_ipython().__class__.__name__
+        match (shell):
+            case "ZMQInteractiveShell":
+                # Jupyter notebook or qtconsole
+                return True
+            case "TerminalInteractiveShell":
+                # Terminal running IPython
+                return False
+            case _:
+                # Other type (?)
+                return False
+    except NameError:
+        # Probably standard Python interpreter
+        return False
 
 
 def ensure_dir(path: Path | str | None) -> Path:
@@ -212,6 +260,21 @@ def as_rgb(
     return image
 
 
+def as_hsv(image: np.ndarray) -> np.ndarray:
+    """
+    Convert an RGB image into HSV format
+
+    Args:
+        image:
+            The input RGB image.
+
+    Returns:
+        The HSV image.
+    """
+
+    return ski.color.rgb2hsv(as_rgb(image))
+
+
 def make_colourmap(
     labels: dict | list | tuple,
     cmap: str = "jet",
@@ -236,8 +299,28 @@ def make_colourmap(
         return {}
 
     cmap = plt.get_cmap(cmap, len(labels))
-    cmap = cmap(np.linspace(0, 1, cmap.N))[:, :3]
-    return {label: colour for label, colour in zip(labels, cmap)}
+    cmap = cmap(np.linspace(0.0, 1.0, cmap.N))[:, :3]
+    return {label: colour for label, colour in zip(sorted(labels), cmap)}
+
+
+def open_image(
+    path: Path,
+    as_grey: bool = False,
+) -> np.ndarray:
+    """
+    Open an image as a NumPy array.
+
+    Args:
+        path:
+            The path to the image file.
+        as_grey:
+            Open the image as a greyscale.
+
+    Returns:
+        A NumPy array containing the image.
+    """
+
+    return ski.io.imread(path, as_grey)
 
 
 def camel2snake(string: str) -> str:
