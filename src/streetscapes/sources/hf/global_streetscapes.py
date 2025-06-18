@@ -144,7 +144,7 @@ class GlobalStreetscapesSource(HFSourceBase):
                     op, rhs = operator.eq, criterion
 
                 if not isinstance(op, tp.Callable):
-                    raise TypeError(f"The operator is not callable.")
+                    raise TypeError("The operator is not callable.")
 
                 subset = subset.filter(op(subset[lhs], rhs))
 
@@ -153,125 +153,41 @@ class GlobalStreetscapesSource(HFSourceBase):
 
         return subset
 
-    def load_dataset(
-        self,
-        dataset: str,
-        criteria: dict = None,
-        columns: list | tuple | set = None,
-        recreate: bool = False,
-        save: bool = True,
-    ) -> ibis.Table | None:
-        """
-        Load and return a subset of the source, if it exists.
-
-        Args:
-
-            dataset:
-                The dataset to load.
-
-            criteria:
-                Optional criteria used to create a subset.
-
-            columns:
-                The columns to keep or retrieve.
-
-            recreate:
-                Recreate the dataset if it exists.
-                Defaults to False.
-
-            save:
-                Save a newly created dataset.
-                Defaults to True.
-
-        Returns:
-            An Ibis table.
-        """
-
-        # The path to the dataset.
-        fpath = self.get_workspace_path(dataset, suffix="parquet")
-
-        desc = f"Dataset {dataset}"
-        if recreate or not fpath.exists():
-
-            logger.info(f"{desc} | Extracting...")
-
-            dataset = self.load_dataset(criteria, columns)
-
-            if save:
-                logger.info(f"{desc} | Saving...")
-                utils.ensure_dir(fpath.parent)
-                dataset.to_parquet(fpath)
-
-        else:
-            logger.info(f"{desc} | Loading...")
-
-            dataset = self.load_parquet(fpath)
-            if columns is not None:
-                dataset = dataset.select(columns)
-
-        return (dataset, fpath)
-
-    def check_image_status(
-        self,
-        dataset: ibis.Table,
-    ) -> tuple[set, set]:
-        """
-        Get the IDs of images that are missing from the local root directory.
-
-        This method expects the colums corresponding to the source and the image ID
-        to be named in a certain way (cf. self._source_col and self._id_col, respectively).
-        This can be easily handled with Ibis by using .select() with a dictionary argument.
-        For instance, assuming a table that contains columns named "source" and "orig_id"
-        (as in the case of the Global Streetscapes dataset), we can obtain a new table
-        with columns named "source" and "image_id" by passing a dictionary mapping the
-        new column names to the existing ones:
-
-        >>> t.select("source", "orig_id").columns
-        ('source', 'orig_id')
-
-        >>> t.select({'source': "source", "image_id": "orig_id"}).columns
-        ('source', 'image_id')
-
-        Here, 'source' is mapped unchanged to the original column called 'source'.
-
-        Args:
-            dataset:
-                A dataset containing information about images that can be downloaded.
-
-        Returns:
-            A tuple containing:
-                1. A set of existing images.
-                2. A set of missing images.
-        """
-
-        sources = self.get_source_types_from_table(dataset)
-
-        existing = {}
-        missing = {}
-
-        for src in sources:
-
-            # Get the source object or add it if it's missing
-            source = self.sources.get(src, self.add_source(src))
-            if source is None:
-                continue
-
-            if isinstance(source, ImageSourceBase):
-
-                filtered = [
-                    str(s)
-                    for s in dataset.filter(
-                        dataset[self._source_col].ilike(f"%{src.name}")
-                    )
-                    .select(self._id_col)
-                    .to_pandas()
-                    .to_numpy()[:, 0]
-                    .tolist()
-                ]
-
-                _existing, _missing = source.check_image_status(filtered)
-
-                existing[src] = _existing
-                missing[src] = _missing
-
-        return existing, missing
+    def fetch_image_urls(
+            self, 
+            table: ibis.Table,
+            mp,
+            kv 
+    ) -> ibis.Table:
+        """Fetch image URLs from Mapillary and KartaView."""
+        df_urls = table.execute()
+        for index, row in df_urls.iterrows():
+            if row["source"] == "Mapillary":
+                image_url = mp.get_image_url(row["image_id"]) 
+                df_urls.at[index, "image_url"] = image_url
+            elif row["source"] == "KartaView":
+                image_url = kv.get_image_url(row["image_id"])
+                df_urls.at[index, "image_url"] = image_url
+            else:
+                logger.warning(f"Source not recognised for image {row["image_id"]}.")
+        urls = ibis.memtable(df_urls)
+        return urls
+        
+    def dowload_images(self, 
+                       table: ibis.Table, 
+                       mp, 
+                       kv
+    ) -> list[Path]:
+        """Download images from Mapillary and KartaView."""
+        paths = []
+        df =  table.execute()
+        for index, row in df.iterrows():
+            if row["source"] == "Mapillary":
+                path = mp.download_image(row["image_id"], row["image_url"])
+                paths.append(path)
+            elif row["source"] == "KartaView":
+                path = kv.download_image(row["image_id"], row["image_url"])
+                paths.append(path)
+            else:
+                logger.warning(f"Source not recognised for image {row["image_id"]}.")
+        return paths
