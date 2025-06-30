@@ -198,10 +198,9 @@ def make_path(
 
         root:
             An optional root path.
-            Defaults to None.
 
         suffix:
-            An optional (replacement) suffix. Defaults to None.
+            An optional (replacement) suffix.
 
     Returns:
         The resolved path.
@@ -233,8 +232,7 @@ def as_rgb(
             The image to convert.
 
         greyscale:
-            Switch to convert the image to greyscale.
-            Defaults to False.
+            Open the image as greyscale.
 
     Returns:
         The RGB image.
@@ -305,7 +303,7 @@ def make_colourmap(
 
 def open_image(
     path: Path,
-    as_grey: bool = False,
+    greyscale: bool = False,
 ) -> np.ndarray:
     """
     Open an image as a NumPy array.
@@ -320,7 +318,7 @@ def open_image(
         A NumPy array containing the image.
     """
 
-    return ski.io.imread(path, as_grey)
+    return ski.io.imread(path, greyscale)
 
 
 def camel2snake(string: str) -> str:

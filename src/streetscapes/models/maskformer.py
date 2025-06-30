@@ -153,9 +153,9 @@ class MaskFormer(ModelBase):
         # ==================================================
         self.processor: tform.Mask2FormerImageProcessor = None
         self.model: tform.Mask2FormerForUniversalSegmentation = None
-        self._from_pretrained()
+        self._load_pretrained()
 
-    def _from_pretrained(self):
+    def _load_pretrained(self):
         """
         Convenience method for loading processors and models.
         """

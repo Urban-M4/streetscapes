@@ -71,9 +71,9 @@ class DinoSAM(ModelBase):
         ) = None
         self.dino_processor: tform.AutoProcessor = None
         self.dino_model: tform.AutoModelForZeroShotObjectDetection = None
-        self._from_pretrained()
+        self._load_pretrained()
 
-    def _from_pretrained(self):
+    def _load_pretrained(self):
         """
         Convenience method for loading processors and models.
         """

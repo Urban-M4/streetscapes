@@ -40,6 +40,10 @@ class SVImage:
         self.path = path
         self.image = np.asarray(Image.open(self.path))
 
+    def __repr__(self):
+        cls = self.__class__.__name__
+        return f"{cls}(image={self.path.name})"
+
     @property
     def iid(self) -> str:
         """Return the ID of the image."""
