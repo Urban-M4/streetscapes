@@ -38,6 +38,8 @@ class SVInstance:
         self.label = label
         self.iid = iid
 
+        self._materials = None
+
     @property
     def mask(self):
         _mask = np.zeros_like(
@@ -153,6 +155,15 @@ class SVInstance:
             The material label predictions.
         """
 
+        if cache and (self._materials is not None) and (not refresh):
+            return self._materials
+
+        if labels is None:
+            labels = list(model.taxonomy.values())
+
+        elif isinstance(labels, str):
+            labels = [labels]
+
         image = self.masked()
         image_tensor = torch.from_numpy(image).permute(2, 0, 1).float()
         image_tensor = tvt.Normalize(
@@ -164,12 +175,21 @@ class SVInstance:
 
         materials[~self.mask] = 0
 
-        return materials
+        m_ids = np.unique(materials, axis=None)
+
+        if refresh or (cache and self._materials is None):
+            self._materials = materials
+
+        taxonomy = {
+            m_id: m_label for m_id, m_label in model.taxonomy.items() if m_id in m_ids
+        }
+
+        return materials, taxonomy
 
     def visualise_materials(
         self,
+        materials: np.ndarray,
         taxonomy: dict,
-        materials: dict,
         labels: str | list[str] | None = None,
         opacity: float = 0.5,
         title: str = None,
@@ -180,11 +200,11 @@ class SVInstance:
 
         Args:
 
-            taxonomy:
-                The label taxonomy to use (label ID: label).
-
             materials:
                 The results obtained from a material segmentation model.
+
+            taxonomy:
+                The label taxonomy to use (label ID: label).
 
             labels:
                 Labels for the instance categories that should be plotted.

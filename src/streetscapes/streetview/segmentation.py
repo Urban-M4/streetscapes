@@ -442,4 +442,124 @@ class SVSegmentation:
         if refresh or (cache and self._materials is None):
             self._materials = materials
 
-        return materials
+        m_ids = np.unique(materials, axis=None)
+
+        taxonomy = {m_id: m_label for m_id, m_label in model.taxonomy.items() if m_id in m_ids}
+
+        return materials, taxonomy
+
+    def visualise_materials(
+        self,
+        materials: np.ndarray,
+        taxonomy: dict,
+        labels: str | list[str] | None = None,
+        opacity: float = 0.5,
+        title: str = None,
+        figsize: tuple[int, int] = (16, 6),
+    ) -> tuple:
+        """
+        Visualise the instances of different objects in an image.
+
+        Args:
+
+            materials:
+                The results obtained from a material segmentation model.
+
+            taxonomy:
+                The label taxonomy to use (label ID: label).
+
+            labels:
+                Labels for the instance categories that should be plotted.
+
+            opacity:
+                Opacity to use for the segmentation overlay.
+
+            title:
+                The figure title.
+
+            figsize:
+                Figure size.
+
+        Returns:
+            A tuple containing:
+                - A Figure object.
+                - An Axes object that allows further annotations to be added.
+        """
+        from matplotlib import pyplot as plt
+        from matplotlib import patches as mpatches
+
+        # Prepare the greyscale version of the image for plotting instances.
+
+        image = self.get_image()
+        greyscale = utils.as_rgb(image, greyscale=True)
+
+        # Create a figure
+        (fig, axes) = plt.subplots(1, 2, figsize=figsize)
+
+        if labels is None:
+            labels = set(taxonomy.values())
+
+        elif isinstance(labels, str):
+            labels = [labels]
+
+        inverse_taxonomy = {re.sub(r"\s+", " ", v): k for k, v in taxonomy.items()}
+
+        # Extract the label IDs
+        label_ids = set()
+        for label in labels:
+            label = re.sub(r"\s+", " ", label.lower()).strip()
+            label_id = inverse_taxonomy.get(label)
+            if label_id is not None:
+                label_ids.add(label_id)
+
+        # Prepare the colour dictionary and the layers
+        # necessary for plotting the category patches.
+        colourmap = utils.make_colourmap(labels)
+
+        # Label handles for the plot legend.
+        handles = {}
+
+        for label_id in label_ids:
+
+            if label_id not in taxonomy:
+                # Skip labels that have been removed.
+                continue
+
+            label = taxonomy.get(label_id)
+
+            if label is None:
+                continue
+
+            if label not in handles:
+                # Add a basic coloured label to the legend
+                handles[label] = mpatches.Patch(
+                    color=colourmap[label],
+                    label=label,
+                )
+
+            # Extract the mask
+            mask = materials == label_id
+
+            if mask.size == 0:
+                continue
+
+            greyscale[mask] = (1 - opacity) * greyscale[
+                mask
+            ] + 255 * opacity * colourmap[label]
+
+        # Plot the original image and the segmented one.
+        # If any of the requested categories exist in the
+        # image, they will be overlaid as coloured patches
+        # with the given opacity over the original image.
+        # ==================================================
+        axes[0].imshow(image)
+        axes[0].axis("off")
+        axes[1].imshow(greyscale)
+        axes[1].axis("off")
+        axes[1].legend(
+            handles=handles.values(), loc="upper left", bbox_to_anchor=(1, 1)
+        )
+        if title is not None:
+            fig.suptitle(title, fontsize=16)
+
+        return (fig, axes)

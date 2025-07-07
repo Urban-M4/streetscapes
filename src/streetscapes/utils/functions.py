@@ -258,7 +258,7 @@ def as_rgb(
     return image
 
 
-def as_hsv(image: np.ndarray) -> np.ndarray:
+def     as_hsv(image: np.ndarray) -> np.ndarray:
     """
     Convert an RGB image into HSV format
 
