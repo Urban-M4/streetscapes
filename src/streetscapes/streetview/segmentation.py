@@ -2,19 +2,20 @@
 from pathlib import Path
 
 # --------------------------------------
-from PIL import Image
+import torch
+from torch import nn
+
+# --------------------------------------
+import torchvision.transforms as tvt
 
 # --------------------------------------
 import ibis
 
 # --------------------------------------
+import re
+
+# --------------------------------------
 import numpy as np
-
-# --------------------------------------
-import awkward as ak
-
-# --------------------------------------
-import skimage as ski
 
 # --------------------------------------
 import typing as tp
@@ -56,6 +57,7 @@ class SVSegmentation:
         self._image: np.ndarray | None = None
         self._masks: np.ndarray | None = None
         self._instances: dict | None = None
+        self._materials: dict | None = None
         self._metadata: dict | None = None
 
         # Path to the image file
@@ -64,7 +66,8 @@ class SVSegmentation:
         self.image_path = path.parent.parent.parent / image_name
 
     def __repr__(self):
-        return f"SVSegmentation(path={utils.hide_home(self.path)!r}"
+        cls = self.__class__.__name__
+        return f"{cls}(path={utils.hide_home(self.path)!r}"
 
     def _get_value(self, key: str) -> tp.Any:
         """
@@ -83,7 +86,7 @@ class SVSegmentation:
 
     def _remove_overlaps(
         self,
-        instances: dict[int: np.ndarray],
+        instances: dict[int : np.ndarray],
         exclude: str | list[str],
     ) -> np.ndarray:
         """
@@ -115,15 +118,19 @@ class SVSegmentation:
             canvas[mask[0], mask[1]] = iid
 
         # Remove overlaps
-        for label in exclude:
-            for instance in self.get_instances(label):
-                canvas[instance.mask[0], instance.mask[1]] = 0
+        excluded = self.get_instances(exclude, merge=True)
+
+        for label, instance in excluded.items():
+            if instance.indices is not None:
+                canvas[instance.indices[0], instance.indices[1]] = 0
 
         return {iid: np.where(canvas == iid) for iid in instances}
 
     def get_image(
         self,
         cache: bool = False,
+        refresh: bool = False,
+        greyscale: bool = False,
     ) -> np.ndarray:
         """
         Loads the image from the stored path.
@@ -132,22 +139,28 @@ class SVSegmentation:
             cache:
                 A toggle to indicate whether the image should be cached
                 for slightly faster retrieval.
-                Defaults to True.
+
+            refresh:
+                If set, extract the materials and refresh the cache with the new results.
 
         Returns:
             The image as a NumPy array.
         """
 
-        if cache:
-            if self._image is None:
-                self._image = utils.open_image(self.image_path)
+        if cache and (self._image is not None) and (not refresh):
             return self._image
 
-        return utils.open_image(self.image_path)
+        image = utils.as_rgb(utils.open_image(self.image_path), greyscale=greyscale)
+
+        if refresh or (cache and self._image is None):
+            self._image = image
+
+        return image
 
     def get_masks(
         self,
         cache: bool = False,
+        refresh: bool = False,
     ) -> np.ndarray:
         """
         Load the saved masks as a NumPy array.
@@ -155,23 +168,24 @@ class SVSegmentation:
         Args:
             cache:
                 A toggle to indicate whether the mask should be cached
-                for slightly faster retrieval.
-                Defaults to True.
+                for slightly faster retrieval at the expense of higher memory usage.
+
+            refresh:
+                If set, extract the materials and refresh the cache with the new results.
 
         Returns:
             The mask as a NumPy array (if it exists).
         """
 
         # Ensure that we have a list of path objects
-        if cache and self._masks is not None:
+        if cache and (self._masks is not None) and (not refresh):
             return self._masks
 
         masks = {
-            iid: np.array(arr, dtype=np.uint32)
-            for iid, arr in self._get_value("masks")
+            iid: np.array(arr, dtype=np.uint32) for iid, arr in self._get_value("masks")
         }
 
-        if cache:
+        if refresh or (cache and self._masks is None):
             self._masks = masks
 
         return masks
@@ -179,38 +193,39 @@ class SVSegmentation:
     def get_instance_labels(
         self,
         cache: bool = False,
+        refresh: bool = False,
         as_table: bool = False,
     ) -> dict | ibis.Table:
         """
         Load the saved instances with their labels.
 
+        TODO: Fix the logic around `as_table` because it is not going to work
+        in case we are retrieving data from the cache.
+
         Args:
             cache:
                 A toggle to indicate whether the instances should be cached
-                for slightly faster retrieval.
-                Defaults to True.
+                for slightly faster retrieval at the expense of higher memory usage.
+
+            refresh:
+                If set, extract the materials and refresh the cache with the new results.
 
             as_table:
                 If this is True, the instance labels will be returned
                 as an Ibis table instead of a dictionary.
-                Defaults to False.
 
         Returns:
-            The instances as a dictionary.
+            The instances as a dictionary or an Ibis table.
         """
 
         # Ensure that we have a
-        if cache and self._instances is not None:
-            instances = self._instances
+        if cache and (self._instances is not None) and (not refresh):
+            return self._instances
 
-        else:
-            instances = dict(self._get_value("instances"))
-
-        if cache:
-            self._instances = instances
+        instances = dict(self._get_value("instances"))
 
         if as_table:
-            return ibis.memtable(
+            instances = ibis.memtable(
                 [
                     {
                         "id": k,
@@ -220,45 +235,70 @@ class SVSegmentation:
                 ]
             )
 
+        if refresh or (cache and self._instances is None):
+            self._instances = instances
+
         return instances
 
     def get_instances(
         self,
-        label: str,
+        labels: str | list[str],
         exclude: str | list[str] | None = None,
         merge: bool = False,
-    ) -> list[SVInstance]:
+    ) -> SVInstance | dict[str, SVInstance]:
         """
-        Return an array of instances corresponding to label.
+        Return a dictionary of labels mapped to instances.
 
         Args:
-            label:
-                Extract the instances for a given label.
+            labels:
+                One or more labels.
 
             exclude:
-                Mask labels to exclude. Defaults to None.
+                Mask labels to exclude.
+
+            merge:
+                Merge all instances of each label into one.
 
         Returns:
             The (potentially merged and de-overlapped) instances for this label.
         """
+        instances = {}
+        single = False
+        if isinstance(labels, str):
+            labels = [labels]
+            single = True
 
-        instance_ids = set([k for k, v in self.get_instance_labels().items() if v == label])
-        masks = {iid: mask for iid, mask in self.get_masks(cache=False).items() if iid in instance_ids}
+        for label in labels:
+            instance_ids = set(
+                [k for k, v in self.get_instance_labels().items() if v == label]
+            )
 
-        if exclude is not None:
-            masks = self._remove_overlaps(masks, exclude)
+            masks = {
+                iid: mask
+                for iid, mask in self.get_masks().items()
+                if iid in instance_ids
+            }
 
-        if merge:
-            masks = {0: np.concatenate(list(masks.values()), axis=1)}
+            if exclude is not None:
+                masks = self._remove_overlaps(masks, exclude)
 
-        instances = [
-            SVInstance(self.image_path, mask, label, iid)
-            for iid, mask in masks.items()
-        ]
+            if merge:
+                merged = (
+                    None
+                    if len(masks) == 0
+                    else np.concatenate(list(masks.values()), axis=1)
+                )
+                masks = {0: merged}
 
-        return instances[0] if merge else instances
+            instance_objects = [
+                SVInstance(self.image_path, mask, label, iid)
+                for iid, mask in masks.items()
+            ]
+            instances[label] = instance_objects[0] if merge else instance_objects
 
-    def visualise(
+        return instances[labels[0]] if single else instances
+
+    def visualise_instances(
         self,
         labels: str | list[str] | None = None,
         opacity: float = 0.5,
@@ -275,14 +315,12 @@ class SVSegmentation:
 
             opacity:
                 Opacity to use for the segmentation overlay.
-                Defaults to 0.5.
 
             title:
                 The figure title.
-                Defaults to None.
 
             figsize:
-                Figure size. Defaults to (16, 6).
+                Figure size.
 
         Returns:
             A tuple containing:
@@ -294,7 +332,7 @@ class SVSegmentation:
 
         # Prepare the greyscale version of the image for plotting instances.
         image = self.get_image()
-        greyscale = utils.as_rgb(image, greyscale=True)
+        greyscale = self.get_image(greyscale=True)
 
         # Load the masks
         masks = self.get_masks()
@@ -338,8 +376,176 @@ class SVSegmentation:
                 continue
 
             greyscale[mask[0], mask[1]] = (
-                (1 - opacity) * greyscale[mask[0], mask[1]] + 255 * opacity * colourmap[label]
+                (1 - opacity) * greyscale[mask[0], mask[1]]
+                + 255 * opacity * colourmap[label]
             ).astype(np.ubyte)
+
+        # Plot the original image and the segmented one.
+        # If any of the requested categories exist in the
+        # image, they will be overlaid as coloured patches
+        # with the given opacity over the original image.
+        # ==================================================
+        axes[0].imshow(image)
+        axes[0].axis("off")
+        axes[1].imshow(greyscale)
+        axes[1].axis("off")
+        axes[1].legend(
+            handles=handles.values(), loc="upper left", bbox_to_anchor=(1, 1)
+        )
+        if title is not None:
+            fig.suptitle(title, fontsize=16)
+
+        return (fig, axes)
+
+    def get_materials(
+        self,
+        model: nn.Module,
+        labels: str | list[str] | None = None,
+        cache: bool = False,
+        refresh: bool = False,
+    ):
+        """
+        Extract materials from an image provided as a NumPy array.
+
+        Args:
+            model:
+                The model to use for the material segmentation.
+
+            labels:
+                A list of labels to consider.
+
+            cache:
+                If set, cache the results.
+
+            refresh:
+                If set, extract the materials and refresh the cache with the new results.
+        """
+
+        if cache and (self._materials is not None) and (not refresh):
+            return self._materials
+
+        if labels is None:
+            labels = list(model.taxonomy.values())
+
+        elif isinstance(labels, str):
+            labels = [labels]
+
+        image = self.get_image()
+        image_tensor = torch.from_numpy(image).permute(2, 0, 1).float()
+        image_tensor = tvt.Normalize(
+            image_tensor.mean(dim=(1, 2)), image_tensor.mean(dim=(1, 2))
+        )(image_tensor)[None, ...]
+
+        with torch.no_grad():
+            materials = model(image_tensor)[0].squeeze().numpy()
+
+        if refresh or (cache and self._materials is None):
+            self._materials = materials
+
+        m_ids = np.unique(materials, axis=None)
+
+        taxonomy = {m_id: m_label for m_id, m_label in model.taxonomy.items() if m_id in m_ids}
+
+        return materials, taxonomy
+
+    def visualise_materials(
+        self,
+        materials: np.ndarray,
+        taxonomy: dict,
+        labels: str | list[str] | None = None,
+        opacity: float = 0.5,
+        title: str = None,
+        figsize: tuple[int, int] = (16, 6),
+    ) -> tuple:
+        """
+        Visualise the instances of different objects in an image.
+
+        Args:
+
+            materials:
+                The results obtained from a material segmentation model.
+
+            taxonomy:
+                The label taxonomy to use (label ID: label).
+
+            labels:
+                Labels for the instance categories that should be plotted.
+
+            opacity:
+                Opacity to use for the segmentation overlay.
+
+            title:
+                The figure title.
+
+            figsize:
+                Figure size.
+
+        Returns:
+            A tuple containing:
+                - A Figure object.
+                - An Axes object that allows further annotations to be added.
+        """
+        from matplotlib import pyplot as plt
+        from matplotlib import patches as mpatches
+
+        # Prepare the greyscale version of the image for plotting instances.
+
+        image = self.get_image()
+        greyscale = utils.as_rgb(image, greyscale=True)
+
+        # Create a figure
+        (fig, axes) = plt.subplots(1, 2, figsize=figsize)
+
+        if labels is None:
+            labels = set(taxonomy.values())
+
+        elif isinstance(labels, str):
+            labels = [labels]
+
+        inverse_taxonomy = {re.sub(r"\s+", " ", v): k for k, v in taxonomy.items()}
+
+        # Extract the label IDs
+        label_ids = set()
+        for label in labels:
+            label = re.sub(r"\s+", " ", label.lower()).strip()
+            label_id = inverse_taxonomy.get(label)
+            if label_id is not None:
+                label_ids.add(label_id)
+
+        # Prepare the colour dictionary and the layers
+        # necessary for plotting the category patches.
+        colourmap = utils.make_colourmap(labels)
+
+        # Label handles for the plot legend.
+        handles = {}
+
+        for label_id in label_ids:
+
+            if label_id not in taxonomy:
+                # Skip labels that have been removed.
+                continue
+
+            label = taxonomy.get(label_id)
+
+            if label is None:
+                continue
+
+            if label not in handles:
+                # Add a basic coloured label to the legend
+                handles[label] = mpatches.Patch(
+                    color=colourmap[label],
+                    label=label,
+                )
+
+            # Extract the mask
+            mask = materials == label_id
+
+            if mask.size == 0:
+                continue
+
+            greyscale[mask] = (1 - opacity) * greyscale[
+                mask
+            ] + 255 * opacity * colourmap[label]
 
         # Plot the original image and the segmented one.
         # If any of the requested categories exist in the

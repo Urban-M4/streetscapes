@@ -31,9 +31,6 @@ from tqdm import tqdm
 import numpy as np
 
 # --------------------------------------
-import awkward as ak
-
-# --------------------------------------
 from streetscapes import utils
 from streetscapes.streetview import SVSegmentation
 
@@ -77,7 +74,7 @@ class ModelBase(ABC):
         self.label_to_id = {}
 
     @abstractmethod
-    def _from_pretrained(self, *args, **kwargs):
+    def _load_pretrained(self, *args, **kwargs):
         """
         Load a pretrained model.
 
@@ -86,7 +83,6 @@ class ModelBase(ABC):
         """
         pass
 
-    @abstractmethod
     def _segment_images(self, *args, **kwargs):
         """
         Segments a list of images and looks for the requested labels.
