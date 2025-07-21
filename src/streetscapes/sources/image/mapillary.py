@@ -1,3 +1,4 @@
+"""Extract metadata for images from Mapillary API"""
 
 import json
 import ibis
@@ -14,7 +15,18 @@ from streetscapes import logger
 from streetscapes.sources.image.base import ImageSourceBase
 
 
-def split_bbox(bbox, tile_size_deg):
+def split_bbox(bbox: list[float], 
+               tile_size: float
+               ) -> list[list[float]]:
+    """Split bounding box into tiles
+    
+    Args:
+        bbox: bounding box [west, south, east, north]
+        tile_size: tile size in degrees
+
+    Returns:
+        List of bounding box tiles
+    """
     tiles = []
     lon = bbox[0]
     while lon < bbox[2]:
@@ -23,16 +35,42 @@ def split_bbox(bbox, tile_size_deg):
             tile = [
                 lon,
                 lat,
-                min(lon + tile_size_deg, bbox[2]),
-                min(lat + tile_size_deg, bbox[3])
+                min(lon + tile_size, bbox[2]),
+                min(lat + tile_size, bbox[3])
             ]
             tiles.append(tile)
-            lat += tile_size_deg
-        lon += tile_size_deg
+            lat += tile_size
+        lon += tile_size
     return tiles
 
 class Mapillary(ImageSourceBase):
-    """TODO: Add docstrings"""
+    """
+    An interface for downloading and manipulating
+    street view images from Mapillary.
+
+    ...
+
+    Attributes:
+
+    base_url: str
+        Mapillary url for downloading images
+    default_fields: list[str]
+        List of metadata fields the API will return
+    env:
+        An Env object containing loaded configuration options.
+    root_dir:
+        An optional custom root directory. Defaults to None.
+
+    Methods:
+        get_image_url
+            Retrieve the URL for an image with the given ID
+        create_session
+            Create an (authenticated) session for the supplied source
+        fetch_image_ids_bbox
+            Fetch Mapillary image IDs within a bounding box
+        fetch_image_ids_creator
+            Fetch Mapillary image IDs by creator username
+    """
 
     base_url = "https://graph.mapillary.com/images"
     default_fields = [
@@ -173,16 +211,15 @@ class Mapillary(ImageSourceBase):
                 "limit": limit,
             }
             
-        while True:
-                response = self.session.get(url, params=params)
-                response.raise_for_status()
-                data = response.json()
-                # Collect data
-                records = data.get("data", [])
-                all_records.extend(records)
-                filename = f"image_ids/bbox{count}.json"
-                with open(filename, "w") as f:
-                    json.dump(records, f)
+        response = self.session.get(url, params=params)
+        response.raise_for_status()
+        data = response.json()
+        # Collect data
+        records = data.get("data", [])
+        all_records.extend(records)
+        filename = f"image_ids/bbox{count}.json"
+        with open(filename, "w") as f:
+            json.dump(records, f)
     
         # Convert to Dataframe
         mt = ibis.memtable(all_records)
@@ -205,7 +242,7 @@ class Mapillary(ImageSourceBase):
         extract_latlon: bool = True,
     ):
         """
-        Fetch Mapillary image IDs by username.
+        Fetch Mapillary image IDs by creator username.
 
         See https://www.mapillary.com/developer/api-documentation/#image
 
