@@ -7,8 +7,6 @@ sys.path=['/gpfs/home4/cdonnely/Urban-M4/streetscapes/.venv/bin','','/home/cdonn
 
 from pathlib import Path
 from environs import Env
-import geopandas as gpd
-import contextily
 
 from streetscapes.sources import Mapillary
 from streetscapes.streetview import SVWorkspace
@@ -21,4 +19,11 @@ hf_path = Path(env.path("HF_HOME"), city)
 ws = SVWorkspace(hf_path)
 mp = Mapillary(ws.env, root_dir=hf_path)
 
-df = mp.fetch_image_ids_creator(creator_username="amsterdam", limit=1000)
+# Fetch metadata by creator username
+#df = mp.fetch_image_ids_creator(creator_username="amsterdam", limit=1000)
+
+# Fetch metadata by bounding box
+bbox = [4.7,52.25,5.1,52.5]
+df = mp.fetch_image_ids_bbox(bbox)
+
+df.to_parquet("Amsterdam_image_metadata.parquet")

@@ -173,8 +173,9 @@ class Mapillary(ImageSourceBase):
     def fetch_image_ids_bbox(
         self,
         bbox: list[float],
+        tile_size: float = 0.01,
         fields: list[str] | None = None,
-        limit: int = 100,
+        limit: int = 1000,
         extract_latlon: bool = True,
     ):
         """
@@ -184,8 +185,9 @@ class Mapillary(ImageSourceBase):
 
         Parameters:
             bbox: [west, south, east, north]
+            tile_size: tile size in degrees, default 0.01 (about 1km)
             fields: List of fields to include in the results. If None, a standard set of fields is returned.
-            limit: Number of images to request per page (pagination size).
+            limit: Number of images to request (Mapillary API limit is 2000, default set to 1000 as 2000 often fails).
             extract_latlon: Whether to extract latitude and longitude from computed_geometry.
 
         Returns:
@@ -195,7 +197,7 @@ class Mapillary(ImageSourceBase):
         all_records = []
         url = self.base_url
 
-        tiles = split_bbox(bbox, 0.01)
+        tiles = split_bbox(bbox, tile_size)
 
         count = 0
         for tile in tiles:
@@ -211,15 +213,15 @@ class Mapillary(ImageSourceBase):
                 "limit": limit,
             }
             
-        response = self.session.get(url, params=params)
-        response.raise_for_status()
-        data = response.json()
-        # Collect data
-        records = data.get("data", [])
-        all_records.extend(records)
-        filename = f"image_ids/bbox{count}.json"
-        with open(filename, "w") as f:
-            json.dump(records, f)
+            response = self.session.get(url, params=params)
+            response.raise_for_status()
+            data = response.json()
+            # Collect data
+            records = data.get("data", [])
+            all_records.extend(records)
+            filename = f"image_ids/bbox{count}.json"
+            with open(filename, "w") as f:
+                json.dump(records, f)
     
         # Convert to Dataframe
         mt = ibis.memtable(all_records)
@@ -249,7 +251,7 @@ class Mapillary(ImageSourceBase):
         Parameters:
             creator_username: Username of Mapillary image uploader
             fields: List of fields to include in the results. If None, a standard set of fields is returned.
-            limit: Number of images to request per page (pagination size).
+            limit: Number of images to request per page (pagination size, default 1000).
             extract_latlon: Whether to extract latitude and longitude from computed_geometry.
 
         Returns:
