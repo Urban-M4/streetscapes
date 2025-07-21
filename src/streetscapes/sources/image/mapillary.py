@@ -14,6 +14,23 @@ from streetscapes import logger
 from streetscapes.sources.image.base import ImageSourceBase
 
 
+def split_bbox(bbox, tile_size_deg):
+    tiles = []
+    lon = bbox[0]
+    while lon < bbox[2]:
+        lat = bbox[1]
+        while lat < bbox[3]:
+            tile = [
+                lon,
+                lat,
+                min(lon + tile_size_deg, bbox[2]),
+                min(lat + tile_size_deg, bbox[3])
+            ]
+            tiles.append(tile)
+            lat += tile_size_deg
+        lon += tile_size_deg
+    return tiles
+
 class Mapillary(ImageSourceBase):
     """TODO: Add docstrings"""
 
@@ -137,30 +154,36 @@ class Mapillary(ImageSourceBase):
             Ibis table containing image data for the selected fields.
         """
 
-        if fields is None:
-            fields_param = ",".join(self.default_fields)
-        else:
-            fields_param = ",".join(fields)
-
-        params = {
-            "bbox": ",".join(map(str, bbox)),
-            "fields": fields_param,
-            "limit": limit,
-        }
-
         all_records = []
         url = self.base_url
 
-        while True:
-            response = self.session.get(url, params=params)
-            response.raise_for_status()
-            data = response.json()
-            # Collect data
-            records = data.get("data", [])
-            all_records.extend(records)
-            with open("image_ids/test.json", "w") as f:
-                json.dump(all_records, f)
+        tiles = split_bbox(bbox, 0.01)
 
+        count = 0
+        for tile in tiles:
+            count += 1
+            if fields is None:
+                fields_param = ",".join(self.default_fields)
+            else:
+                fields_param = ",".join(fields)
+    
+            params = {
+                "bbox": ",".join(map(str, tile)),
+                "fields": fields_param,
+                "limit": limit,
+            }
+            
+        while True:
+                response = self.session.get(url, params=params)
+                response.raise_for_status()
+                data = response.json()
+                # Collect data
+                records = data.get("data", [])
+                all_records.extend(records)
+                filename = f"image_ids/bbox{count}.json"
+                with open(filename, "w") as f:
+                    json.dump(records, f)
+    
         # Convert to Dataframe
         mt = ibis.memtable(all_records)
 
