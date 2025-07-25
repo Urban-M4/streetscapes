@@ -1,25 +1,23 @@
 """Extract metadata for images from Mapillary API"""
 
 import json
-import ibis
-import requests
-
-from pathlib import Path
-from environs import Env
-from urllib3.util import Retry
-from requests import Session
-from requests.adapters import HTTPAdapter
 from time import sleep
+from pathlib import Path
+
+import ibis
+from environs import Env
+import requests
+from requests import Session
+from urllib3.util import Retry
+from requests.adapters import HTTPAdapter
 
 from streetscapes import logger
 from streetscapes.sources.image.base import ImageSourceBase
 
 
-def split_bbox(bbox: list[float], 
-               tile_size: float
-               ) -> list[list[float]]:
+def split_bbox(bbox: list[float], tile_size: float) -> list[list[float]]:
     """Split bounding box into tiles
-    
+
     Args:
         bbox: bounding box [west, south, east, north]
         tile_size: tile size in degrees
@@ -36,22 +34,32 @@ def split_bbox(bbox: list[float],
                 lon,
                 lat,
                 min(lon + tile_size, bbox[2]),
-                min(lat + tile_size, bbox[3])
+                min(lat + tile_size, bbox[3]),
             ]
             tiles.append(tile)
             lat += tile_size
         lon += tile_size
     return tiles
 
-    def extract_latlon(table):
-        # Extract latitude and longitude from computed_geometry if present
-        if extract_latlon and "computed_geometry" in table.columns:
 
-            table = table.mutate(
-                lon=table.computed_geometry.coordinates[0],
-                lat=table.computed_geometry.coordinates[1],
-            )
-        return table
+def convert_to_ibis(json_records):
+    """Convert json records to an ibis table and extract lat/lon if present.
+
+    Args:
+        json_records: json of image data to convert
+
+    Returns:
+        ibis table of those records
+    """
+    mt = ibis.memtable(json_records)
+
+    if "computed_geometry" in mt.columns:
+        table = mt.mutate(
+            lon=mt.computed_geometry.coordinates[0],
+            lat=mt.computed_geometry.coordinates[1],
+        )
+    return table
+
 
 class Mapillary(ImageSourceBase):
     """
@@ -84,36 +92,36 @@ class Mapillary(ImageSourceBase):
 
     base_url = "https://graph.mapillary.com/images"
     default_fields = [
-            "id",
-            "altitude",
-            "atomic_scale",
-            # "camera_parameters",
-            "camera_type",
-            "captured_at",
-            "compass_angle",
-            "computed_altitude",
-            "computed_compass_angle",
-            "computed_geometry",
-            "computed_rotation",
-            # "creator",
-            "exif_orientation",
-            "geometry",
-            "height",
-            "is_pano",
-            "make",
-            "model",
-            "thumb_256_url",
-            "thumb_1024_url",
-            "thumb_2048_url",
-            "thumb_original_url",
-            # "merge_cc",
-            # "mesh",
-            "sequence",
-            # "sfm_cluster",
-            "width",
-            # "detections",
-        ]
-    
+        "id",
+        "altitude",
+        "atomic_scale",
+        # "camera_parameters",
+        "camera_type",
+        "captured_at",
+        "compass_angle",
+        "computed_altitude",
+        "computed_compass_angle",
+        "computed_geometry",
+        "computed_rotation",
+        # "creator",
+        "exif_orientation",
+        "geometry",
+        "height",
+        "is_pano",
+        "make",
+        "model",
+        "thumb_256_url",
+        "thumb_1024_url",
+        "thumb_2048_url",
+        "thumb_original_url",
+        # "merge_cc",
+        # "mesh",
+        "sequence",
+        # "sfm_cluster",
+        "width",
+        # "detections",
+    ]
+
     def __init__(
         self,
         env: Env = None,
@@ -177,18 +185,28 @@ class Mapillary(ImageSourceBase):
             backoff_factor=0.1,
             status_forcelist=[500, 502, 503, 504],
         )
-        session.mount('https://', HTTPAdapter(max_retries=retries))
+        session.mount("https://", HTTPAdapter(max_retries=retries))
         return session
 
     def collect_data(self, url, params, filename):
-            response = self.session.get(url, params=params)
-            response.raise_for_status()
-            data = response.json()
-            # Collect data
-            records = data.get("data", [])
-            with open(filename, "w") as f:
-                json.dump(records, f)
-            return records
+        """Collect metadata records from the API and dump into a json file
+
+        Args:
+            url: url for downloading metadata
+            params: dictionary of parameters to extract
+            filename: filename for the json file
+
+        Returns:
+            json of metadata records from API
+        """
+        response = self.session.get(url, params=params)
+        response.raise_for_status()
+        data = response.json()
+        # Collect data
+        records = data.get("data", [])
+        with open(filename, "w") as f:
+            json.dump(records, f)
+        return records
 
     def fetch_image_ids_bbox(
         self,
@@ -210,11 +228,10 @@ class Mapillary(ImageSourceBase):
             extract_latlon: Whether to extract latitude and longitude from computed_geometry.
 
         Returns:
-            Ibis table containing image data for the selected fields.
+            Json containing image data for the selected fields.
         """
 
         all_records = []
-        url = self.base_url
 
         tiles = split_bbox(bbox, tile_size)
 
@@ -225,27 +242,23 @@ class Mapillary(ImageSourceBase):
                 fields_param = ",".join(self.default_fields)
             else:
                 fields_param = ",".join(fields)
-    
+
             params = {
                 "bbox": ",".join(map(str, tile)),
                 "fields": fields_param,
                 "limit": limit,
             }
             filename = f"image_ids/bbox{count}.json"
-            records = collect_data(url, params, filename)
+            records = collect_data(self.base_url, params, filename)
             all_records.extend(records)
-    
-        # Convert to Dataframe
-        mt = ibis.memtable(all_records)
 
-        return mt
+        return all_records
 
     def fetch_image_ids_creator(
         self,
         creator_username: str,
         fields: list[str] | None = None,
         limit: int = 1000,
-        extract_latlon: bool = True,
     ):
         """
         Fetch Mapillary image IDs by creator username.
@@ -259,7 +272,7 @@ class Mapillary(ImageSourceBase):
             extract_latlon: Whether to extract latitude and longitude from computed_geometry.
 
         Returns:
-            Ibis table containing image data for the selected fields.
+            Json containing image data for the selected fields.
         """
 
         if fields is None:
@@ -273,8 +286,8 @@ class Mapillary(ImageSourceBase):
             "limit": limit,
         }
 
-        all_records = []
         url = self.base_url
+        all_records = []
 
         count = 0
         while True:
@@ -282,19 +295,16 @@ class Mapillary(ImageSourceBase):
             filename = f"image_ids/test{count}.json"
             records = collect_data(url, params, filename)
             all_records.extend(records)
-            
+
             # Check for pagination
             paging = data.get("paging", {})
             print(paging)
             next_url = paging.get("next")
-            sleep(5)
+            sleep(1)
             if not next_url:
                 break
             # Reset params for next page (next_url already has all params)
             url = next_url
             params = {}
 
-        # Convert to Dataframe
-        mt = ibis.memtable(all_records)
-
-        return mt
+        return all_records
