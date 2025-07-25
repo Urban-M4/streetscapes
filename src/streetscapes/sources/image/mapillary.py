@@ -42,25 +42,6 @@ def split_bbox(bbox: list[float], tile_size: float) -> list[list[float]]:
     return tiles
 
 
-def convert_to_ibis(json_records):
-    """Convert json records to an ibis table and extract lat/lon if present.
-
-    Args:
-        json_records: json of image data to convert
-
-    Returns:
-        ibis table of those records
-    """
-    mt = ibis.memtable(json_records)
-
-    if "computed_geometry" in mt.columns:
-        table = mt.mutate(
-            lon=mt.computed_geometry.coordinates[0],
-            lat=mt.computed_geometry.coordinates[1],
-        )
-    return table
-
-
 class Mapillary(ImageSourceBase):
     """
     An interface for downloading and manipulating
@@ -233,25 +214,32 @@ class Mapillary(ImageSourceBase):
             Json containing image data for the selected fields.
         """
 
+        metadata_dir = Path(f"{self.root_dir}/metadata")
+        metadata_dir.mkdir(parents=True, exist_ok=True)
         all_records = []
 
         tiles = split_bbox(bbox, tile_size)
 
         for tile in tiles:
-            if fields is None:
-                fields_param = ",".join(self.default_fields)
-            else:
-                fields_param = ",".join(fields)
+            rounded_tile = [round(v, 2) for v in tile]
+            tile_str = '_'.join(map(str, rounded_tile))
+            filename = Path(metadata_dir, f"{bbox_name}{tile_str}.json")
 
-            params = {
-                "bbox": ",".join(map(str, tile)),
-                "fields": fields_param,
-                "limit": limit,
-            }
-            tile_str = '_'.join(map(str, tile))
-            filename = f"image_ids/{bbox_name}{tile_str}.json"
-            records = self.collect_data(self.base_url, params, filename)
-            all_records.extend(records)
+            if not filename.is_file():
+                if fields is None:
+                    fields_param = ",".join(self.default_fields)
+                else:
+                    fields_param = ",".join(fields)
+
+                params = {
+                    "bbox": ",".join(map(str, tile)),
+                    "fields": fields_param,
+                    "limit": limit,
+                }
+                records = self.collect_data(self.base_url, params, filename)
+                all_records.extend(records)
+            else: 
+                print(f"{filename} already exists, skip.")
 
         return all_records
 
@@ -288,24 +276,47 @@ class Mapillary(ImageSourceBase):
         }
 
         url = self.base_url
+        metadata_dir = Path(f"{self.root_dir}/metadata")
+        metadata_dir.mkdir(parents=True, exist_ok=True)
         all_records = []
 
         count = 0
         while True:
             count += 1
-            filename = f"image_ids/{creator_username}{count}.json"
-            records = self.collect_data(url, params, filename)
-            all_records.extend(records)
+            filename = Path(metadata_dir, f"{creator_username}{count}.json")
+            if not filename.is_file():
+                records = self.collect_data(url, params, filename)
+                all_records.extend(records)
 
-            # Check for pagination
-            paging = data.get("paging", {})
-            print(paging)
-            next_url = paging.get("next")
-            sleep(1)
-            if not next_url:
-                break
-            # Reset params for next page (next_url already has all params)
-            url = next_url
-            params = {}
+                # Check for pagination
+                paging = data.get("paging", {})
+                print(paging)
+                next_url = paging.get("next")
+                sleep(1)
+                if not next_url:
+                    break
+                # Reset params for next page (next_url already has all params)
+                url = next_url
+                params = {}
+            else:
+                print(f"{filename} already exists, skip.")
 
         return all_records
+
+    def convert_to_ibis(self, json_records):
+        """Convert json records to an ibis table and extract lat/lon if present.
+
+        Args:
+            json_records: json of image data to convert
+
+        Returns:
+            ibis table of those records
+        """
+        mt = ibis.memtable(json_records)
+
+        if "computed_geometry" in mt.columns:
+            table = mt.mutate(
+                lon=mt.computed_geometry.coordinates[0],
+                lat=mt.computed_geometry.coordinates[1],
+            )
+        return table

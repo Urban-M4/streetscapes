@@ -157,7 +157,9 @@ class ImageSourceBase(SourceBase, ABC):
         """
 
         # Set up the image path.
-        image_path = self.root_dir / f"{image_id}.jpeg"
+        image_dir = Path(f"{self.root_dir}/images")
+        image_dir.mkdir(parents=True, exist_ok=True)
+        image_path = Path(image_dir, f"{image_id}.jpeg") 
 
         # Download the image.
         if image_path.exists() and not overwrite:

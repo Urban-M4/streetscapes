@@ -1,10 +1,6 @@
 #!/usr/bin/env python
 # coding: utf-8
 
-import sys
-
-sys.path=['/gpfs/home4/cdonnely/Urban-M4/streetscapes/.venv/bin','','/home/cdonnely/.local/share/uv/python/cpython-3.12.10-linux-x86_64-gnu/lib/python312.zip','/home/cdonnely/.local/share/uv/python/cpython-3.12.10-linux-x86_64-gnu/lib/python3.12','/home/cdonnely/.local/share/uv/python/cpython-3.12.10-linux-x86_64-gnu/lib/python3.12/lib-dynload','/gpfs/home4/cdonnely/Urban-M4/streetscapes/.venv/lib/python3.12/site-packages','/gpfs/home4/cdonnely/Urban-M4/streetscapes/src']
-
 from pathlib import Path
 from environs import Env
 
@@ -20,10 +16,8 @@ ws = SVWorkspace(hf_path)
 mp = Mapillary(ws.env, root_dir=hf_path)
 
 # Fetch metadata by creator username
-#df = mp.fetch_image_ids_creator(creator_username="amsterdam", limit=1000)
+# df = mp.fetch_image_ids_creator(creator_username="amsterdam", limit=1000)
 
 # Fetch metadata by bounding box
 bbox = [4.7,52.25,5.1,52.5]
-df = mp.fetch_image_ids_bbox(bbox)
-
-df.to_parquet("Amsterdam_image_metadata.parquet")
+records = mp.fetch_image_ids_bbox(bbox, tile_size=0.1, limit=100, bbox_name="Amsterdam_")
