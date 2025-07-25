@@ -180,6 +180,16 @@ class Mapillary(ImageSourceBase):
         session.mount('https://', HTTPAdapter(max_retries=retries))
         return session
 
+    def collect_data(self, url, params, filename):
+            response = self.session.get(url, params=params)
+            response.raise_for_status()
+            data = response.json()
+            # Collect data
+            records = data.get("data", [])
+            with open(filename, "w") as f:
+                json.dump(records, f)
+            return records
+
     def fetch_image_ids_bbox(
         self,
         bbox: list[float],
@@ -221,16 +231,9 @@ class Mapillary(ImageSourceBase):
                 "fields": fields_param,
                 "limit": limit,
             }
-            
-            response = self.session.get(url, params=params)
-            response.raise_for_status()
-            data = response.json()
-            # Collect data
-            records = data.get("data", [])
-            all_records.extend(records)
             filename = f"image_ids/bbox{count}.json"
-            with open(filename, "w") as f:
-                json.dump(records, f)
+            records = collect_data(url, params, filename)
+            all_records.extend(records)
     
         # Convert to Dataframe
         mt = ibis.memtable(all_records)
@@ -276,15 +279,9 @@ class Mapillary(ImageSourceBase):
         count = 0
         while True:
             count += 1
-            response = self.session.get(url, params=params)
-            response.raise_for_status()
-            data = response.json()
-            # Collect data
-            records = data.get("data", [])
-            all_records.extend(records)
             filename = f"image_ids/test{count}.json"
-            with open(filename, "w") as f:
-                json.dump(records, f)
+            records = collect_data(url, params, filename)
+            all_records.extend(records)
             
             # Check for pagination
             paging = data.get("paging", {})
