@@ -43,6 +43,16 @@ def split_bbox(bbox: list[float],
         lon += tile_size
     return tiles
 
+    def extract_latlon(table):
+        # Extract latitude and longitude from computed_geometry if present
+        if extract_latlon and "computed_geometry" in table.columns:
+
+            table = table.mutate(
+                lon=table.computed_geometry.coordinates[0],
+                lat=table.computed_geometry.coordinates[1],
+            )
+        return table
+
 class Mapillary(ImageSourceBase):
     """
     An interface for downloading and manipulating
@@ -176,7 +186,6 @@ class Mapillary(ImageSourceBase):
         tile_size: float = 0.01,
         fields: list[str] | None = None,
         limit: int = 1000,
-        extract_latlon: bool = True,
     ):
         """
         Fetch Mapillary image IDs within a bounding box.
@@ -225,14 +234,6 @@ class Mapillary(ImageSourceBase):
     
         # Convert to Dataframe
         mt = ibis.memtable(all_records)
-
-        # Extract latitude and longitude from computed_geometry if present
-        if extract_latlon and "computed_geometry" in mt.columns:
-
-            mt = mt.mutate(
-                lon=mt.computed_geometry.coordinates[0],
-                lat=mt.computed_geometry.coordinates[1],
-            )
 
         return mt
 
@@ -298,13 +299,5 @@ class Mapillary(ImageSourceBase):
 
         # Convert to Dataframe
         mt = ibis.memtable(all_records)
-
-        # Extract latitude and longitude from computed_geometry if present
-        if extract_latlon and "computed_geometry" in mt.columns:
-
-            mt = mt.mutate(
-                lon=mt.computed_geometry.coordinates[0],
-                lat=mt.computed_geometry.coordinates[1],
-            )
 
         return mt
