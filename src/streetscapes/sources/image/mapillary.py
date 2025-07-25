@@ -214,6 +214,7 @@ class Mapillary(ImageSourceBase):
         tile_size: float = 0.01,
         fields: list[str] | None = None,
         limit: int = 1000,
+        bbox_name: str = "bbox",
     ):
         """
         Fetch Mapillary image IDs within a bounding box.
@@ -226,6 +227,7 @@ class Mapillary(ImageSourceBase):
             fields: List of fields to include in the results. If None, a standard set of fields is returned.
             limit: Number of images to request (Mapillary API limit is 2000, default set to 1000 as 2000 often fails).
             extract_latlon: Whether to extract latitude and longitude from computed_geometry.
+            bbox_name: bounding box name for the file pattern
 
         Returns:
             Json containing image data for the selected fields.
@@ -235,9 +237,7 @@ class Mapillary(ImageSourceBase):
 
         tiles = split_bbox(bbox, tile_size)
 
-        count = 0
         for tile in tiles:
-            count += 1
             if fields is None:
                 fields_param = ",".join(self.default_fields)
             else:
@@ -248,8 +248,9 @@ class Mapillary(ImageSourceBase):
                 "fields": fields_param,
                 "limit": limit,
             }
-            filename = f"image_ids/bbox{count}.json"
-            records = collect_data(self.base_url, params, filename)
+            tile_str = '_'.join(map(str, tile))
+            filename = f"image_ids/{bbox_name}{tile_str}.json"
+            records = self.collect_data(self.base_url, params, filename)
             all_records.extend(records)
 
         return all_records
@@ -292,8 +293,8 @@ class Mapillary(ImageSourceBase):
         count = 0
         while True:
             count += 1
-            filename = f"image_ids/test{count}.json"
-            records = collect_data(url, params, filename)
+            filename = f"image_ids/{creator_username}{count}.json"
+            records = self.collect_data(url, params, filename)
             all_records.extend(records)
 
             # Check for pagination
