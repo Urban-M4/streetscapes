@@ -19,25 +19,6 @@ import skimage as ski
 # --------------------------------------
 from huggingface_hub import cached_assets_path
 
-# Courtesy of
-# https://stackoverflow.com/questions/40186622/atexit-alternative-for-ipython
-# ==================================================
-try:
-
-    def exit_register(fun, *args, **kwargs):
-        """Decorator that registers at post_execute.
-        After its execution it unregisters itself for subsequent runs."""
-
-        def callback():
-            fun(*args, **kwargs)
-            ip.events.unregister("post_execute", callback)
-
-        ip.events.register("post_execute", callback)
-
-    ip = get_ipython()
-except NameError:
-    from atexit import register as exit_register
-
 
 def is_notebook() -> bool:
     """Determine if the caller is running in a Jupyter notebook.

@@ -5,7 +5,6 @@ import ibis
 from dotenv import load_dotenv
 
 from streetscapes import utils
-from streetscapes import logger
 
 
 class SVWorkspace:
@@ -16,40 +15,18 @@ class SVWorkspace:
         name: str,
         create: bool = True,
     ):
-        # Setup workspace directory
         load_dotenv()
         data_home = os.getenv("DATA_HOME", None)
-        path = Path(data_home) / "workpaces" / name
 
+        path = Path(data_home) / "workpaces" / name
         if not path.exists() and not create:
             raise FileNotFoundError("The specified path does not exist.")
 
         self.root_dir = utils.ensure_dir(path)
 
-        # Metadata object.
-        # Can be used to save and reload a workspace.
-        # ==================================================
-        self.metadata: ibis.BaseBackend = None
-
     def __repr__(self):
         cls = self.__class__.__name__
         return f"{cls}(root_dir={utils.hide_home(self.root_dir)!r})"
-
-    utils.exit_register
-    def _cleanup(self):
-
-        logger.info("Cleaning up...")
-        if self.metadata is not None:
-            self.metadata.disconnect()
-
-    def load(self) -> ibis.BaseBackend:
-
-        if self.metadata is None:
-
-            metadata = self.root_dir / "metadata.ddb"
-            self.metadata = ibis.duckdb.connect(f"{metadata}")
-
-        return self.metadata
 
     def get_workspace_path(
         self,
