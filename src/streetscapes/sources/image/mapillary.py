@@ -234,6 +234,7 @@ class Mapillary(ImageSourceBase):
             filename = Path(metadata_dir, f"{bbox_name}{tile_str}.json")
 
             if not filename.is_file() or overwrite:
+                print(filename)
                 if fields is None:
                     fields_param = ",".join(self.default_fields)
                 else:
@@ -248,8 +249,9 @@ class Mapillary(ImageSourceBase):
                 records = data.get("data", [])
                 all_records.extend(records)
             else:
-                print(f"{filename} already exists, skip.")
-
+                print(f"{filename} already exists, loading records.")
+                with open(filename, 'r') as file:
+                    all_records = json.load(file)
         return all_records
 
     def fetch_metadata_creator(
@@ -323,11 +325,11 @@ class Mapillary(ImageSourceBase):
         mt = ibis.memtable(json_records)
 
         if "computed_geometry" in mt.columns:
-            table = mt.mutate(
+            mt = mt.mutate(
                 lon=mt.computed_geometry.coordinates[0],
                 lat=mt.computed_geometry.coordinates[1],
             )
-        return table
+        return mt
 
     def convert_to_gdf(self, dataframe: pd.DataFrame) -> gpd.GeoDataFrame:
         """
