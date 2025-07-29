@@ -4,8 +4,6 @@
 from pathlib import Path
 from environs import Env
 import pandas as pd
-import geopandas as gpd
-import contextily
 import glob
 
 from streetscapes.sources import Mapillary

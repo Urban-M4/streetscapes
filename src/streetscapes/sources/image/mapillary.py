@@ -18,6 +18,7 @@ import geopandas as gpd
 from streetscapes import logger
 from streetscapes.sources.image.base import ImageSourceBase
 
+
 def split_bbox(bbox: list[float], tile_size: float) -> list[list[float]]:
     """Split bounding box into tiles
 
@@ -28,7 +29,7 @@ def split_bbox(bbox: list[float], tile_size: float) -> list[list[float]]:
     Returns:
         List of bounding box tiles
     """
-    #TODO: Would be nice to snap to a raster
+    # TODO: Would be nice to snap to a raster
     tiles = []
     lon = bbox[0]
     while lon < bbox[2]:
@@ -202,7 +203,7 @@ class Mapillary(ImageSourceBase):
         fields: list[str] | None = None,
         limit: int = 1000,
         bbox_name: str = "bbox",
-        overwrite: bool = False
+        overwrite: bool = False,
     ):
         """
         Fetch Mapillary image IDs within a bounding box.
@@ -229,7 +230,7 @@ class Mapillary(ImageSourceBase):
 
         for tile in tiles:
             rounded_tile = [round(v, 2) for v in tile]
-            tile_str = '_'.join(map(str, rounded_tile))
+            tile_str = "_".join(map(str, rounded_tile))
             filename = Path(metadata_dir, f"{bbox_name}{tile_str}.json")
 
             if not filename.is_file() or overwrite:
@@ -246,7 +247,7 @@ class Mapillary(ImageSourceBase):
                 data = self.collect_data(self.base_url, params, filename)
                 records = data.get("data", [])
                 all_records.extend(records)
-            else: 
+            else:
                 print(f"{filename} already exists, skip.")
 
         return all_records
@@ -271,7 +272,7 @@ class Mapillary(ImageSourceBase):
         Returns:
             Json containing image data for the selected fields.
         """
-        #TODO: Include a check for metadata already existing
+        # TODO: Include a check for metadata already existing
 
         if fields is None:
             fields_param = ",".join(self.default_fields)
@@ -341,10 +342,14 @@ class Mapillary(ImageSourceBase):
         Returns:
             geopandas GeoDataFrame with geometry column.
         """
-        if "computed_geometry.coordinates" in dataframe.columns and not isinstance(dataframe["computed_geometry.coordinates"][0], float):
-            dataframe['lon'] = [x[0] for x in dataframe['geometry.coordinates']]
-            dataframe['lat'] = [x[1] for x in dataframe['geometry.coordinates']]
-            gdf = gpd.GeoDataFrame(dataframe, geometry=gpd.points_from_xy(dataframe.lon, dataframe.lat))
+        if "computed_geometry.coordinates" in dataframe.columns and not isinstance(
+            dataframe["computed_geometry.coordinates"][0], float
+        ):
+            dataframe["lon"] = [x[0] for x in dataframe["geometry.coordinates"]]
+            dataframe["lat"] = [x[1] for x in dataframe["geometry.coordinates"]]
+            gdf = gpd.GeoDataFrame(
+                dataframe, geometry=gpd.points_from_xy(dataframe.lon, dataframe.lat)
+            )
             gdf.set_crs("EPSG:4326", allow_override=True, inplace=True)
             return gdf
 
@@ -358,7 +363,7 @@ class Mapillary(ImageSourceBase):
         Returns:
             GeoDataFrame with geometry column.
         """
-        with open(json_file, 'r') as file:
+        with open(json_file, "r") as file:
             data = json.load(file)
         norm_df = json_normalize(data)
         gdf = self.convert_to_gdf(norm_df)
