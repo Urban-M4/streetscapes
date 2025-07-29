@@ -14,7 +14,6 @@ from requests.adapters import HTTPAdapter
 from streetscapes import logger
 from streetscapes.sources.image.base import ImageSourceBase
 
-
 def split_bbox(bbox: list[float], tile_size: float) -> list[list[float]]:
     """Split bounding box into tiles
 
@@ -25,6 +24,7 @@ def split_bbox(bbox: list[float], tile_size: float) -> list[list[float]]:
     Returns:
         List of bounding box tiles
     """
+    #TODO: Would be nice to snap to a raster
     tiles = []
     lon = bbox[0]
     while lon < bbox[2]:
@@ -187,7 +187,7 @@ class Mapillary(ImageSourceBase):
         records = data.get("data", [])
         with open(filename, "w") as f:
             json.dump(records, f)
-        return records
+        return data
 
     def fetch_image_ids_bbox(
         self,
@@ -196,6 +196,7 @@ class Mapillary(ImageSourceBase):
         fields: list[str] | None = None,
         limit: int = 1000,
         bbox_name: str = "bbox",
+        overwrite: bool = False
     ):
         """
         Fetch Mapillary image IDs within a bounding box.
@@ -225,7 +226,7 @@ class Mapillary(ImageSourceBase):
             tile_str = '_'.join(map(str, rounded_tile))
             filename = Path(metadata_dir, f"{bbox_name}{tile_str}.json")
 
-            if not filename.is_file():
+            if not filename.is_file() or overwrite:
                 if fields is None:
                     fields_param = ",".join(self.default_fields)
                 else:
@@ -236,7 +237,8 @@ class Mapillary(ImageSourceBase):
                     "fields": fields_param,
                     "limit": limit,
                 }
-                records = self.collect_data(self.base_url, params, filename)
+                data = self.collect_data(self.base_url, params, filename)
+                records = data.get("data", [])
                 all_records.extend(records)
             else: 
                 print(f"{filename} already exists, skip.")
@@ -263,6 +265,7 @@ class Mapillary(ImageSourceBase):
         Returns:
             Json containing image data for the selected fields.
         """
+        #TODO: Include a check for metadata already existing
 
         if fields is None:
             fields_param = ",".join(self.default_fields)
@@ -284,22 +287,20 @@ class Mapillary(ImageSourceBase):
         while True:
             count += 1
             filename = Path(metadata_dir, f"{creator_username}{count}.json")
-            if not filename.is_file():
-                records = self.collect_data(url, params, filename)
-                all_records.extend(records)
+            data = self.collect_data(url, params, filename)
+            records = data.get("data", [])
+            all_records.extend(records)
 
-                # Check for pagination
-                paging = data.get("paging", {})
-                print(paging)
-                next_url = paging.get("next")
-                sleep(1)
-                if not next_url:
-                    break
-                # Reset params for next page (next_url already has all params)
-                url = next_url
-                params = {}
-            else:
-                print(f"{filename} already exists, skip.")
+            # Check for pagination
+            paging = data.get("paging", {})
+            print(paging)
+            next_url = paging.get("next")
+            sleep(1)
+            if not next_url:
+                break
+            # Reset params for next page (next_url already has all params)
+            url = next_url
+            params = {}
 
         return all_records
 
