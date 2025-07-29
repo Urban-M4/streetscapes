@@ -69,10 +69,18 @@ class Mapillary(ImageSourceBase):
             Retrieve the URL for an image with the given ID
         create_session
             Create an (authenticated) session for the supplied source
-        fetch_image_ids_bbox
+        fetch_metadata_bbox
             Fetch Mapillary image IDs within a bounding box
-        fetch_image_ids_creator
+        fetch_metadata_creator
             Fetch Mapillary image IDs by creator username
+        convert_to_ibis:
+            Convert records to an ibis table
+        convert_to_gdf:
+            Convert json records to a GeoDataFrame
+        json_to_gdf:
+            Load a json file with Mapillary API metadata and convert it to a GeoDataFrame
+        concat_metadata:
+            Concatenate multiple GeoDataFrames from json files containing Mapillary API data into a single GeoDataFrame
     """
 
     base_url = "https://graph.mapillary.com/images"
@@ -117,12 +125,8 @@ class Mapillary(ImageSourceBase):
         street view images from Mapillary.
 
         Args:
-
-            env:
-                An Env object containing loaded configuration options.
-
-            root_dir:
-                An optional custom root directory. Defaults to None.
+            env: Env object containing loaded configuration options.
+            root_dir: optional custom root directory. Defaults to None.
         """
 
         super().__init__(
@@ -139,12 +143,10 @@ class Mapillary(ImageSourceBase):
         Retrieve the URL for an image with the given ID.
 
         Args:
-            image_id:
-                The image ID.
+            image_id: the image ID.
 
         Returns:
-            str:
-                The URL to query.
+            str: the URL to query.
         """
         url = f"{self.url}/{image_id}?fields=thumb_2048_url"
 
@@ -193,7 +195,7 @@ class Mapillary(ImageSourceBase):
             json.dump(records, f)
         return data
 
-    def fetch_image_ids_bbox(
+    def fetch_metadata_bbox(
         self,
         bbox: list[float],
         tile_size: float = 0.01,
@@ -207,7 +209,7 @@ class Mapillary(ImageSourceBase):
 
         See https://www.mapillary.com/developer/api-documentation/#image
 
-        Parameters:
+        Args:
             bbox: [west, south, east, north]
             tile_size: tile size in degrees, default 0.01 (about 1km)
             fields: List of fields to include in the results. If None, a standard set of fields is returned.
@@ -249,7 +251,7 @@ class Mapillary(ImageSourceBase):
 
         return all_records
 
-    def fetch_image_ids_creator(
+    def fetch_metadata_creator(
         self,
         creator_username: str,
         fields: list[str] | None = None,
@@ -260,7 +262,7 @@ class Mapillary(ImageSourceBase):
 
         See https://www.mapillary.com/developer/api-documentation/#image
 
-        Parameters:
+        Args:
             creator_username: Username of Mapillary image uploader
             fields: List of fields to include in the results. If None, a standard set of fields is returned.
             limit: Number of images to request per page (pagination size, default 1000).
@@ -326,7 +328,19 @@ class Mapillary(ImageSourceBase):
             )
         return table
 
-    def convert_to_gdf(self, dataframe):
+    def convert_to_gdf(self, dataframe: pd.DataFrame) -> gpd.GeoDataFrame:
+        """
+        Add lon and lat to the dataframe and convert to a geopandas GeoDataFrame
+
+        The dataframe must have a column named computed_geometry.coordinates which is a list of two floats.
+        The crs is set to EPSG:4326.
+
+        Args:
+            dataframe: pandas DataFrame with Mapillary API metadata.
+
+        Returns:
+            geopandas GeoDataFrame with geometry column.
+        """
         if "computed_geometry.coordinates" in dataframe.columns and not isinstance(dataframe["computed_geometry.coordinates"][0], float):
             dataframe['lon'] = [x[0] for x in dataframe['geometry.coordinates']]
             dataframe['lat'] = [x[1] for x in dataframe['geometry.coordinates']]
@@ -334,14 +348,32 @@ class Mapillary(ImageSourceBase):
             gdf.set_crs("EPSG:4326", allow_override=True, inplace=True)
             return gdf
 
-    def json_to_gdf(self, json_file):
+    def json_to_gdf(self, json_file: Path | str) -> gpd.GeoDataFrame:
+        """
+        Load a json file with Mapillary API metadata and convert it to a GeoDataFrame.
+
+        Args:
+            json_file: Path to the json file to load.
+
+        Returns:
+            GeoDataFrame with geometry column.
+        """
         with open(json_file, 'r') as file:
             data = json.load(file)
         norm_df = json_normalize(data)
         gdf = self.convert_to_gdf(norm_df)
         return gdf
 
-    def concat_data(self, metadata_path):
+    def concat_metadata(self, metadata_path: Path | str) -> gpd.GeoDataFrame:
+        """
+        Concatenate multiple GeoDataFrames from json files containing Mapillary API data into a single GeoDataFrame.
+
+        Args:
+            metadata_path: path to the json files to concatenate.
+
+        Returns:
+            GeoDataFrame with all the data from the concatenated files.
+        """
         metadata = glob.glob(metadata_path)
         gdfs = []
         for f in metadata:
