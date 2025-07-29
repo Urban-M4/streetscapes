@@ -1,6 +1,7 @@
 """Extract metadata for images from Mapillary API"""
 
 import json
+import glob
 from time import sleep
 from pathlib import Path
 
@@ -10,6 +11,9 @@ import requests
 from requests import Session
 from urllib3.util import Retry
 from requests.adapters import HTTPAdapter
+import pandas as pd
+from pandas import json_normalize
+import geopandas as gpd
 
 from streetscapes import logger
 from streetscapes.sources.image.base import ImageSourceBase
@@ -321,3 +325,26 @@ class Mapillary(ImageSourceBase):
                 lat=mt.computed_geometry.coordinates[1],
             )
         return table
+
+    def convert_to_gdf(self, dataframe):
+        if "computed_geometry.coordinates" in dataframe.columns and not isinstance(dataframe["computed_geometry.coordinates"][0], float):
+            dataframe['lon'] = [x[0] for x in dataframe['geometry.coordinates']]
+            dataframe['lat'] = [x[1] for x in dataframe['geometry.coordinates']]
+            gdf = gpd.GeoDataFrame(dataframe, geometry=gpd.points_from_xy(dataframe.lon, dataframe.lat))
+            gdf.set_crs("EPSG:4326", allow_override=True, inplace=True)
+            return gdf
+
+    def json_to_gdf(self, json_file):
+        with open(json_file, 'r') as file:
+            data = json.load(file)
+        norm_df = json_normalize(data)
+        gdf = self.convert_to_gdf(norm_df)
+        return gdf
+
+    def concat_data(self, metadata_path):
+        metadata = glob.glob(metadata_path)
+        gdfs = []
+        for f in metadata:
+            gdf = self.json_to_gdf(f)
+            gdfs.append(gdf)
+        return pd.concat(gdfs)
