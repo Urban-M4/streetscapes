@@ -1,16 +1,9 @@
-# --------------------------------------
 import os
-
-# --------------------------------------
 from pathlib import Path
 
-# --------------------------------------
 import ibis
+from dotenv import load_dotenv
 
-# --------------------------------------
-from environs import Env
-
-# --------------------------------------
 from streetscapes import utils
 from streetscapes import logger
 
@@ -18,47 +11,20 @@ from streetscapes import logger
 class SVWorkspace:
     """TODO: Add docstrings"""
 
-    @staticmethod
-    def restore(path: Path):
-        """
-        STUB
-        A method to restore a workspace from a saved session.
-
-        Args:
-            path:
-                The path to the workspace root directory.
-        """
-        return SVWorkspace()
-
     def __init__(
         self,
-        path: Path | str,
-        env: Path | str | None = None,
+        name: str,
         create: bool = True,
     ):
-        # Directories and paths
-        # ==================================================
-        # The root directory of the workspace
-        path = Path(path)
+        # Setup workspace directory
+        load_dotenv()
+        data_home = os.getenv("DATA_HOME", None)
+        path = Path(data_home) / "workpaces" / name
+
         if not path.exists() and not create:
             raise FileNotFoundError("The specified path does not exist.")
 
         self.root_dir = utils.ensure_dir(path)
-
-        # Add a .gitignore file to the root of the workspace
-        # to avoid committing the workspace accidentally
-        gitignore = self.root_dir / ".gitignore"
-        gitignore.touch(mode=0o750)
-        with open(gitignore, "w") as gfile:
-            gfile.write("/**.*\n")
-
-        # Configuration
-        # ==================================================
-        self.env = Env(expand_vars=True)
-        if env is None and (local_env := self.root_dir / ".env").exists():
-            env = local_env
-
-        self.env.read_env(env)
 
         # Metadata object.
         # Can be used to save and reload a workspace.
