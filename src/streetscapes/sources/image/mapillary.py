@@ -5,7 +5,6 @@ from time import sleep
 from pathlib import Path
 
 import ibis
-from environs import Env
 import requests
 from requests import Session
 from urllib3.util import Retry
@@ -50,15 +49,12 @@ class Mapillary(ImageSourceBase):
     ...
 
     Attributes:
-
-    base_url: str
-        Mapillary url for downloading images
-    default_fields: list[str]
-        List of metadata fields the API will return
-    env:
-        An Env object containing loaded configuration options.
-    root_dir:
-        An optional custom root directory. Defaults to None.
+        base_url: str
+            Mapillary url for downloading images
+        default_fields: list[str]
+            List of metadata fields the API will return
+        root_dir:
+            An optional custom root directory. Defaults to None.
 
     Methods:
         get_image_url
@@ -105,7 +101,6 @@ class Mapillary(ImageSourceBase):
 
     def __init__(
         self,
-        env: Env = None,
         root_dir: str | Path | None = None,
     ):
         """
@@ -113,16 +108,13 @@ class Mapillary(ImageSourceBase):
         street view images from Mapillary.
 
         Args:
-
-            env:
-                An Env object containing loaded configuration options.
-
             root_dir:
-                An optional custom root directory. Defaults to None.
+                An optional custom root directory. Defaults to
+                DATA_HOME/sources/mapillary, where DATA_HOME is read from the
+                environment variables.
         """
 
         super().__init__(
-            env,
             root_dir=root_dir,
             url="https://graph.mapillary.com",
         )

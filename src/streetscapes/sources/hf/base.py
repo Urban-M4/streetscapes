@@ -9,9 +9,6 @@ from pathlib import Path
 import ibis
 
 # --------------------------------------
-from environs import Env
-
-# --------------------------------------
 from huggingface_hub import scan_cache_dir
 from huggingface_hub import hf_hub_download
 from huggingface_hub import try_to_load_from_cache
@@ -49,7 +46,6 @@ class HFSourceBase(SourceBase, ABC):
 
     def __init__(
         self,
-        env: Env,
         repo_id: str,
         repo_type: str,
         root_dir: Path | None = None,
@@ -58,9 +54,6 @@ class HFSourceBase(SourceBase, ABC):
         A generic interface to a HuggingFace repository.
 
         Args:
-            env:
-                An Env object containing loaded configuration options.
-
             repo_id:
                 HuggingFace repo ID.
 
@@ -100,7 +93,7 @@ class HFSourceBase(SourceBase, ABC):
                     repo_type=repo_type,
                 )
 
-        super().__init__(env, root_dir)
+        super().__init__(root_dir)
 
     def get_file(
         self,

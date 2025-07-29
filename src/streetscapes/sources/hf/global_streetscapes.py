@@ -8,9 +8,6 @@ import operator
 import ibis
 
 # --------------------------------------
-from environs import Env
-
-# --------------------------------------
 import typing as tp
 
 # --------------------------------------
@@ -23,22 +20,17 @@ class GlobalStreetscapesSource(HFSourceBase):
 
     def __init__(
         self,
-        env: Env,
         root_dir: str | Path | None = None,
     ):
         """
         An interface to the Global Streetscapes repository.
 
         Args:
-            env:
-                An Env object containing loaded configuration options.
-
             root_dir:
                 An optional custom root directory. Defaults to None.
         """
 
         super().__init__(
-            env,
             repo_id="NUS-UAL/global-streetscapes",
             repo_type="dataset",
             root_dir=root_dir,
@@ -169,7 +161,7 @@ class GlobalStreetscapesSource(HFSourceBase):
                 image_url = kv.get_image_url(row["image_id"])
                 df_urls.at[index, "image_url"] = image_url
             else:
-                logger.warning(f"Source not recognised for image {row["image_id"]}.")
+                logger.warning(f"Source not recognised for image {row['image_id']}.")
         urls = ibis.memtable(df_urls)
         return urls
         
@@ -189,5 +181,5 @@ class GlobalStreetscapesSource(HFSourceBase):
                 path = kv.download_image(row["image_id"], row["image_url"])
                 paths.append(path)
             else:
-                logger.warning(f"Source not recognised for image {row["image_id"]}.")
+                logger.warning(f"Source not recognised for image {row['image_id']}.")
         return paths

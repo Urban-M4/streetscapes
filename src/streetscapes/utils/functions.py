@@ -16,9 +16,6 @@ from IPython import get_ipython
 # --------------------------------------
 import skimage as ski
 
-# --------------------------------------
-from huggingface_hub import cached_assets_path
-
 
 def is_notebook() -> bool:
     """Determine if the caller is running in a Jupyter notebook.
@@ -31,7 +28,7 @@ def is_notebook() -> bool:
     """
     try:
         shell = get_ipython().__class__.__name__
-        match (shell):
+        match shell:
             case "ZMQInteractiveShell":
                 # Jupyter notebook or qtconsole
                 return True
@@ -130,33 +127,6 @@ def filter_files(
     items = [str(n) for n in path.glob("*.*")]
     return set(
         [Path(p) for p in filter(re.compile(pattern, re.IGNORECASE).match, items)]
-    )
-
-
-def create_asset_dir(
-    namespace: str,
-    subdir: str,
-) -> Path:
-    """
-    Create a managed asset directory, usually for a data source.
-
-    Args:
-        namespace:
-            A namespace (category) for the source type.
-
-        subdir:
-            A subdirectory corresponding to the source.
-
-    Returns:
-        A Path to the asset directory.
-    """
-
-    return Path(
-        cached_assets_path(
-            library_name="streetscapes",
-            namespace=namespace,
-            subfolder=subdir,
-        )
     )
 
 

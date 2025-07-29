@@ -4,7 +4,6 @@ from streetscapes.utils.functions import ensure_dir
 from streetscapes.utils.functions import hide_home
 from streetscapes.utils.functions import show_dir_tree
 from streetscapes.utils.functions import filter_files
-from streetscapes.utils.functions import create_asset_dir
 from streetscapes.utils.functions import make_path
 from streetscapes.utils.functions import as_rgb
 from streetscapes.utils.functions import as_hsv

@@ -5,9 +5,6 @@ from pathlib import Path
 import ibis
 
 # --------------------------------------
-from environs import Env
-
-# --------------------------------------
 from streetscapes.sources.image.base import ImageSourceBase
 
 class KartaView(ImageSourceBase):
@@ -15,7 +12,6 @@ class KartaView(ImageSourceBase):
 
     def __init__(
         self,
-        env: Env,
         root_dir: str | Path | None = None,
     ):
         """
@@ -23,15 +19,13 @@ class KartaView(ImageSourceBase):
         street view images from Kartaview.
 
         Args:
-            env:
-                An Env object containing loaded configuration options.
-
             root_dir:
-                An optional custom root directory. Defaults to None.
+                An optional custom root directory. Defaults to
+                DATA_HOME/sources/kartaview, where DATA_HOME is read from the
+                environment variables. Defaults to None.
         """
 
         super().__init__(
-            env,
             root_dir=root_dir,
             url=f"https://api.openstreetcam.org/2.0/photo",
         )
