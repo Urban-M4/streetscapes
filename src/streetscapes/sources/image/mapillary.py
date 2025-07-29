@@ -1,12 +1,10 @@
 """Extract metadata for images from Mapillary API"""
 
 import json
-import glob
 from time import sleep
 from pathlib import Path
 
 import ibis
-from environs import Env
 import requests
 from requests import Session
 from urllib3.util import Retry
@@ -55,15 +53,12 @@ class Mapillary(ImageSourceBase):
     ...
 
     Attributes:
-
-    base_url: str
-        Mapillary url for downloading images
-    default_fields: list[str]
-        List of metadata fields the API will return
-    env:
-        An Env object containing loaded configuration options.
-    root_dir:
-        An optional custom root directory. Defaults to None.
+        base_url: str
+            Mapillary url for downloading images
+        default_fields: list[str]
+            List of metadata fields the API will return
+        root_dir:
+            An optional custom root directory. Defaults to None.
 
     Methods:
         get_image_url
@@ -118,7 +113,6 @@ class Mapillary(ImageSourceBase):
 
     def __init__(
         self,
-        env: Env = None,
         root_dir: str | Path | None = None,
     ):
         """
@@ -126,12 +120,13 @@ class Mapillary(ImageSourceBase):
         street view images from Mapillary.
 
         Args:
-            env: Env object containing loaded configuration options.
-            root_dir: optional custom root directory. Defaults to None.
+            root_dir:
+                An optional custom root directory. Defaults to
+                DATA_HOME/sources/mapillary, where DATA_HOME is read from the
+                environment variables.
         """
 
         super().__init__(
-            env,
             root_dir=root_dir,
             url="https://graph.mapillary.com",
         )
@@ -176,7 +171,7 @@ class Mapillary(ImageSourceBase):
         session.mount("https://", HTTPAdapter(max_retries=retries))
         return session
 
-    def collect_data(self, url, params, filename):
+    def save_tile_metadata(self, url, params, filename):
         """Collect metadata records from the API and dump into a json file
 
         Args:
@@ -202,7 +197,6 @@ class Mapillary(ImageSourceBase):
         tile_size: float = 0.01,
         fields: list[str] | None = None,
         limit: int = 1000,
-        bbox_name: str = "bbox",
         overwrite: bool = False,
     ):
         """
@@ -216,25 +210,27 @@ class Mapillary(ImageSourceBase):
             fields: List of fields to include in the results. If None, a standard set of fields is returned.
             limit: Number of images to request (Mapillary API limit is 2000, default set to 1000 as 2000 often fails).
             extract_latlon: Whether to extract latitude and longitude from computed_geometry.
-            bbox_name: bounding box name for the file pattern
 
         Returns:
-            Json containing image data for the selected fields.
+            geopandas dataframe with image metadata
         """
 
         metadata_dir = Path(f"{self.root_dir}/metadata")
         metadata_dir.mkdir(parents=True, exist_ok=True)
-        all_records = []
 
         tiles = split_bbox(bbox, tile_size)
+        files = []
 
         for tile in tiles:
             rounded_tile = [round(v, 2) for v in tile]
-            tile_str = "_".join(map(str, rounded_tile))
-            filename = Path(metadata_dir, f"{bbox_name}{tile_str}.json")
+            tile_id = "_".join(map(str, rounded_tile))
+            filename = Path(metadata_dir, f"{tile_id}.json")
+            files.append(filename)
 
-            if not filename.is_file() or overwrite:
-                print(filename)
+            if filename.is_file() and not overwrite:
+                print(f"Already exists: {filename}")
+            else:
+                print(f"Downloading: {filename}")
                 if fields is None:
                     fields_param = ",".join(self.default_fields)
                 else:
@@ -245,14 +241,11 @@ class Mapillary(ImageSourceBase):
                     "fields": fields_param,
                     "limit": limit,
                 }
-                data = self.collect_data(self.base_url, params, filename)
-                records = data.get("data", [])
-                all_records.extend(records)
-            else:
-                print(f"{filename} already exists, loading records.")
-                with open(filename, 'r') as file:
-                    all_records = json.load(file)
-        return all_records
+                self.save_tile_metadata(self.base_url, params, filename)
+
+        combined_metadata = concat_metadata(files)
+
+        return combined_metadata
 
     def fetch_metadata_creator(
         self,
@@ -296,7 +289,7 @@ class Mapillary(ImageSourceBase):
         while True:
             count += 1
             filename = Path(metadata_dir, f"{creator_username}{count}.json")
-            data = self.collect_data(url, params, filename)
+            data = self.save_tile_metadata(url, params, filename)
             records = data.get("data", [])
             all_records.extend(records)
 
@@ -331,59 +324,57 @@ class Mapillary(ImageSourceBase):
             )
         return mt
 
-    def convert_to_gdf(self, dataframe: pd.DataFrame) -> gpd.GeoDataFrame:
-        """
-        Add lon and lat to the dataframe and convert to a geopandas GeoDataFrame
 
-        The dataframe must have a column named computed_geometry.coordinates which is a list of two floats.
-        The crs is set to EPSG:4326.
+def concat_metadata(files) -> gpd.GeoDataFrame:
+    """
+    Concatenate multiple GeoDataFrames from json files containing Mapillary API data into a single GeoDataFrame.
 
-        Args:
-            dataframe: pandas DataFrame with Mapillary API metadata.
+    Args:
+        files: list of json files to concatenate.
 
-        Returns:
-            geopandas GeoDataFrame with geometry column.
-        """
-        if "computed_geometry.coordinates" in dataframe.columns and not isinstance(
-            dataframe["computed_geometry.coordinates"][0], float
-        ):
-            dataframe["lon"] = [x[0] for x in dataframe["geometry.coordinates"]]
-            dataframe["lat"] = [x[1] for x in dataframe["geometry.coordinates"]]
-            gdf = gpd.GeoDataFrame(
-                dataframe, geometry=gpd.points_from_xy(dataframe.lon, dataframe.lat)
-            )
-            gdf.set_crs("EPSG:4326", allow_override=True, inplace=True)
-            return gdf
+    Returns:
+        GeoDataFrame with all the data from the concatenated files.
+    """
+    # TODO: maybe use ibis for out of memory / performance?
+    return pd.concat([json_to_gdf(f) for f in files])
 
-    def json_to_gdf(self, json_file: Path | str) -> gpd.GeoDataFrame:
-        """
-        Load a json file with Mapillary API metadata and convert it to a GeoDataFrame.
 
-        Args:
-            json_file: Path to the json file to load.
+def json_to_gdf(json_file: Path | str) -> gpd.GeoDataFrame:
+    """
+    Load a json file with Mapillary API metadata and convert it to a GeoDataFrame.
 
-        Returns:
-            GeoDataFrame with geometry column.
-        """
-        with open(json_file, "r") as file:
-            data = json.load(file)
-        norm_df = json_normalize(data)
-        gdf = self.convert_to_gdf(norm_df)
+    Args:
+        json_file: Path to the json file to load.
+
+    Returns:
+        GeoDataFrame with geometry column.
+    """
+    with open(json_file, "r") as file:
+        data = json.load(file)
+    norm_df = json_normalize(data)
+    gdf = convert_to_gdf(norm_df)
+    return gdf
+
+def convert_to_gdf(dataframe: pd.DataFrame) -> gpd.GeoDataFrame:
+    """
+    Add lon and lat to the dataframe and convert to a geopandas GeoDataFrame
+
+    The dataframe must have a column named computed_geometry.coordinates which is a list of two floats.
+    The crs is set to EPSG:4326.
+
+    Args:
+        dataframe: pandas DataFrame with Mapillary API metadata.
+
+    Returns:
+        geopandas GeoDataFrame with geometry column.
+    """
+    if "computed_geometry.coordinates" in dataframe.columns and not isinstance(
+        dataframe["computed_geometry.coordinates"][0], float
+    ):
+        dataframe["lon"] = [x[0] for x in dataframe["geometry.coordinates"]]
+        dataframe["lat"] = [x[1] for x in dataframe["geometry.coordinates"]]
+        gdf = gpd.GeoDataFrame(
+            dataframe, geometry=gpd.points_from_xy(dataframe.lon, dataframe.lat)
+        )
+        gdf.set_crs("EPSG:4326", allow_override=True, inplace=True)
         return gdf
-
-    def concat_metadata(self, metadata_path: Path | str) -> gpd.GeoDataFrame:
-        """
-        Concatenate multiple GeoDataFrames from json files containing Mapillary API data into a single GeoDataFrame.
-
-        Args:
-            metadata_path: path to the json files to concatenate.
-
-        Returns:
-            GeoDataFrame with all the data from the concatenated files.
-        """
-        metadata = glob.glob(metadata_path)
-        gdfs = []
-        for f in metadata:
-            gdf = self.json_to_gdf(f)
-            gdfs.append(gdf)
-        return pd.concat(gdfs)

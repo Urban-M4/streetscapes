@@ -8,9 +8,6 @@ import operator
 import ibis
 
 # --------------------------------------
-from environs import Env
-
-# --------------------------------------
 import typing as tp
 
 # --------------------------------------
@@ -23,22 +20,17 @@ class GlobalStreetscapesSource(HFSourceBase):
 
     def __init__(
         self,
-        env: Env,
         root_dir: str | Path | None = None,
     ):
         """
         An interface to the Global Streetscapes repository.
 
         Args:
-            env:
-                An Env object containing loaded configuration options.
-
             root_dir:
                 An optional custom root directory. Defaults to None.
         """
 
         super().__init__(
-            env,
             repo_id="NUS-UAL/global-streetscapes",
             repo_type="dataset",
             root_dir=root_dir,

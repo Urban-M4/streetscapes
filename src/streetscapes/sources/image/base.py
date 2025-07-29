@@ -1,23 +1,11 @@
-# --------------------------------------
 import re
-
-# --------------------------------------
 from abc import ABC
 from abc import abstractmethod
-
-# --------------------------------------
 from pathlib import Path
 
-# --------------------------------------
 from tqdm import tqdm
-
-# --------------------------------------
-from environs import Env
-
-# --------------------------------------
 import requests
 
-# --------------------------------------
 from streetscapes import utils
 from streetscapes import logger
 from streetscapes.sources.base import SourceBase
@@ -33,7 +21,6 @@ class ImageSourceBase(SourceBase, ABC):
 
     def __init__(
         self,
-        env: Env,
         root_dir: str | Path | None = None,
         url: str | None = None,
     ):
@@ -41,27 +28,14 @@ class ImageSourceBase(SourceBase, ABC):
         A generic interface to an image source.
 
         Args:
-
-            env:
-                An Env object containing loaded configuration options.
-
             root_dir:
-                The directory where images for this source are stored.
-                Defaults to None.
+                The directory where images for this source are stored. Defaults
+                to DATA_HOME/sources/<class name>.
 
             url:
                 The base URL of the source. Defaults to None.
         """
-
-        if root_dir is None:
-            source_name = self.__class__.__name__.lower()
-            subdir = utils.camel2snake(source_name)
-            root_dir = utils.create_asset_dir(
-                "images",
-                subdir,
-            )
-
-        super().__init__(env, root_dir)
+        super().__init__(root_dir)
 
         # Repository details
         # ==================================================

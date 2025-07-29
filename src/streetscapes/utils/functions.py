@@ -16,28 +16,6 @@ from IPython import get_ipython
 # --------------------------------------
 import skimage as ski
 
-# --------------------------------------
-from huggingface_hub import cached_assets_path
-
-# Courtesy of
-# https://stackoverflow.com/questions/40186622/atexit-alternative-for-ipython
-# ==================================================
-try:
-
-    def exit_register(fun, *args, **kwargs):
-        """Decorator that registers at post_execute.
-        After its execution it unregisters itself for subsequent runs."""
-
-        def callback():
-            fun(*args, **kwargs)
-            ip.events.unregister("post_execute", callback)
-
-        ip.events.register("post_execute", callback)
-
-    ip = get_ipython()
-except NameError:
-    from atexit import register as exit_register
-
 
 def is_notebook() -> bool:
     """Determine if the caller is running in a Jupyter notebook.
@@ -50,7 +28,7 @@ def is_notebook() -> bool:
     """
     try:
         shell = get_ipython().__class__.__name__
-        match (shell):
+        match shell:
             case "ZMQInteractiveShell":
                 # Jupyter notebook or qtconsole
                 return True
@@ -65,7 +43,7 @@ def is_notebook() -> bool:
         return False
 
 
-def ensure_dir(path: Path | str | None) -> Path:
+def ensure_dir(path: Path | str) -> Path:
     """
     Resolve and expand a directory path and
     create the directory if it doesn't exist.
@@ -77,10 +55,6 @@ def ensure_dir(path: Path | str | None) -> Path:
     Returns:
         The (potentially newly created) expanded path.
     """
-
-    if path is None:
-        return
-
     path = Path(path).expanduser().resolve().absolute()
     path.mkdir(exist_ok=True, parents=True)
     return path
@@ -153,33 +127,6 @@ def filter_files(
     items = [str(n) for n in path.glob("*.*")]
     return set(
         [Path(p) for p in filter(re.compile(pattern, re.IGNORECASE).match, items)]
-    )
-
-
-def create_asset_dir(
-    namespace: str,
-    subdir: str,
-) -> Path:
-    """
-    Create a managed asset directory, usually for a data source.
-
-    Args:
-        namespace:
-            A namespace (category) for the source type.
-
-        subdir:
-            A subdirectory corresponding to the source.
-
-    Returns:
-        A Path to the asset directory.
-    """
-
-    return Path(
-        cached_assets_path(
-            library_name="streetscapes",
-            namespace=namespace,
-            subfolder=subdir,
-        )
     )
 
 
