@@ -169,7 +169,7 @@ class GlobalStreetscapesSource(HFSourceBase):
                 image_url = kv.get_image_url(row["image_id"])
                 df_urls.at[index, "image_url"] = image_url
             else:
-                logger.warning(f"Source not recognised for image {row["image_id"]}.")
+                logger.warning(f"Source not recognised for image {row['image_id']}.")
         urls = ibis.memtable(df_urls)
         return urls
         
@@ -189,5 +189,5 @@ class GlobalStreetscapesSource(HFSourceBase):
                 path = kv.download_image(row["image_id"], row["image_url"])
                 paths.append(path)
             else:
-                logger.warning(f"Source not recognised for image {row["image_id"]}.")
+                logger.warning(f"Source not recognised for image {row['image_id']}.")
         return paths
