@@ -4,6 +4,8 @@ from pathlib import Path
 import ibis
 from dotenv import load_dotenv
 
+import geopandas as gpd
+
 from streetscapes import utils
 
 
@@ -30,8 +32,8 @@ class SVWorkspace:
 
     def get_workspace_path(
         self,
-        path: str | Path = None,
-        suffix: str | None = None,
+        filename: str | Path,
+        suffix: str,
         create: bool = False,
     ):
         """
@@ -41,10 +43,9 @@ class SVWorkspace:
         Args:
             path:
                 The original path.
-                Defaults to None.
 
             suffix:
-                An optional (replacement) suffix. Defaults to None.
+                File extension
 
             create:
                 Indicates that the path should be created if it doesn't exist.
@@ -53,19 +54,7 @@ class SVWorkspace:
         Returns:
             The path to the file.
         """
-
-        if path is None:
-            path = self.root_dir
-
-        path = self.root_dir / utils.make_path(
-            path,
-            self.root_dir,
-            suffix=suffix,
-        ).relative_to(self.root_dir)
-
-        return (
-            utils.ensure_dir(path) if create else path.expanduser().resolve().absolute()
-        )
+        return (self.root_dir / filename).with_suffix(suffix)
 
     def load_csv(
         self,
@@ -82,7 +71,7 @@ class SVWorkspace:
             An Ibis table.
         """
 
-        filename = self.get_workspace_path(filename, suffix="csv")
+        filename = self.get_workspace_path(filename, suffix=".csv")
 
         return ibis.read_csv(filename)
 
@@ -101,7 +90,7 @@ class SVWorkspace:
             An Ibis table.
         """
 
-        filename = self.get_workspace_path(filename, suffix="parquet")
+        filename = self.get_workspace_path(filename, suffix=".parquet")
 
         return ibis.read_parquet(filename)
 
@@ -110,3 +99,37 @@ class SVWorkspace:
         Create and return a tree-like representation of a directory.
         """
         return utils.show_dir_tree(self.root_dir)
+
+    def save_metadata(
+        self,
+        records: gpd.GeoDataFrame,
+        filename: str | Path = "metadata.parquet",
+    ):
+        """
+        Save metadata to a Parquet file in the workspace.
+
+        Args:
+            records:
+                The metadata records to save.
+        """
+        # TODO: Maybe use geoparquet? Or duckdb? Or postgis?
+
+        filename = self.get_workspace_path(filename, suffix=".parquet", create=True)
+        records.to_parquet(filename)
+
+    def load_metadata(
+        self,
+        filename: str | Path = "metadata.parquet",
+    ) -> gpd.GeoDataFrame:
+        """
+        Load metadata from a Parquet file in the workspace.
+
+        Args:
+            filename:
+                The path to the metadata file.
+
+        Returns:
+            A GeoDataFrame containing the metadata.
+        """
+        filename = self.get_workspace_path(filename, suffix=".parquet")
+        return gpd.read_parquet(filename)
