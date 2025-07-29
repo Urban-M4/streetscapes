@@ -65,7 +65,7 @@ def is_notebook() -> bool:
         return False
 
 
-def ensure_dir(path: Path | str | None) -> Path:
+def ensure_dir(path: Path | str) -> Path:
     """
     Resolve and expand a directory path and
     create the directory if it doesn't exist.
@@ -77,10 +77,6 @@ def ensure_dir(path: Path | str | None) -> Path:
     Returns:
         The (potentially newly created) expanded path.
     """
-
-    if path is None:
-        return
-
     path = Path(path).expanduser().resolve().absolute()
     path.mkdir(exist_ok=True, parents=True)
     return path
