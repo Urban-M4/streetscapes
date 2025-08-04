@@ -20,7 +20,7 @@ class SVWorkspace:
         load_dotenv()
         data_home = os.getenv("DATA_HOME", None)
 
-        path = Path(data_home) / "workpaces" / name
+        path = Path(data_home) / "workspaces" / name
         if not path.exists() and not create:
             raise FileNotFoundError("The specified path does not exist.")
 
