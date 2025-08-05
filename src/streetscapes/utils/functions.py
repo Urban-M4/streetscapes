@@ -1,19 +1,11 @@
-# --------------------------------------
+import os
 import re
-
-# --------------------------------------
 from pathlib import Path
 
-# --------------------------------------
 import numpy as np
-
-# --------------------------------------
+from dotenv import load_dotenv
 import seedir as sd
-
-# --------------------------------------
 from IPython import get_ipython
-
-# --------------------------------------
 import skimage as ski
 
 
@@ -286,3 +278,17 @@ def camel2snake(string: str) -> str:
     return "".join(
         [f"_{x.lower()}" if x.isupper() else x for x in string]
     ).removeprefix("_")
+
+
+def get_env(key: str):
+    """Read the value of `key` from the environment variables.
+
+    Environment variables may be set in .env or defined in current shell.
+    """
+    load_dotenv()
+    value = os.getenv(key, None)
+
+    if value is not None:
+        return value
+
+    raise KeyError(f"{key} not found in environment variables.")

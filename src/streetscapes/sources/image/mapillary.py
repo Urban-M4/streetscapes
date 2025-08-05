@@ -22,12 +22,11 @@ def split_bbox(bbox: list[float], tile_size: float) -> list[list[float]]:
 
     Args:
         bbox: bounding box [west, south, east, north]
-        tile_size: tile size in degrees
+        tile_size: tile size in degrees. Must multiple of 0.001
 
     Returns:
         List of bounding box tiles
     """
-    # TODO: Would be nice to snap to a raster
     tiles = []
     lon = bbox[0]
     while lon < bbox[2]:
@@ -39,7 +38,7 @@ def split_bbox(bbox: list[float], tile_size: float) -> list[list[float]]:
                 min(lon + tile_size, bbox[2]),
                 min(lat + tile_size, bbox[3]),
             ]
-            tiles.append(tile)
+            tiles.append([round(t, 3) for t in tile])
             lat += tile_size
         lon += tile_size
     return tiles
@@ -92,7 +91,7 @@ class Mapillary(ImageSourceBase):
         "computed_compass_angle",
         "computed_geometry",
         "computed_rotation",
-        # "creator",
+        "creator",
         "exif_orientation",
         "geometry",
         "height",
@@ -171,7 +170,7 @@ class Mapillary(ImageSourceBase):
         session.mount("https://", HTTPAdapter(max_retries=retries))
         return session
 
-    def save_tile_metadata(self, url, params, filename):
+    def download_tile(self, url, params, filename):
         """Collect metadata records from the API and dump into a json file
 
         Args:
@@ -182,14 +181,16 @@ class Mapillary(ImageSourceBase):
         Returns:
             json of metadata records from API
         """
-        response = self.session.get(url, params=params)
-        response.raise_for_status()
-        data = response.json()
-        # Collect data
-        records = data.get("data", [])
-        with open(filename, "w") as f:
-            json.dump(records, f)
-        return data
+        try:
+            response = self.session.get(url, params=params)
+            response.raise_for_status()
+            data = response.json()
+            # Collect data
+            records = data.get("data", [])
+            with open(filename, "w") as f:
+                json.dump(records, f)
+        except requests.exceptions.HTTPError as exc:
+            logger.error(f"Failed to download: {exc}")
 
     def fetch_metadata_bbox(
         self,
@@ -206,7 +207,7 @@ class Mapillary(ImageSourceBase):
 
         Args:
             bbox: [west, south, east, north]
-            tile_size: tile size in degrees, default 0.01 (about 1km)
+            tile_size: tile size in degrees, default 0.01 (about 1km); Must be a multiple of 0.001.
             fields: List of fields to include in the results. If None, a standard set of fields is returned.
             limit: Number of images to request (Mapillary API limit is 2000, default set to 1000 as 2000 often fails).
             extract_latlon: Whether to extract latitude and longitude from computed_geometry.
@@ -214,6 +215,9 @@ class Mapillary(ImageSourceBase):
         Returns:
             geopandas dataframe with image metadata
         """
+        if tile_size < 0.001:
+            # Filename has bbox rounded to 3 decimals.
+            raise ValueError("Tile size must be multiple of 0.001.")
 
         metadata_dir = Path(f"{self.root_dir}/metadata")
         metadata_dir.mkdir(parents=True, exist_ok=True)
@@ -222,7 +226,7 @@ class Mapillary(ImageSourceBase):
         files = []
 
         for tile in tiles:
-            rounded_tile = [round(v, 2) for v in tile]
+            rounded_tile = [round(v, 3) for v in tile]
             tile_id = "_".join(map(str, rounded_tile))
             filename = Path(metadata_dir, f"{tile_id}.json")
             files.append(filename)
@@ -241,9 +245,10 @@ class Mapillary(ImageSourceBase):
                     "fields": fields_param,
                     "limit": limit,
                 }
-                self.save_tile_metadata(self.base_url, params, filename)
+                self.download_tile(self.base_url, params, filename)
 
-        combined_metadata = concat_metadata(files)
+        existing_files = [f for f in files if Path(f).exists()]
+        combined_metadata = concat_metadata(existing_files)
 
         return combined_metadata
 
@@ -289,7 +294,7 @@ class Mapillary(ImageSourceBase):
         while True:
             count += 1
             filename = Path(metadata_dir, f"{creator_username}{count}.json")
-            data = self.save_tile_metadata(url, params, filename)
+            data = self.download_tile(url, params, filename)
             records = data.get("data", [])
             all_records.extend(records)
 

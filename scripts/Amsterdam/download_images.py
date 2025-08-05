@@ -4,10 +4,7 @@
 from streetscapes.sources import Mapillary
 from streetscapes.streetview import SVWorkspace
 
-
-city = "Amsterdam"
-
-ws = SVWorkspace(city)
+ws = SVWorkspace("wageningen")
 metadata = ws.load_metadata()
 
 mp = Mapillary()

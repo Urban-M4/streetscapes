@@ -10,3 +10,4 @@ from streetscapes.utils.functions import as_hsv
 from streetscapes.utils.functions import make_colourmap
 from streetscapes.utils.functions import open_image
 from streetscapes.utils.functions import camel2snake
+from streetscapes.utils.functions import get_env
