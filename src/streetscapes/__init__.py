@@ -8,3 +8,11 @@ from streetscapes.utils.logging import logger
 # from streetscapes.utils.functions import download_images
 # from streetscapes.utils.functions import download_files_hf
 # from streetscapes import models
+
+
+def get_env(key: str):
+    load_dotenv()
+    value = os.getenv(key, None)
+    if value is not None:
+        return value
+    raise KeyError(f"{key} not found in environment variables.")
