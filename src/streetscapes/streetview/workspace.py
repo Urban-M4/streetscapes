@@ -7,6 +7,7 @@ from dotenv import load_dotenv
 import geopandas as gpd
 
 from streetscapes import utils
+from streetscapes.utils import logger
 
 
 class SVWorkspace:
@@ -113,9 +114,9 @@ class SVWorkspace:
                 The metadata records to save.
         """
         # TODO: Maybe use geoparquet? Or duckdb? Or postgis?
-
         filename = self.get_workspace_path(filename, suffix=".parquet", create=True)
         records.to_parquet(filename)
+        logger.info(f"Metadata saved to {filename}")
 
     def load_metadata(
         self,

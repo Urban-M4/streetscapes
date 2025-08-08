@@ -5,17 +5,17 @@ from time import sleep
 from pathlib import Path
 
 import ibis
-import requests
-from requests import Session
-from urllib3.util import Retry
-from requests.adapters import HTTPAdapter
 import pandas as pd
 from pandas import json_normalize
+import requests
+from requests import Session
 import geopandas as gpd
+from urllib3.util import Retry
+from rich.progress import track
+from requests.adapters import HTTPAdapter
 
 from streetscapes import logger
 from streetscapes.sources.image.base import ImageSourceBase
-
 
 def split_bbox(bbox: list[float], tile_size: float) -> list[list[float]]:
     """Split bounding box into tiles
@@ -41,6 +41,10 @@ def split_bbox(bbox: list[float], tile_size: float) -> list[list[float]]:
             tiles.append([round(t, 3) for t in tile])
             lat += tile_size
         lon += tile_size
+
+    logger.info(
+        f"Split bbox {bbox} into {len(tiles)} tiles of size {tile_size} degrees."
+    )
     return tiles
 
 
@@ -215,40 +219,56 @@ class Mapillary(ImageSourceBase):
         Returns:
             geopandas dataframe with image metadata
         """
-        if tile_size < 0.001:
-            # Filename has bbox rounded to 3 decimals.
-            raise ValueError("Tile size must be multiple of 0.001.")
+        if fields is None:
+            fields = self.default_fields
+        fields_param = ",".join(fields)
 
-        metadata_dir = Path(f"{self.root_dir}/metadata")
+        metadata_dir = Path(self.root_dir) / "metadata"
         metadata_dir.mkdir(parents=True, exist_ok=True)
 
+        # Split the bounding box into tiles
+        # ==================================================
         tiles = split_bbox(bbox, tile_size)
-        files = []
-
+        tile_infos = []
         for tile in tiles:
-            rounded_tile = [round(v, 3) for v in tile]
-            tile_id = "_".join(map(str, rounded_tile))
-            filename = Path(metadata_dir, f"{tile_id}.json")
-            files.append(filename)
+            tile_id = "_".join(f"{v:.3f}" for v in tile)
+            filename = metadata_dir / f"{tile_id}.json"
+            tile_infos.append((tile, tile_id, filename))
 
-            if filename.is_file() and not overwrite:
-                print(f"Already exists: {filename}")
-            else:
-                print(f"Downloading: {filename}")
-                if fields is None:
-                    fields_param = ",".join(self.default_fields)
-                else:
-                    fields_param = ",".join(fields)
+        # Check if metadata already exists
+        # ==================================================
+        tilenames = {info[1] for info in tile_infos}
 
-                params = {
-                    "bbox": ",".join(map(str, tile)),
-                    "fields": fields_param,
-                    "limit": limit,
-                }
-                self.download_tile(self.base_url, params, filename)
+        if not overwrite:
+            local_tiles = {p.stem for p in metadata_dir.glob("*.json")}
+            existing_tiles = tilenames & local_tiles
+            missing_tiles = tilenames - local_tiles
+            logger.info(
+                f"{len(existing_tiles)} tiles already exist, {len(missing_tiles)} will be downloaded."
+            )
+        else:
+            missing_tiles = tilenames
 
-        existing_files = [f for f in files if Path(f).exists()]
-        combined_metadata = concat_metadata(existing_files)
+        missing_tile_infos = [info for info in tile_infos if info[1] in missing_tiles]
+
+        # Download metadata tiles
+        # ==================================================
+        for tile, tile_id, filename in track(
+            missing_tile_infos, description="Downloading metadata tiles..."
+        ):
+            params = {
+                "bbox": ",".join(map(str, tile)),
+                "fields": fields_param,
+                "limit": limit,
+            }
+            self.download_tile(self.base_url, params, filename)
+
+        # Concatenate metadata from all tiles
+        # ==================================================
+        logger.info("Concatenating metadata")
+        all_filenames = [info[2] for info in tile_infos]
+        combined_metadata = concat_metadata(all_filenames)
+        combined_metadata["source"] = "mapillary"
 
         return combined_metadata
 
