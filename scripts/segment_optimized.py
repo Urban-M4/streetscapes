@@ -12,7 +12,7 @@ import transformers as tform
 import sam2.sam2_image_predictor as sam2_pred
 
 # ----- CONFIGURATION -----
-BATCH_SIZE = 8  # Adjust based on your GPU memory
+BATCH_SIZE = 16  # Adjust based on your GPU memory
 MAX_WORKERS = 16  # For CPU-bound tasks like image loading and saving
 DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 BOX_THRESHOLD = 0.3
@@ -20,12 +20,11 @@ TEXT_THRESHOLD = 0.3
 
 # ----- HELPER FUNCTIONS -----
 
-
-def load_image(path: Path) -> np.ndarray:
-    """Load a single image from disk."""
+def load_image(path: Path) -> tuple[np.ndarray, tuple[int, int]]:
     image = np.array(Image.open(path))
-    padded, (pad_h, pad_w) = pad_right_bottom(image, target_size=2048)
-    return padded, (pad_h, pad_w)
+    original_shape = image.shape[:2]
+    padded, _ = pad_right_bottom(image, target_size=2048)
+    return padded, original_shape
 
 
 def pad_right_bottom(img: np.ndarray, target_size: int = 2048):
@@ -52,26 +51,28 @@ def unpad_image(img: np.ndarray, original_shape: tuple[int, int]) -> np.ndarray:
     h, w = original_shape
     return img[:h, :w]
 
-
-def load_images_threaded(
-    image_paths: list[Path], max_workers=MAX_WORKERS
-) -> list[np.ndarray]:
-    """Load images concurrently using threads (I/O-bound)."""
+def load_images_threaded(image_paths: list[Path], max_workers=MAX_WORKERS):
     with concurrent.futures.ThreadPoolExecutor(max_workers=max_workers) as executor:
         results = list(executor.map(load_image, image_paths))
 
-    images, paddings = zip(*results)
-    return list(images), list(paddings)
+    images, original_shapes = zip(*results)
+    return list(images), list(original_shapes)
 
 
 def save_segmentation_async(save_queue: queue.Queue):
-    """Worker function to asynchronously save segmentation results."""
     while True:
         item = save_queue.get()
-        if item is None:  # Sentinel to stop thread
+        if item is None:
             break
         segmentation, save_path = item
-        np.savez_compressed(save_path, segmentation)
+
+        to_save = {
+            "image_name": segmentation["image_path"].name,
+            "masks": list(segmentation["masks"].items()),
+            "instances": list(segmentation["instances"].items()),
+        }
+
+        np.savez_compressed(save_path, to_save)
         save_queue.task_done()
 
 
@@ -200,7 +201,7 @@ def process_images(image_paths: list[Path], labels: dict, batch_size=BATCH_SIZE)
     ):
         batch_paths = image_paths[batch_start : batch_start + batch_size]
 
-        images, paddings = load_images_threaded(batch_paths)
+        images, original_shapes = load_images_threaded(batch_paths)
 
         # Adjust bounding boxes for padding: boxes come relative to original image,
         # but SAM expects boxes relative to padded images
@@ -218,12 +219,6 @@ def process_images(image_paths: list[Path], labels: dict, batch_size=BATCH_SIZE)
                 else np.zeros((0, 4))
             )
 
-            # Debug: clip boxes to padded image size (optional safety)
-            h_pad, w_pad = paddings[idx]
-            padded_h, padded_w = images[idx].shape[:2]
-            boxes[:, [0, 2]] = np.clip(boxes[:, [0, 2]], 0, padded_w - 1)
-            boxes[:, [1, 3]] = np.clip(boxes[:, [1, 3]], 0, padded_h - 1)
-
             bboxes_batch.append(boxes)
 
         masks_batch = segmenter.segment_batch(images, bboxes_batch)
@@ -240,7 +235,7 @@ def process_images(image_paths: list[Path], labels: dict, batch_size=BATCH_SIZE)
             for inst_id, (label, mask) in enumerate(
                 zip(dino_res["labels"], masks), start=1
             ):
-                mask = unpad_image(mask, paddings[idx])  # Unpad mask to original size
+                mask = unpad_image(mask, original_shapes[idx])
                 instances[inst_id] = label
                 instance_masks[inst_id] = np.where(mask > 0)
 
