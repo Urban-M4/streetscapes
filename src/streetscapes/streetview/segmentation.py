@@ -82,44 +82,22 @@ class SVSegmentation:
         return self._metadata[key]
 
     def _remove_overlaps(
-        self,
-        instances: dict[int: np.ndarray],
-        exclude: str | list[str],
+        self, instances: dict[int, np.ndarray], exclude: str | list[str]
     ) -> np.ndarray:
-        """
-        Remove overlaps between labels.
-
-        Args:
-
-            labels:
-                Masks corresponding to instances of interest.
-
-            excluded:
-                One or more labels for instances that should be excluded.
-
-        Returns:
-            The masks with undesired overlapping instances removed.
-        """
-
         if isinstance(exclude, str):
             exclude = [exclude]
 
-        # The original image
         image = self.get_image()
-
-        # Make new positive and negative blank mask canvases
         canvas = np.zeros(image.shape[:2], dtype=np.uint32)
 
-        # Mask with all instances
         for iid, mask in instances.items():
-            canvas[mask[0], mask[1]] = iid
+            canvas[mask] = iid
 
-        # Remove overlaps
         for label in exclude:
             for instance in self.get_instances(label):
-                canvas[instance.mask[0], instance.mask[1]] = 0
+                canvas[instance.mask] = 0
 
-        return {iid: np.where(canvas == iid) for iid in instances}
+        return {iid: (canvas == iid) for iid in instances}
 
     def get_image(
         self,
@@ -145,31 +123,11 @@ class SVSegmentation:
 
         return utils.open_image(self.image_path)
 
-    def get_masks(
-        self,
-        cache: bool = False,
-    ) -> np.ndarray:
-        """
-        Load the saved masks as a NumPy array.
-
-        Args:
-            cache:
-                A toggle to indicate whether the mask should be cached
-                for slightly faster retrieval.
-                Defaults to True.
-
-        Returns:
-            The mask as a NumPy array (if it exists).
-        """
-
-        # Ensure that we have a list of path objects
+    def get_masks(self, cache: bool = False) -> np.ndarray:
         if cache and self._masks is not None:
             return self._masks
 
-        masks = {
-            iid: np.array(arr, dtype=np.uint32)
-            for iid, arr in self._get_value("masks")
-        }
+        masks = {iid: arr.astype(bool) for iid, arr in self._get_value("masks")}
 
         if cache:
             self._masks = masks
@@ -242,8 +200,14 @@ class SVSegmentation:
             The (potentially merged and de-overlapped) instances for this label.
         """
 
-        instance_ids = set([k for k, v in self.get_instance_labels().items() if v == label])
-        masks = {iid: mask for iid, mask in self.get_masks(cache=False).items() if iid in instance_ids}
+        instance_ids = set(
+            [k for k, v in self.get_instance_labels().items() if v == label]
+        )
+        masks = {
+            iid: mask
+            for iid, mask in self.get_masks(cache=False).items()
+            if iid in instance_ids
+        }
 
         if exclude is not None:
             masks = self._remove_overlaps(masks, exclude)
@@ -252,8 +216,7 @@ class SVSegmentation:
             masks = {0: np.concatenate(list(masks.values()), axis=1)}
 
         instances = [
-            SVInstance(self.image_path, mask, label, iid)
-            for iid, mask in masks.items()
+            SVInstance(self.image_path, mask, label, iid) for iid, mask in masks.items()
         ]
 
         return instances[0] if merge else instances
@@ -320,7 +283,6 @@ class SVSegmentation:
 
         # Loop over the segmentation list
         for instance_id, label in instances.items():
-
             if label not in labels:
                 # Skip labels that have been removed.
                 continue
@@ -334,11 +296,11 @@ class SVSegmentation:
 
             # Extract the mask
             mask = masks[instance_id]
-            if mask.size == 0:
+            if mask.sum() == 0:
                 continue
 
-            greyscale[mask[0], mask[1]] = (
-                (1 - opacity) * greyscale[mask[0], mask[1]] + 255 * opacity * colourmap[label]
+            greyscale[mask] = (
+                (1 - opacity) * greyscale[mask] + 255 * opacity * colourmap[label]
             ).astype(np.ubyte)
 
         # Plot the original image and the segmented one.

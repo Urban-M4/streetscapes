@@ -237,7 +237,7 @@ def process_images(image_paths: list[Path], labels: dict, batch_size=BATCH_SIZE)
             ):
                 mask = unpad_image(mask, original_shapes[idx])
                 instances[inst_id] = label
-                instance_masks[inst_id] = np.where(mask > 0)
+                instance_masks[inst_id] = mask > 0  # Boolean mask instead of np.where
 
             segmentation = {
                 "image_path": image_path,
