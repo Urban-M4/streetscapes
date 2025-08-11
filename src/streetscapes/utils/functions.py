@@ -7,7 +7,7 @@ from dotenv import load_dotenv
 import seedir as sd
 from IPython import get_ipython
 import skimage as ski
-
+import geopandas as gpd
 
 def is_notebook() -> bool:
     """Determine if the caller is running in a Jupyter notebook.
@@ -292,3 +292,54 @@ def get_env(key: str):
         return value
 
     raise KeyError(f"{key} not found in environment variables.")
+
+
+def plot_metadata(gdf: gpd.GeoDataFrame, ax=None):
+    """
+    Plot the metadata from a GeoDataFrame.
+
+    Args:
+        gdf:
+            The GeoDataFrame containing the metadata.
+        ax:
+            The axes to plot on. Defaults to None.
+
+    Returns:
+        The axes with the plotted metadata.
+    """
+    import contextily as ctx
+
+    if ax is None:
+        import matplotlib.pyplot as plt
+
+        fig, ax = plt.subplots(figsize=(10, 10))
+
+    gdf.plot(ax=ax, color="red", markersize=0.5, alpha=0.5)
+    ctx.add_basemap(ax, crs=gdf.crs, source=ctx.providers.nlmaps.standaard)
+    return ax
+
+
+def show_image(id: str, source: str):
+    """Quickly plot an image.
+
+    Args:
+        id: The image ID.
+        source: The source of the image (e.g., 'mapillary').
+    """
+    from pathlib import Path
+
+    from PIL import Image
+    import matplotlib.pyplot as plt
+
+    image_dir = Path(get_env("DATA_HOME")) / "sources" / source / "images"
+    image_path = image_dir / f"{id}.jpeg"
+
+    if not image_path.exists():
+        print(f"Image not found: {image_path}")
+        return
+
+    image = Image.open(image_path)
+    plt.imshow(image)
+    plt.axis("off")
+    plt.title(f"{source}/{id}.jpeg")
+    plt.show()

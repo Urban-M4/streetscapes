@@ -133,7 +133,7 @@ class ImageSourceBase(SourceBase, ABC):
         # Set up the image path.
         image_dir = Path(f"{self.root_dir}/images")
         image_dir.mkdir(parents=True, exist_ok=True)
-        image_path = Path(image_dir, f"{image_id}.jpeg") 
+        image_path = Path(image_dir, f"{image_id}.jpeg")
 
         # Download the image.
         if image_path.exists() and not overwrite:
@@ -163,16 +163,21 @@ class ImageSourceBase(SourceBase, ABC):
         self,
         image_ids: list[str | int],
         urls: list[str] | None,
+        overwrite: bool = False,
     ) -> list[Path]:
         """
         Download a set of images concurrently.
 
         Args:
-            dataset:
-                A dataset containing image IDs.
+            image_ids:
+                List of image IDs.
 
-            sample:
-                Only download a sample of the images. Defaults to None.
+            urls:
+                List of URLs corresponding to the image IDs.
+                If None, the URLs will be fetched using `get_image_url`.
+
+            overwrite:
+                Download the images even if they already exist.
 
         Returns:
             A list of paths to the saved images.
@@ -194,7 +199,7 @@ class ImageSourceBase(SourceBase, ABC):
         with tqdm(total=len(image_ids), desc=desc) as pbar:
             for image_id, url in zip(image_ids, urls):
                 try:
-                    path = self.download_image(image_id, url)
+                    path = self.download_image(image_id, url, overwrite=overwrite)
                     results.append(path)
                     pbar.set_description_str(f"{desc} | {image_id:>20s}")
                 except Exception as exc:

@@ -4,10 +4,10 @@
 from streetscapes.sources import Mapillary
 from streetscapes.streetview import SVWorkspace
 
-ws = SVWorkspace("wageningen")
-metadata = ws.load_metadata()
+ws = SVWorkspace("amsterdam")
+metadata = ws.load_metadata("subset_lcz_kittner_081.parquet")
 
 mp = Mapillary()
 ids = metadata["id"].to_list()
-urls = metadata["thumb_1024_url"].to_list()
+urls = metadata["thumb_2048_url"].to_list()
 paths = mp.download_images(ids, urls)
