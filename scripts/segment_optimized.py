@@ -12,8 +12,9 @@ import transformers as tform
 import sam2.sam2_image_predictor as sam2_pred
 
 # ----- CONFIGURATION -----
-BATCH_SIZE = 16  # Adjust based on your GPU memory
-MAX_WORKERS = 16  # For CPU-bound tasks like image loading and saving
+BATCH_SIZE = 24  # Adjust based on your GPU memory
+NUM_LOADER_THREADS = 8  # For CPU-bound tasks like image loading and saving
+NUM_SAVER_THREADS = 8
 DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 BOX_THRESHOLD = 0.3
 TEXT_THRESHOLD = 0.3
@@ -51,7 +52,7 @@ def unpad_image(img: np.ndarray, original_shape: tuple[int, int]) -> np.ndarray:
     h, w = original_shape
     return img[:h, :w]
 
-def load_images_threaded(image_paths: list[Path], max_workers=MAX_WORKERS):
+def load_images_threaded(image_paths: list[Path], max_workers=NUM_LOADER_THREADS):
     with concurrent.futures.ThreadPoolExecutor(max_workers=max_workers) as executor:
         results = list(executor.map(load_image, image_paths))
 
@@ -59,7 +60,7 @@ def load_images_threaded(image_paths: list[Path], max_workers=MAX_WORKERS):
     return list(images), list(original_shapes)
 
 
-def save_segmentation_async(save_queue: queue.Queue):
+def save_worker(save_queue: queue.Queue):
     while True:
         item = save_queue.get()
         if item is None:
@@ -73,6 +74,7 @@ def save_segmentation_async(save_queue: queue.Queue):
         }
 
         np.savez_compressed(save_path, to_save)
+
         save_queue.task_done()
 
 
@@ -191,10 +193,12 @@ def process_images(image_paths: list[Path], labels: dict, batch_size=BATCH_SIZE)
     prompt = " ".join([lbl.strip() + "." for lbl in flat_labels if lbl])
 
     save_queue = queue.Queue()
-    save_thread = threading.Thread(
-        target=save_segmentation_async, args=(save_queue,), daemon=True
-    )
-    save_thread.start()
+    saver_threads = []
+
+    for _ in range(NUM_SAVER_THREADS):
+        t = threading.Thread(target=save_worker, args=(save_queue,), daemon=True)
+        t.start()
+        saver_threads.append(t)
 
     for batch_start in tqdm(
         range(0, len(image_paths), batch_size), desc="Processing batches"
@@ -251,9 +255,12 @@ def process_images(image_paths: list[Path], labels: dict, batch_size=BATCH_SIZE)
 
             save_queue.put((segmentation, save_path))
 
+    # After all jobs are enqueued, wait for them to finish:
     save_queue.join()
-    save_queue.put(None)
-    save_thread.join()
+    for _ in range(NUM_SAVER_THREADS):
+        save_queue.put(None)
+    for t in saver_threads:
+        t.join()
 
 
 # -------- USAGE --------
