@@ -94,8 +94,10 @@ class SVSegmentation:
             canvas[mask] = iid
 
         for label in exclude:
-            for instance in self.get_instances(label):
-                canvas[instance.mask] = 0
+            overlapping_instances = self.get_instances(label)
+            if overlapping_instances:
+                for instance in overlapping_instances:
+                    canvas[instance.mask] = 0
 
         return {iid: (canvas == iid) for iid in instances}
 
@@ -209,10 +211,13 @@ class SVSegmentation:
             if iid in instance_ids
         }
 
+        if not len(masks):
+            return None
+
         if exclude is not None:
             masks = self._remove_overlaps(masks, exclude)
 
-        if merge:
+        if masks and merge:
             masks = {0: np.concatenate(list(masks.values()), axis=1)}
 
         instances = [
@@ -318,4 +323,5 @@ class SVSegmentation:
         if title is not None:
             fig.suptitle(title, fontsize=16)
 
+        fig.tight_layout()
         return (fig, axes)
