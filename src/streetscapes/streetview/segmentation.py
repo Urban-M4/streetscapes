@@ -1,25 +1,10 @@
-# --------------------------------------
+import typing as tp
+from functools import reduce
 from pathlib import Path
 
-# --------------------------------------
-from PIL import Image
-
-# --------------------------------------
 import ibis
-
-# --------------------------------------
 import numpy as np
 
-# --------------------------------------
-import awkward as ak
-
-# --------------------------------------
-import skimage as ski
-
-# --------------------------------------
-import typing as tp
-
-# --------------------------------------
 from streetscapes import utils
 from streetscapes.streetview.instance import SVInstance
 
@@ -218,7 +203,7 @@ class SVSegmentation:
             masks = self._remove_overlaps(masks, exclude)
 
         if masks and merge:
-            masks = {0: np.concatenate(list(masks.values()), axis=1)}
+            masks = {0: reduce(np.logical_or, masks.values())}
 
         instances = [
             SVInstance(self.image_path, mask, label, iid) for iid, mask in masks.items()
@@ -257,8 +242,8 @@ class SVSegmentation:
                 - A Figure object.
                 - An Axes object that allows further annotations to be added.
         """
-        from matplotlib import pyplot as plt
         from matplotlib import patches as mpatches
+        from matplotlib import pyplot as plt
 
         # Prepare the greyscale version of the image for plotting instances.
         image = self.get_image()

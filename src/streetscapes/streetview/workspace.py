@@ -1,13 +1,19 @@
-import os
 from pathlib import Path
 
-import ibis
-from dotenv import load_dotenv
-
 import geopandas as gpd
+import ibis
 
 from streetscapes import utils
-from streetscapes.utils import logger
+from streetscapes.utils import get_env, logger
+
+
+def get_image_dir(source="mapillary"):
+    data_home = get_env("DATA_HOME")
+    return Path(data_home) / "sources" / source / "images"
+
+
+def get_segmentations_dir(source, model):
+    return get_image_dir(source) / "segmentations" / model
 
 
 class SVWorkspace:
@@ -18,9 +24,7 @@ class SVWorkspace:
         name: str,
         create: bool = True,
     ):
-        load_dotenv()
-        data_home = os.getenv("DATA_HOME", None)
-
+        data_home = get_env("DATA_HOME")
         path = Path(data_home) / "workspaces" / name
         if not path.exists() and not create:
             raise FileNotFoundError("The specified path does not exist.")
