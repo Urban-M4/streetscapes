@@ -5,9 +5,6 @@ from pathlib import Path
 import ibis
 
 # --------------------------------------
-from environs import Env
-
-# --------------------------------------
 from streetscapes.sources.image.base import ImageSourceBase
 
 class AmsterdamPanorama(ImageSourceBase):
@@ -15,7 +12,6 @@ class AmsterdamPanorama(ImageSourceBase):
 
     def __init__(
         self,
-        env: Env,
         root_dir: str | Path | None = None,
     ):
         """
@@ -23,15 +19,13 @@ class AmsterdamPanorama(ImageSourceBase):
         street view images from the Amsterdam repository.
 
         Args:
-            env:
-                An Env object containing loaded configuration options.
-
             root_dir:
-                An optional custom root directory. Defaults to None.
+                An optional custom root directory. Defaults to
+                DATA_HOME/sources/amsterdampanorama, where DATA_HOME is read from the
+                environment variables. Defaults to None.
         """
 
         super().__init__(
-            env,
             root_dir=root_dir,
             url="https://api.data.amsterdam.nl/panorama/panoramas/",
         )

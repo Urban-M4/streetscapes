@@ -47,7 +47,6 @@ os.environ["PYTORCH_CUDA_ALLOC_CONF"] = "expandable_segments:True"
 
 
 class ModelBase(ABC):
-
     def __init__(
         self,
         device: str = None,
@@ -301,17 +300,8 @@ class ModelBase(ABC):
         # Segment the images and extract the metadata
         pbar = tqdm(total=total, desc=f"Segmenting images...")
         for path_batch in itertools.batched(list(paths), batch_size):
-            segmentations.extend(self._segment_images(path_batch, labels))
+            segmentations = self._segment_images(path_batch, labels)
+            [self._save_segmentation(seg) for seg in segmentations]
             pbar.update()
 
-        # Save the images
-        pbar.set_description_str("Saving segmentations...")
-
-        # Save the segmentations
-        paths = [self._save_segmentation(seg) for seg in segmentations]
-
-        # Create SVSegmentation instances
-        segmentations = [SVSegmentation(path) for path in paths]
         pbar.set_description_str("Done")
-
-        return segmentations[0] if single else segmentations

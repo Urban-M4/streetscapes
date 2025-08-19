@@ -1,43 +1,13 @@
-# --------------------------------------
+import os
 import re
-
-# --------------------------------------
 from pathlib import Path
 
-# --------------------------------------
 import numpy as np
-
-# --------------------------------------
+from dotenv import load_dotenv
 import seedir as sd
-
-# --------------------------------------
 from IPython import get_ipython
-
-# --------------------------------------
 import skimage as ski
-
-# --------------------------------------
-from huggingface_hub import cached_assets_path
-
-# Courtesy of
-# https://stackoverflow.com/questions/40186622/atexit-alternative-for-ipython
-# ==================================================
-try:
-
-    def exit_register(fun, *args, **kwargs):
-        """Decorator that registers at post_execute.
-        After its execution it unregisters itself for subsequent runs."""
-
-        def callback():
-            fun(*args, **kwargs)
-            ip.events.unregister("post_execute", callback)
-
-        ip.events.register("post_execute", callback)
-
-    ip = get_ipython()
-except NameError:
-    from atexit import register as exit_register
-
+import geopandas as gpd
 
 def is_notebook() -> bool:
     """Determine if the caller is running in a Jupyter notebook.
@@ -50,7 +20,7 @@ def is_notebook() -> bool:
     """
     try:
         shell = get_ipython().__class__.__name__
-        match (shell):
+        match shell:
             case "ZMQInteractiveShell":
                 # Jupyter notebook or qtconsole
                 return True
@@ -65,7 +35,7 @@ def is_notebook() -> bool:
         return False
 
 
-def ensure_dir(path: Path | str | None) -> Path:
+def ensure_dir(path: Path | str) -> Path:
     """
     Resolve and expand a directory path and
     create the directory if it doesn't exist.
@@ -77,10 +47,6 @@ def ensure_dir(path: Path | str | None) -> Path:
     Returns:
         The (potentially newly created) expanded path.
     """
-
-    if path is None:
-        return
-
     path = Path(path).expanduser().resolve().absolute()
     path.mkdir(exist_ok=True, parents=True)
     return path
@@ -153,33 +119,6 @@ def filter_files(
     items = [str(n) for n in path.glob("*.*")]
     return set(
         [Path(p) for p in filter(re.compile(pattern, re.IGNORECASE).match, items)]
-    )
-
-
-def create_asset_dir(
-    namespace: str,
-    subdir: str,
-) -> Path:
-    """
-    Create a managed asset directory, usually for a data source.
-
-    Args:
-        namespace:
-            A namespace (category) for the source type.
-
-        subdir:
-            A subdirectory corresponding to the source.
-
-    Returns:
-        A Path to the asset directory.
-    """
-
-    return Path(
-        cached_assets_path(
-            library_name="streetscapes",
-            namespace=namespace,
-            subfolder=subdir,
-        )
     )
 
 
@@ -339,3 +278,68 @@ def camel2snake(string: str) -> str:
     return "".join(
         [f"_{x.lower()}" if x.isupper() else x for x in string]
     ).removeprefix("_")
+
+
+def get_env(key: str):
+    """Read the value of `key` from the environment variables.
+
+    Environment variables may be set in .env or defined in current shell.
+    """
+    load_dotenv()
+    value = os.getenv(key, None)
+
+    if value is not None:
+        return value
+
+    raise KeyError(f"{key} not found in environment variables.")
+
+
+def plot_metadata(gdf: gpd.GeoDataFrame, ax=None):
+    """
+    Plot the metadata from a GeoDataFrame.
+
+    Args:
+        gdf:
+            The GeoDataFrame containing the metadata.
+        ax:
+            The axes to plot on. Defaults to None.
+
+    Returns:
+        The axes with the plotted metadata.
+    """
+    import contextily as ctx
+
+    if ax is None:
+        import matplotlib.pyplot as plt
+
+        fig, ax = plt.subplots(figsize=(10, 10))
+
+    gdf.plot(ax=ax, color="red", markersize=0.5, alpha=0.5)
+    ctx.add_basemap(ax, crs=gdf.crs, source=ctx.providers.nlmaps.standaard)
+    return ax
+
+
+def show_image(id: str, source: str):
+    """Quickly plot an image.
+
+    Args:
+        id: The image ID.
+        source: The source of the image (e.g., 'mapillary').
+    """
+    from pathlib import Path
+
+    from PIL import Image
+    import matplotlib.pyplot as plt
+
+    image_dir = Path(get_env("DATA_HOME")) / "sources" / source / "images"
+    image_path = image_dir / f"{id}.jpeg"
+
+    if not image_path.exists():
+        print(f"Image not found: {image_path}")
+        return
+
+    image = Image.open(image_path)
+    plt.imshow(image)
+    plt.axis("off")
+    plt.title(f"{source}/{id}.jpeg")
+    plt.show()

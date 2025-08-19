@@ -1,23 +1,11 @@
-# --------------------------------------
 from __future__ import annotations
 
-# --------------------------------------
+import os
 from abc import ABC
-from abc import abstractmethod
-
-# --------------------------------------
-import enum
-
-# --------------------------------------
-from environs import Env
-
-# --------------------------------------
 from pathlib import Path
 
-# --------------------------------------
-import typing as tp
+from dotenv import load_dotenv
 
-# --------------------------------------
 from streetscapes import utils
 
 
@@ -26,7 +14,6 @@ class SourceBase(ABC):
 
     def __init__(
         self,
-        env: Env,
         root_dir: str | Path | None = None,
     ):
         """
@@ -35,27 +22,30 @@ class SourceBase(ABC):
         (HuggingFace, street view imagery, etc.)
 
         Args:
-            env:
-                An Env object containing loaded configuration options.
-
             root_dir:
-                An optional custom root directory. Defaults to None.
+                An optional custom root directory. Defaults to
+                DATA_HOME/sources, where DATA_HOME is read from environment
+                variables.
         """
 
-        # Source name and environment variable prefix
+        # Source name and environment variables
         # ==================================================
         self.name = self.__class__.__name__.lower()
-        self.env_prefix = utils.camel2snake(self.name).upper()
+        load_dotenv()
 
         # Root directory
         # ==================================================
-        root_dir = env.path(f"{self.env_prefix}_ROOT_DIR", root_dir)
+        if root_dir is None:
+            load_dotenv()
+            data_home = os.getenv("DATA_HOME")
+            root_dir = Path(data_home) / "sources" / self.name
 
         self.root_dir = utils.ensure_dir(root_dir)
 
         # An access token associated with this source
         # ==================================================
-        self.token = env(f"{self.env_prefix}_TOKEN", None)
+        env_prefix = utils.camel2snake(self.name).upper()
+        self.token = os.getenv(f"{env_prefix}_TOKEN", None)
 
     def __repr__(self) -> str:
         """
