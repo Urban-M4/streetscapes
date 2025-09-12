@@ -5,7 +5,8 @@ from pathlib import Path
 import ibis
 
 # --------------------------------------
-from streetscapes.sources.image.base import ImageSourceBase
+from streetscapes.sources.base import ImageSourceBase
+
 
 class KartaView(ImageSourceBase):
     """TODO: Add docstrings"""

@@ -9,7 +9,6 @@ requires-python = ">= 3.12"
 dependencies = [
     "awkward",
     "black",
-    "cloup",
     "contextily",
     "duckdb",
     "ephem",
@@ -42,6 +41,9 @@ dependencies = [
     "torchvision",
     "tqdm",
     "transformers",
+    "typer>=0.16.1",
+    "pillow>=11.3.0",
+    "safetensors>=0.6.2",
 ]
 authors = [
     { name = "Claire Donnelly", email = "c.donnelly@esciencecenter.nl" },
@@ -53,7 +55,7 @@ readme = "README.md"
 license = { file = "LICENCE.md" }
 
 [project.scripts]
-streetscapes = "streetscapes.main:main"
+streetscapes = "streetscapes.cli.main:app"
 
 [project.optional-dependencies]
 dev = [
@@ -108,7 +110,6 @@ docstring-code-line-length = "dynamic"
 
 [tool.ruff.lint.isort]
 from-first = false
-force-single-line = true
 force-sort-within-sections = true
 length-sort = true
 lines-after-imports = 1
