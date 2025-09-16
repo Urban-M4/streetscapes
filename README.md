@@ -2,16 +2,15 @@
 [![PyPI - Version](https://img.shields.io/pypi/v/streetscapes)](https://pypi.org/project/streetscapes/)
 [![Research Software Directory](https://img.shields.io/badge/RSD-streetscapes-00a3e3)](https://research-software-directory.org/software/streetscapes)
 [![Read The Docs](https://readthedocs.org/projects/streetscapes/badge/?version=latest)](https://streetscapes.readthedocs.io/en/latest/)
+[![DOI](https://zenodo.org/badge/DOI/10.5281/zenodo.14283584.svg)](https://doi.org/10.5281/zenodo.14283533)
+[![PyPI - Version](https://img.shields.io/pypi/v/streetscapes)](https://pypi.org/project/streetscapes/)
+[![Research Software Directory](https://img.shields.io/badge/RSD-streetscapes-00a3e3)](https://research-software-directory.org/software/streetscapes)
+[![Read The Docs](https://readthedocs.org/projects/streetscapes/badge/?version=latest)](https://streetscapes.readthedocs.io/en/latest/)
 
 ```mermaid
----
-config:
-  theme: redux-color
----
 mindmap
   root)Streetscapes(
     (Imagery)
-    ::icon(fa fa-image)
       Sources
         Mapillary
         Kartaview
@@ -20,7 +19,6 @@ mindmap
         From original source
         Global streetscapes
     (Object detection)
-    ::icon(fa fa-magnifying-glass)
       Models
         Maskformer
         Grounding Dino
@@ -34,7 +32,6 @@ mindmap
         Roofs
         Roads
     (Feature extraction)
-    ::icon(fa fa-circle-check)
       By proxy
         Albedo
         Emissivity
@@ -52,13 +49,11 @@ mindmap
         LCZ class
         Target grid
     (Building identification)
-    ::icon(fa fa-building-circle-check)
       Building footprints
         BAG / Cadastre
         OpenStreetMap
       Radial sweep algorithm
     (Filtering images)
-    ::icon(fa fa-filter)
         Spatial stratification
         Image quality
         Day / night
@@ -74,13 +69,7 @@ mindmap
 
 # Streetscapes
 
-`streetscapes` is a Python package and CLI for large-scale analysis of street-level imagery.
-It bundles functionality ranging from imagery retrieval to segmentation, feature extraction, and building-level aggregation. The package is designed to be transparent, reproducible, and easy to extend for research use.
-
-## Overview
-
-The scope of `streetscapes` spans the entire workflow from raw imagery to derived geospatial features. The mindmap below illustrates the different components:
-
+`streetscapes` is a Python package and CLI for large-scale analysis of street-level imagery. It bundles functionality ranging from imagery retrieval to segmentation, feature extraction, and building-level aggregation. The package is designed to be transparent, reproducible, and easy to extend for research use.
 
 ## Installation
 
@@ -88,57 +77,106 @@ The scope of `streetscapes` spans the entire workflow from raw imagery to derive
 pip install streetscapes
 ```
 
-Model weights are downloaded on first use of each model.
+Model weights are downloaded automatically on first use.
 
 ## Example Workflow
 
-To show how `streetscapes` structures end-to-end analysis, consider the task of generating **albedo and emissivity maps for input into WRF**.
-
-The **CLI** handles the heavy, resource-intensive steps (fetching metadata, downloading images, segmenting, feature extraction, building matching).
-The **API** complements this by making it easy to process CLI outputs in Python, for tasks such as filtering, visualization, and aggregation.
+Consider generating **albedo and emissivity maps for WRF input** over Amsterdam. The workflow shows how the CLI performs heavy tasks while the API complements further analysis.
 
 ```bash
-# 1. Fetch metadata for available images in your area of interest
-streetscapes fetch-metadata mapillary \
-  --bbox <west,south,east,north> \
-  --output images_meta.geoparquet
+# 1. Fetch metadata for your area of interest (Global Streetscapes dataset)
+streetscapes fetch-metadata global-streetscapes \
+  --bbox 4.87,52.36,4.91,52.39 \
+  --output ./metadata.geoparquet
 
-# 2. Download the referenced images
-streetscapes download-images mapillary images_meta.geoparquet --output ./images
+# 2. Filter images by type and quality
+streetscapes filter-images ./metadata.geoparquet \
+  --type panorama --quality high \
+  --output ./filtered_meta.geoparquet
 
-# 3. Detect and segment facades, roofs, and roads
+# 3. Download the filtered images
+streetscapes download-images global-streetscapes ./filtered_meta.geoparquet \
+  --output ./images
+
+# 4. Detect and segment facades, roofs, and roads (DinoSAM)
 streetscapes segment-images dinosam ./images \
   --prompt "facade, roof, road" \
   --output ./segments
 
-# 4. Match segmented objects to building footprints
-streetscapes match-buildings ./segments.geoparquet ./footprints.geoparquet --output ./buildings.geoparquet
+# 5. Material recognition on segmented facades
+streetscapes segment-images bfms ./segments \
+  --output ./materials
 
-# 5. Derive features such as albedo and emissivity per building
-streetscapes extract-features ./buildings.parquet --output ./wrf_inputs
+# 6. Match segmented objects and materials to building footprints
+streetscapes match-buildings ./segments.geoparquet ./footprints.geoparquet \
+  --materials ./materials.geoparquet \
+  --output ./buildings.geoparquet
 ```
 
-After these CLI steps, further analysis can continue in Python with the API:
+After CLI processing, the API enables flexible post-processing, visualization, and rasterization.
 
 ```python
 import streetscapes
 
 # Load outputs
-buildings = streetscapes.load_geoparquet("./wrf_inputs/buildings.parquet")
+buildings = streetscapes.load_geoparquet("./buildings.geoparquet")
+segments = streetscapes.load_geoparquet("./segments.geoparquet")
+materials = streetscapes.load_geoparquet("./materials.geoparquet")
 
-# Visualize detected facades for a sample building
-streetscapes.vis.show_building_crops(buildings, building_id=12345)
+# Visualize a sample image's detections
+streetscapes.vis.plot_grounding_dino_boxes(segments.iloc[0])
+streetscapes.vis.plot_dinosam_segments(segments.iloc[0])
+streetscapes.vis.plot_materials(materials.iloc[0])
+```
 
-# Filter buildings by facade coverage
-filtered = streetscapes.analysis.filter_by(buildings, min_facade_fraction=0.3)
+For advanced processing, we can leverage DuckDB spatial via Ibis. 
+For example, once we have image-derived material estimates for building facades, 
+we can map each material to literature-based albedo and emissivity values and 
+aggregate these properties per building:
+
+```py
+import ibis
+import duckdb
+
+# Connect to DuckDB
+con = ibis.duckdb.connect()
+
+# Register tables
+con.register("segments", "segments.geoparquet")        # segments with building_id & material_class
+con.register("material_lookup", "material_properties.parquet")  # material_class -> albedo/emissivity
+con.register("buildings", "buildings.geoparquet")      # building footprints
+
+# Aggregate albedo/emissivity per building
+agg_expr = con.sql("""
+WITH seg_materials AS (
+    SELECT
+        s.building_id,
+        l.albedo,
+        l.emissivity
+    FROM segments s
+    JOIN material_lookup l
+      ON s.material_class = l.material_class
+    WHERE s.building_id IS NOT NULL
+)
+SELECT
+    building_id,
+    AVG(albedo) AS avg_albedo,
+    AVG(emissivity) AS avg_emissivity
+FROM seg_materials
+GROUP BY building_id
+""")
+
+# Execute and save results
+df_result = agg_expr.execute()
+df_result.to_parquet("wrf_facade_features.parquet")
 ```
 
 ## Design Philosophy
 
-* **Transparency & simplicity**: functionality is implemented in small, clear steps; no hidden initializations or complex class hierarchies.
-* **Composable CLI + API**: the CLI performs heavy lifting, while the API enables flexible post-processing, filtering, and visualization.
-* **Geoparquet outputs**: results are stored as geoparquet, enabling fast spatial queries and incremental writes via `ibis` + `duckdb_spatial`.
-* **Research-friendly**: code is easy to understand, copy, and adapt for new experiments or pipelines.
+* **Transparency & simplicity**: clear, modular steps; no hidden initializations.
+* **Composable CLI + API**: CLI handles heavy lifting; API enables filtering, visualization, and aggregation.
+* **Geoparquet outputs**: fast spatial queries and incremental writes via `ibis` + `duckdb_spatial`.
+* **Research-friendly**: easy to inspect, copy, and adapt.
 
 ## Contributing and publishing
 
