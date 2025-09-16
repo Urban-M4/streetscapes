@@ -3,84 +3,142 @@
 [![Research Software Directory](https://img.shields.io/badge/RSD-streetscapes-00a3e3)](https://research-software-directory.org/software/streetscapes)
 [![Read The Docs](https://readthedocs.org/projects/streetscapes/badge/?version=latest)](https://streetscapes.readthedocs.io/en/latest/)
 
-# Overview
-
-`streetscapes` is a package to extract metadata, download, segment and analyse street view images from various open sources, such as [Mapillary](https://www.mapillary.com/), [Kartaview](https://kartaview.org/landing) and [Amsterdam Open Panorama](https://amsterdam.github.io/projects/open-panorama/). The package also builds upon the [Global Streetscapes](https://ual.sg/project/global-streetscapes/), making it possible to use the dataset for analysis and download images with certain properties. 
-
-This package is a subproject of ([Urban-M4](https://github.com/Urban-M4)), which aims to model the Urban Heat Island effect by evaluating the properties of individual objects in the images (such as buildings, roads and sidewalks).
-
-For more information, please refer to the [documentation](https://streetscapes.readthedocs.io/en/latest/).
-
-## 📥 Setup
-
-Create and activate a virtual environment using the tool of your choice, such as [venv](https://docs.python.org/3/library/venv.html). You can also use [Conda](https://anaconda.org/) (or [Mamba](https://mamba.readthedocs.io/en/latest/installation/mamba-installation.html)) if you prefer, but please note that all dependencies are installed by `pip` from `PyPI`.
-
-Using `venv`:
-
-```sh
-python -m venv .venv
-source .venv/bin/activate
+```mermaid
+---
+config:
+  theme: redux-color
+---
+mindmap
+  root)Streetscapes(
+    (Imagery)
+    ::icon(fa fa-image)
+      Sources
+        Mapillary
+        Kartaview
+        Amsterdam Panorama
+      Metadata
+        From original source
+        Global streetscapes
+    (Object detection)
+    ::icon(fa fa-magnifying-glass)
+      Models
+        Maskformer
+        Grounding Dino
+        SAM
+        DMS
+        ADE20K
+        ClipSeg
+        OpenClip
+      Objects of interest
+        Facades
+        Roofs
+        Roads
+    (Feature extraction)
+    ::icon(fa fa-circle-check)
+      By proxy
+        Albedo
+        Emissivity
+        Window-to-wall
+      CV models
+        Material
+        Color
+        Depth estimate
+        Semantic class
+      Local image properties
+        Brightness
+        Entropy
+      Aggregation
+        Building ID
+        LCZ class
+        Target grid
+    (Building identification)
+    ::icon(fa fa-building-circle-check)
+      Building footprints
+        BAG / Cadastre
+        OpenStreetMap
+      Radial sweep algorithm
+    (Filtering images)
+    ::icon(fa fa-filter)
+        Spatial stratification
+        Image quality
+        Day / night
+        Weather
+        Image type
+            Panorama
+            Dashcam
+            GoPro
+            Smartphone
+            Camera
+        Viewing direction
 ```
 
-Using `conda`:
+# Streetscapes
 
-```sh
-conda create -n myenv -c conda-forge python=3.12 pip
-conda activate myenv
-```
+`streetscapes` is a Python package and CLI for large-scale analysis of street-level imagery.
+It bundles functionality ranging from imagery retrieval to segmentation, feature extraction, and building-level aggregation. The package is designed to be transparent, reproducible, and easy to extend for research use.
 
-## ⚙️ Installation
+## Overview
 
-The `streetscapes` package can be installed from PyPI:
+The scope of `streetscapes` spans the entire workflow from raw imagery to derived geospatial features. The mindmap below illustrates the different components:
 
-```shell
+
+## Installation
+
+```bash
 pip install streetscapes
 ```
 
-Alternatively, the in-development version of `streetscapes` can be installed by cloning the repository and installing the package locally with `pip`:
+Model weights are downloaded on first use of each model.
 
-```shell
-git clone git@github.com:Urban-M4/streetscapes.git
-cd streetscapes
-pip install -e .
+## Example Workflow
+
+To show how `streetscapes` structures end-to-end analysis, consider the task of generating **albedo and emissivity maps for input into WRF**.
+
+The **CLI** handles the heavy, resource-intensive steps (fetching metadata, downloading images, segmenting, feature extraction, building matching).
+The **API** complements this by making it easy to process CLI outputs in Python, for tasks such as filtering, visualization, and aggregation.
+
+```bash
+# 1. Fetch metadata for available images in your area of interest
+streetscapes fetch-metadata mapillary \
+  --bbox <west,south,east,north> \
+  --output images_meta.geoparquet
+
+# 2. Download the referenced images
+streetscapes download-images mapillary images_meta.geoparquet --output ./images
+
+# 3. Detect and segment facades, roofs, and roads
+streetscapes segment-images dinosam ./images \
+  --prompt "facade, roof, road" \
+  --output ./segments
+
+# 4. Match segmented objects to building footprints
+streetscapes match-buildings ./segments.geoparquet ./footprints.geoparquet --output ./buildings.geoparquet
+
+# 5. Derive features such as albedo and emissivity per building
+streetscapes extract-features ./buildings.parquet --output ./wrf_inputs
 ```
 
-⚠️ If one or more dependencies fail to install, check the Python version - it might be too _new_. While `streetscapes` itself specifies only the _minimal_ required Python verion, some dependencies might be slow to make releases for the latest Python version.
+After these CLI steps, further analysis can continue in Python with the API:
 
-### Configuring the package for development
+```python
+import streetscapes
 
-To install with optional dependencies: 
+# Load outputs
+buildings = streetscapes.load_geoparquet("./wrf_inputs/buildings.parquet")
 
-```shell
-git clone git@github.com:Urban-M4/streetscapes.git
-cd streetscapes
-pip install -e .[dev]
+# Visualize detected facades for a sample building
+streetscapes.vis.show_building_crops(buildings, building_id=12345)
+
+# Filter buildings by facade coverage
+filtered = streetscapes.analysis.filter_by(buildings, min_facade_fraction=0.3)
 ```
 
-#### Building and running the documentation
+## Design Philosophy
 
-The `streetscapes` project documentation is based on [MkDocs](https://www.mkdocs.org/). To build  and view the documentation:
-
-```shell
-mkdocs build
-```
-
-The documentation can then be viewed locally:
-
-```shell
-mkdocs serve
-```
-
-This will start an HTTP server which can be accessed by visiting `http://127.0.0.1:8000` in a browser.
-
-### 🌲 Environment variables
-
-To facilitate the use of `streetscapes` when dowloading images, access tokens can be added to an `.env` file in the root directory of the `streetscapes` repository. You can get and access token for Mapillary [here](https://www.mapillary.com/developer/api-documentation).
-
-| Variable                  | Description                                                                                                                                                  |
-| ------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| `MAPILLARY_TOKEN`         | A Mapillary token string used for authentication when querying Mapillary via their API.  |
-
+* **Transparency & simplicity**: functionality is implemented in small, clear steps; no hidden initializations or complex class hierarchies.
+* **Composable CLI + API**: the CLI performs heavy lifting, while the API enables flexible post-processing, filtering, and visualization.
+* **Geoparquet outputs**: results are stored as geoparquet, enabling fast spatial queries and incremental writes via `ibis` + `duckdb_spatial`.
+* **Research-friendly**: code is easy to understand, copy, and adapt for new experiments or pipelines.
 
 ## Contributing and publishing
 
@@ -96,5 +154,7 @@ have a look at the [contribution guidelines](CONTRIBUTING.md).
 This repository uses the data and work from the [Global Streetscapes](https://ual.sg/project/global-streetscapes/) project.
 
 > [1] Hou Y, Quintana M, Khomiakov M, Yap W, Ouyang J, Ito K, Wang Z, Zhao T, Biljecki F (2024): Global Streetscapes — A comprehensive dataset of 10 million street-level images across 688 cities for urban science and analytics. ISPRS Journal of Photogrammetry and Remote Sensing 215: 216-238. doi:[10.1016/j.isprsjprs.2024.06.023](https://doi.org/10.1016/j.isprsjprs.2024.06.023)
+
+> TODO: add BFMS, ZFMS, ...
 
 The `streetscapes` package can be cited using the supplied [citation information](https://docs.github.com/en/repositories/managing-your-repositorys-settings-and-features/customizing-your-repository/about-citation-files). For reproducibility, you can also cite a specific version by finding the corresponding DOI on [Zenodo](https://zenodo.org/records/14287547).
