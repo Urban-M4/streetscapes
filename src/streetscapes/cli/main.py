@@ -1,9 +1,13 @@
 import typer
+from dotenv import load_dotenv
+
 from .fetch_metadata import fetch_metadata_cli
-from .download_images import download_images_cli
-from .segment_images import segment_images_cli
 from .finetune_model import finetune_model_cli
+from .segment_images import segment_images_cli
+from .download_images import download_images_cli
 from .identify_buildings import identify_buildings_cli
+
+load_dotenv()
 
 app = typer.Typer(help="Street view image analysis toolkit")
 

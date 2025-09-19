@@ -4,10 +4,10 @@ import os
 from pathlib import Path
 
 import typer
-from dotenv import load_dotenv
 
 from streetscapes.sources.amsterdam import AmsterdamPanorama
 from streetscapes.sources.mapillary import Mapillary
+from streetscapes.workspace import Workspace
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
 fetch_metadata_cli = typer.Typer(help="Fetch metadata for a source")
@@ -19,13 +19,17 @@ def fetch_metadata_mapillary(
         ..., help="Bounding box [west, south, east, north]"
     ),
     tile_size: float = typer.Option(0.01, help="Tile size in degrees"),
-    output_file: Path = typer.Option(..., help="Output GeoParquet file"),
+    output_dir: Path = typer.Option(
+        None,
+        help="Base output directory (default: STREETSCAPES_OUTPUT_DIR or ./streetscapes_output)",
+    ),
     token: str = typer.Option(
         None, help="Mapillary OAuth token (optional, will use .env if not provided)"
     ),
 ):
     """Fetch Mapillary metadata in tiles and store as GeoParquet."""
-    load_dotenv()
+
+    ws = Workspace.from_env() if output_dir is None else Workspace(Path(output_dir))
     token = token or os.getenv("MAPILLARY_TOKEN")
     if not token:
         typer.echo(
@@ -33,8 +37,8 @@ def fetch_metadata_mapillary(
             err=True,
         )
         raise typer.Exit(code=1)
+    output_file = ws.manifests / "fetch_metadata_mapillary.parquet"
     logging.info(f"Using token: {'***' + token[-6:] if token else None}")
-    output_file.parent.mkdir(parents=True, exist_ok=True)
     logging.info(
         f"Starting Mapillary metadata fetch for bbox={bbox}, tile_size={tile_size}, output_file={output_file}"
     )

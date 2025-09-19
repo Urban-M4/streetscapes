@@ -171,6 +171,29 @@ df_result = agg_expr.execute()
 df_result.to_parquet("wrf_facade_features.parquet")
 ```
 
+## Recommended Output Directory Structure
+
+All CLI and API outputs are stored under a configurable base directory (default: `output/`). You can set the base directory via `.env` (e.g., `DATA_HOME=output`) or CLI options.
+
+Example structure:
+
+```
+output/
+  manifests/           # All metadata manifests (GeoParquet, CSV, etc.)
+  images/              # All raw images (optionally flat, or sharded for scale)
+  segmentation/
+    sam_masks/         # All SAM masks
+    groundingdino_bboxes/ # All GroundingDINO bboxes
+    props/             # Other image properties
+  footprints/          # Building footprints and spatial outputs
+  cache/               # Intermediate files, DuckDB, temp data
+  logs/                # CLI and workflow logs
+```
+
+- Images can be sharded by hash or ID for scalability
+- Segmentation outputs are grouped by type/model
+- The base directory is always configurable via `.env` (`DATA_HOME`) or CLI options.
+
 ## Design Philosophy
 
 * **Transparency & simplicity**: clear, modular steps; no hidden initializations.

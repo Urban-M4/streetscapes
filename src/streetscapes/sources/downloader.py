@@ -1,63 +1,115 @@
 import hashlib
 import shutil
 from pathlib import Path
-from datetime import datetime
-import json
-from typing import List
+import datetime
 from rich.progress import track
 
 
 class ImageDownloader:
-    """Generic image downloader for any source implementing `get_image_url` and `source_name`."""
-
     def __init__(
-        self, source, output_dir: Path | str = "images", shard_size: int = 1000
+        self, source, manifest_dir: Path, images_dir: Path, shard_size: int = 1000
     ):
+        import ibis
         self.source = source
         self.shard_size = shard_size
-        self.output_dir = Path(output_dir) / source.source_name
-        self.output_dir.mkdir(parents=True, exist_ok=True)
-        self.manifest_file = self.output_dir / "manifest.json"
-        self.manifest = self._load_manifest()
+        self.images_dir = images_dir
+        self.images_dir.mkdir(parents=True, exist_ok=True)
+        self.manifest_dir = manifest_dir
 
-    def _load_manifest(self):
-        if self.manifest_file.exists():
-            with open(self.manifest_file) as f:
-                return json.load(f)
-        return {}
+        self.path = self.manifest_dir / "download_manifest.duckdb"
+        self.con = ibis.duckdb.connect(str(self.path))
+        if "downloads" not in self.con.list_tables():
+            self.con.raw_sql("""
+                CREATE TABLE downloads (
+                    image_id VARCHAR,
+                    path VARCHAR,
+                    downloaded_at TIMESTAMP,
+                    url VARCHAR
+                )
+            """)
 
-    def _save_manifest(self):
-        with open(self.manifest_file, "w") as f:
-            json.dump(self.manifest, f, indent=2)
+    def _shard_path(self, image_id: str, index: int = None) -> Path:
+        # Use sequential sharding: group images into folders of shard_size
+        if index is not None:
+            shard_folder = f"{index // self.shard_size:04d}"
+        else:
+            # fallback to hash-based if index not provided
+            hash_int = int(hashlib.md5(image_id.encode()).hexdigest(), 16)
+            shard_folder = f"{hash_int % self.shard_size:04d}"
+        return self.images_dir / shard_folder / f"{image_id}.jpg"
 
-    def _shard_path(self, image_id: str) -> Path:
-        # generate systematic folder names for 1000 images each
-        hash_int = int(hashlib.md5(image_id.encode()).hexdigest(), 16)
-        shard_folder = f"{hash_int % self.shard_size:04d}"
-        return self.output_dir / shard_folder / f"{image_id}.jpg"
+    def _is_downloaded(self, image_id: str) -> bool:
+        result = self.con.raw_sql(
+            f"SELECT 1 FROM downloads WHERE image_id = '{image_id}' LIMIT 1"
+        ).fetchall()
+        return bool(result)
 
-    def download(self, image_ids: List[str], overwrite=False):
-        for image_id in track(
-            image_ids, description=f"Downloading {self.source.source_name} images..."
+    def export_manifest(self):
+        """
+        Export the downloads table to a Parquet manifest for downstream use using ibis' to_parquet().
+        Delete the DuckDB file after export to avoid remnants.
+        """
+        self.manifest_dir.mkdir(parents=True, exist_ok=True)
+        output_file = str(self.manifest_dir / "downloaded_images.parquet")
+        self.con.table("downloads").to_parquet(output_file)
+        # Close and delete DuckDB file
+        self.con.disconnect()
+        if self.path.exists():
+            self.path.unlink()
+        return output_file
+
+    def download_by_id(self, image_ids, overwrite=False):
+        for idx, image_id in enumerate(
+            track(image_ids, description="Downloading images by ID...")
         ):
-            path = self._shard_path(image_id)
-            path.parent.mkdir(parents=True, exist_ok=True)
-            if path.exists() and not overwrite:
+            if not overwrite and self._is_downloaded(image_id):
                 continue
-
+            path = self._shard_path(image_id, index=idx)
+            path.parent.mkdir(parents=True, exist_ok=True)
             url = self.source.get_image_url(image_id)
             if not url:
                 continue
-
             resp = self.source.session.get(url, stream=True)
             resp.raise_for_status()
             with open(path, "wb") as f:
                 shutil.copyfileobj(resp.raw, f)
+            timestamp = datetime.datetime.now(datetime.timezone.utc).isoformat()
+            safe_id = str(image_id).replace("'", "''")
+            safe_path = str(path).replace("'", "''")
+            safe_url = str(url).replace("'", "''")
+            safe_timestamp = timestamp.replace("'", "''")
+            sql = f"INSERT INTO downloads VALUES ('{safe_id}', '{safe_path}', '{safe_timestamp}', '{safe_url}')"
+            self.con.raw_sql(sql)
+        self.export_manifest()
 
-            # Record provenance
-            self.manifest[image_id] = {
-                "path": str(path),
-                "downloaded_at": datetime.utcnow().isoformat(),
-            }
-
-        self._save_manifest()
+    def download_from_manifest(
+        self, manifest_df, id_column, url_column, overwrite=False
+    ):
+        for idx, (_, row) in enumerate(
+            track(
+                manifest_df.iterrows(),
+                description=f"Downloading images from {url_column}...",
+            )
+        ):
+            image_id = str(row[id_column])
+            if not overwrite and self._is_downloaded(image_id):
+                continue
+            url = row.get(url_column)
+            if not url:
+                continue
+            path = self._shard_path(image_id, index=idx)
+            path.parent.mkdir(parents=True, exist_ok=True)
+            resp = self.source.session.get(url, stream=True)
+            resp.raise_for_status()
+            with open(path, "wb") as f:
+                shutil.copyfileobj(resp.raw, f)
+            # Interpolate values directly into SQL string
+            timestamp = datetime.datetime.now(datetime.timezone.utc).isoformat()
+            # Escape single quotes in strings
+            safe_id = str(image_id).replace("'", "''")
+            safe_path = str(path).replace("'", "''")
+            safe_url = str(url).replace("'", "''")
+            safe_timestamp = timestamp.replace("'", "''")
+            sql = f"INSERT INTO downloads VALUES ('{safe_id}', '{safe_path}', '{safe_timestamp}', '{safe_url}')"
+            self.con.raw_sql(sql)
+        self.export_manifest()

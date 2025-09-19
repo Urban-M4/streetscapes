@@ -176,14 +176,19 @@ class Mapillary:
 
             def pick_geometry(row):
                 cg = row.get("computed_geometry")
-                if cg and "coordinates" in cg:
+                if isinstance(cg, dict) and "coordinates" in cg:
                     return Point(cg["coordinates"])
                 g = row.get("geometry")
-                if g and "coordinates" in g:
+                if isinstance(g, dict) and "coordinates" in g:
                     return Point(g["coordinates"])
                 return None
 
             df["geometry"] = df.apply(pick_geometry, axis=1)
+            if df["geometry"].isnull().all():
+                logger.warning(
+                    f"All geometry values are null for tile {tile_id}. This may indicate an empty or invalid API response."
+                )
+                # TODO: sometimes I still get "geometry column does not contain geometry"
             gdf = gpd.GeoDataFrame(
                 df.drop(columns=["computed_geometry"]),
                 geometry="geometry",
