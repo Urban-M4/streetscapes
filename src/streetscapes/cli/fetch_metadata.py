@@ -1,11 +1,15 @@
-import typer
-from pathlib import Path
-from streetscapes.sources.mapillary import Mapillary
-from streetscapes.sources.amsterdam import AmsterdamPanorama
-from streetscapes.sources.mapillary import PyArrowGeoParquetWriter
+import logging
+
 import os
+from pathlib import Path
+
+import typer
 from dotenv import load_dotenv
 
+from streetscapes.sources.amsterdam import AmsterdamPanorama
+from streetscapes.sources.mapillary import Mapillary
+
+logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
 fetch_metadata_cli = typer.Typer(help="Fetch metadata for a source")
 
 
@@ -29,11 +33,17 @@ def fetch_metadata_mapillary(
             err=True,
         )
         raise typer.Exit(code=1)
+    logging.info(f"Using token: {'***' + token[-6:] if token else None}")
     output_file.parent.mkdir(parents=True, exist_ok=True)
+    logging.info(
+        f"Starting Mapillary metadata fetch for bbox={bbox}, tile_size={tile_size}, output_file={output_file}"
+    )
     source = Mapillary(token)
-    writer = PyArrowGeoParquetWriter()
-    table = source.fetch_metadata(bbox, tile_size, output_file, writer=writer)
-    typer.echo(f"Saved {len(table)} records to {output_file}")
+    table = source.fetch_metadata(bbox, tile_size, output_file)
+    if table is not None and len(table) > 0:
+        logging.info(f"Saved {len(table)} records to {output_file}")
+    else:
+        logging.warning(f"No records found for bbox={bbox}. Output file may be empty.")
 
 
 @fetch_metadata_cli.command("amsterdam")
