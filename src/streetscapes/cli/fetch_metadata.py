@@ -11,7 +11,7 @@ fetch_metadata_cli = typer.Typer(help="Fetch metadata for a source")
 
 @fetch_metadata_cli.command("mapillary")
 def fetch_metadata_mapillary(
-    bbox: list[float] = typer.Option(
+    bbox: tuple[float, float, float, float] = typer.Option(
         ..., help="Bounding box [west, south, east, north]"
     ),
     tile_size: float = typer.Option(0.01, help="Tile size in degrees"),
@@ -29,6 +29,7 @@ def fetch_metadata_mapillary(
             err=True,
         )
         raise typer.Exit(code=1)
+    output_file.parent.mkdir(parents=True, exist_ok=True)
     source = Mapillary(token)
     writer = PyArrowGeoParquetWriter()
     table = source.fetch_metadata(bbox, tile_size, output_file, writer=writer)

@@ -25,6 +25,7 @@ dependencies = [
     "ipywidgets",
     "loguru",
     "matplotlib",
+    "mit-semseg",
     "numpy",
     "osmnx",
     "pandas",

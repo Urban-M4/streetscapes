@@ -243,7 +243,18 @@ class PyArrowGeoParquetWriter:
         batch = batch.replace_schema_metadata(
             {b"geo": json.dumps(GEO_METADATA).encode("utf-8")}
         )
-        pq.write_table(batch, path, append=True)
+
+        # Read existing table if file exists and is non-empty
+        if path.exists() and path.stat().st_size > 0:
+            try:
+                existing = pq.read_table(path)
+                combined = pa.concat_tables([existing, batch])
+            except Exception:
+                combined = batch
+        else:
+            combined = batch
+
+        pq.write_table(combined, path)
 
     def read(self, path: Path):
         return pq.read_table(path)
