@@ -1,4 +1,4 @@
-import logging
+from streetscapes.utils.logging import logger
 from pathlib import Path
 from typing import List
 from time import sleep
@@ -40,13 +40,13 @@ class DuckDBCache:
 
     def add_batch(self, gdf: gpd.GeoDataFrame, tile_id: str):
         gdf = gdf.copy()
+        # Geometry is already parsed as shapely Point in GeoDataFrame
         # Convert geometry to WKB BLOB (bytes)
-        gdf["geometry"] = gdf.geometry.apply(
-            lambda geom: wkb_dumps(geom) if geom else None
+        gdf["geometry"] = gdf["geometry"].apply(
+            lambda geom: wkb_dumps(geom) if geom is not None else None
         )
 
         if self.first_batch:
-            # Use ST_GeomFromWKB on geometry column to create spatial table
             self.con.register("gdf_view", gdf)
             self.con.execute("""
                 CREATE TABLE IF NOT EXISTS images AS
@@ -55,7 +55,6 @@ class DuckDBCache:
             """)
             self.first_batch = False
         else:
-            # Insert subsequent batches using the same ST_GeomFromWKB pattern
             self.con.register("gdf_view", gdf)
             self.con.execute("""
                 INSERT INTO images
@@ -63,7 +62,6 @@ class DuckDBCache:
                 FROM gdf_view
             """)
 
-        # Mark tile as processed
         self.con.execute("INSERT OR IGNORE INTO processed_tiles VALUES (?)", [tile_id])
 
     def to_file(self, output_file: Path):
@@ -112,9 +110,9 @@ class Mapillary:
                 return res.json().get("data", [])
             except (requests.RequestException, ValueError) as e:
                 attempt += 1
-                logging.warning(f"Tile {tile} request failed (attempt {attempt}): {e}")
+                logger.warning(f"Tile {tile} request failed (attempt {attempt}): {e}")
                 sleep(0.5 * attempt)
-        logging.error(f"Tile {tile} failed after {self.retries} attempts.")
+        logger.error(f"Tile {tile} failed after {self.retries} attempts.")
         return []
 
     @staticmethod
@@ -150,12 +148,12 @@ class Mapillary:
         Fetch Mapillary metadata incrementally, caching in DuckDB and exporting to a file.
         driver: 'PARQUET' for GeoParquet, 'GPKG' for GeoPackage, etc.
         """
-        logging.info(
+        logger.info(
             f"Preparing to fetch metadata for bbox={bbox}, tile_size={tile_size}, output_file={output_file}"
         )
         cache_file = output_file.with_suffix(".duckdb")
         if output_file.exists():
-            logging.info(f"Output file {output_file} already exists. Skipping fetch.")
+            logger.info(f"Output file {output_file} already exists. Skipping fetch.")
             return gpd.read_parquet(output_file)
 
         cache = DuckDBCache(cache_file)
@@ -165,28 +163,55 @@ class Mapillary:
             self.iter_tiles(bbox, tile_size), description="Fetching Mapillary tiles..."
         ):
             if tile_id in processed_tiles:
-                logging.info(f"Tile {tile_id} already processed. Skipping.")
+                logger.info(f"Tile {tile_id} already processed. Skipping.")
                 continue
 
             records = self.fetch_metadata_tile(tile)
             if not records:
-                logging.warning(f"No records for tile {tile_id}.")
+                logger.warning(f"No records for tile {tile_id}.")
                 continue
 
-            # Convert records to GeoDataFrame
+            # Convert records to GeoDataFrame using computed_geometry if present, else geometry, else None
             df = pd.DataFrame(records)
-            df["geometry"] = df["geometry"].apply(
-                lambda g: Point(g["coordinates"]) if g and "coordinates" in g else None
+
+            def pick_geometry(row):
+                cg = row.get("computed_geometry")
+                if cg and "coordinates" in cg:
+                    return Point(cg["coordinates"])
+                g = row.get("geometry")
+                if g and "coordinates" in g:
+                    return Point(g["coordinates"])
+                return None
+
+            df["geometry"] = df.apply(pick_geometry, axis=1)
+            gdf = gpd.GeoDataFrame(
+                df.drop(columns=["computed_geometry"]),
+                geometry="geometry",
+                crs="EPSG:4326",
             )
-            gdf = gpd.GeoDataFrame(df, geometry="geometry", crs="EPSG:4326")
             gdf["tile_id"] = tile_id
 
-            logging.info(
-                f"Caching metadata for tile {tile_id} with {len(gdf)} records."
-            )
             cache.add_batch(gdf, tile_id)
 
-        logging.info(f"Exporting cache to {output_file}")
+        logger.info(f"Exporting cache to {output_file}")
         cache.to_file(output_file)
-        logging.info("Export complete. Reading output file.")
-        return gpd.read_parquet(output_file)
+        logger.info("Export complete. Reading output file.")
+
+        return read_manifest(output_file)
+
+
+def read_manifest(manifest_file: Path):
+    import ibis
+
+    con = ibis.duckdb.connect()
+    con.load_extension("spatial")
+    return con.read_parquet(manifest_file).to_pandas()
+
+    # Alternative (read directly in python)
+    # return gpd.read_parquet(output_file)
+
+    # Alternative with ibis directly
+    # return ibis.read_parquet(output_file).to_pandas # doesn't handle geometry
+
+    # Alternative with geopackage
+    # return con.read_geo(manifest_file).to_pandas()
