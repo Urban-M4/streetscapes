@@ -12,7 +12,7 @@ from shapely.wkb import dumps as wkb_dumps
 from rich.progress import track
 
 
-class DuckDBCache:
+class DuckDBManifest:
     """
     Incremental cache for Mapillary metadata in DuckDB using spatial extension.
     """
@@ -49,7 +49,7 @@ class DuckDBCache:
         if self.first_batch:
             self.con.register("gdf_view", gdf)
             self.con.execute("""
-                CREATE TABLE IF NOT EXISTS images AS
+                CREATE TABLE IF NOT EXISTS metadata AS
                 SELECT * EXCLUDE geometry, ST_GeomFromWKB(geometry) AS geometry
                 FROM (SELECT * FROM gdf_view)
             """)
@@ -57,23 +57,12 @@ class DuckDBCache:
         else:
             self.con.register("gdf_view", gdf)
             self.con.execute("""
-                INSERT INTO images
+                INSERT INTO metadata
                 SELECT * EXCLUDE geometry, ST_GeomFromWKB(geometry) AS geometry
                 FROM gdf_view
             """)
 
         self.con.execute("INSERT OR IGNORE INTO processed_tiles VALUES (?)", [tile_id])
-
-    def to_file(self, output_file: Path):
-        """
-        Export DuckDB table to a spatial file.
-
-        https://duckdb.org/docs/stable/core_extensions/spatial/gdal
-        https://geog-414.gishub.org/book/duckdb/05_data_export.html
-        """
-        self.con.execute(f"COPY images TO '{output_file}' (FORMAT PARQUET)")
-        self.con.close()
-        self.path.unlink()
 
 
 class Mapillary:
@@ -145,19 +134,13 @@ class Mapillary:
         output_file: Path,
     ) -> gpd.GeoDataFrame:
         """
-        Fetch Mapillary metadata incrementally, caching in DuckDB and exporting to a file.
-        driver: 'PARQUET' for GeoParquet, 'GPKG' for GeoPackage, etc.
+        Fetch Mapillary metadata incrementally, exporting to a duckDB manifest file.
         """
         logger.info(
             f"Preparing to fetch metadata for bbox={bbox}, tile_size={tile_size}, output_file={output_file}"
         )
-        cache_file = output_file.with_suffix(".duckdb")
-        if output_file.exists():
-            logger.info(f"Output file {output_file} already exists. Skipping fetch.")
-            return gpd.read_parquet(output_file)
-
-        cache = DuckDBCache(cache_file)
-        processed_tiles = cache.get_processed_tiles()
+        manifest = DuckDBManifest(output_file)
+        processed_tiles = manifest.get_processed_tiles()
 
         for tile, tile_id in track(
             self.iter_tiles(bbox, tile_size), description="Fetching Mapillary tiles..."
@@ -196,27 +179,4 @@ class Mapillary:
             )
             gdf["tile_id"] = tile_id
 
-            cache.add_batch(gdf, tile_id)
-
-        logger.info(f"Exporting cache to {output_file}")
-        cache.to_file(output_file)
-        logger.info("Export complete. Reading output file.")
-
-        return read_manifest(output_file)
-
-
-def read_manifest(manifest_file: Path):
-    import ibis
-
-    con = ibis.duckdb.connect()
-    con.load_extension("spatial")
-    return con.read_parquet(manifest_file).to_pandas()
-
-    # Alternative (read directly in python)
-    # return gpd.read_parquet(output_file)
-
-    # Alternative with ibis directly
-    # return ibis.read_parquet(output_file).to_pandas # doesn't handle geometry
-
-    # Alternative with geopackage
-    # return con.read_geo(manifest_file).to_pandas()
+            manifest.add_batch(gdf, tile_id)

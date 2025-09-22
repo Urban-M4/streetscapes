@@ -25,9 +25,36 @@ def read_manifest(
     head: int = typer.Option(10, help="Number of rows to preview"),
 ):
     con = ibis.duckdb.connect(str(manifest_path))
-    df = con.table("downloads").head(head).to_pandas()
+
+    # TODO: generalize this
+    if "images" in con.tables:
+        df = con.table("images").head(head).to_pandas()
+    elif "downloads" in con.tables:
+        df = con.table("downloads").head(head).to_pandas()
+    else:
+        raise ValueError("Unknown manifest format")
+
     if df.empty:
         print("[bold yellow]No entries found in manifest.[/bold yellow]")
         return
     table = df_to_table(df)
     print(table)
+
+
+### Some old snippets for reading (geoparquet) manifests in various ways
+
+# def read_manifest(manifest_file: Path):
+#     import ibis
+
+#     con = ibis.duckdb.connect()
+#     con.load_extension("spatial")
+#     return con.read_parquet(manifest_file).to_pandas()
+
+# Alternative (read directly in python)
+# return gpd.read_parquet(output_file)
+
+# Alternative with ibis directly
+# return ibis.read_parquet(output_file).to_pandas # doesn't handle geometry
+
+# Alternative with geopackage
+# return con.read_geo(manifest_file).to_pandas()
