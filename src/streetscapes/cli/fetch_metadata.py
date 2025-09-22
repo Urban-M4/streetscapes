@@ -1,15 +1,8 @@
-import logging
+fetch_metadata_cli = None
 
-import os
-from pathlib import Path
 
 import typer
 
-from streetscapes.sources.amsterdam import AmsterdamPanorama
-from streetscapes.sources.mapillary import Mapillary
-from streetscapes.workspace import Workspace
-
-logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
 fetch_metadata_cli = typer.Typer(help="Fetch metadata for a source")
 
 
@@ -19,7 +12,7 @@ def fetch_metadata_mapillary(
         ..., help="Bounding box [west, south, east, north]"
     ),
     tile_size: float = typer.Option(0.01, help="Tile size in degrees"),
-    output_dir: Path = typer.Option(
+    output_dir=typer.Option(
         None,
         help="Base output directory (default: STREETSCAPES_OUTPUT_DIR or ./streetscapes_output)",
     ),
@@ -27,8 +20,15 @@ def fetch_metadata_mapillary(
         None, help="Mapillary OAuth token (optional, will use .env if not provided)"
     ),
 ):
-    """Fetch Mapillary metadata in tiles and store as DuckDB manifest."""
+    import logging
+    import os
+    from pathlib import Path
+    from streetscapes.workspace import Workspace
+    from streetscapes.sources.mapillary import Mapillary
 
+    logging.basicConfig(
+        level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s"
+    )
     ws = Workspace.from_env() if output_dir is None else Workspace(Path(output_dir))
     token = token or os.getenv("MAPILLARY_TOKEN")
     if not token:
@@ -57,9 +57,9 @@ def fetch_metadata_amsterdam(
     lat: float = typer.Option(..., help="Latitude"),
     lon: float = typer.Option(..., help="Longitude"),
     radius: float = typer.Option(50.0, help="Radius in meters"),
-    output_file: Path = typer.Option(..., help="Output GeoParquet file"),
+    output_file=typer.Option(..., help="Output GeoParquet file"),
 ):
-    """Fetch Amsterdam Panorama metadata and store as GeoParquet."""
+    from streetscapes.sources.amsterdam import AmsterdamPanorama
     source = AmsterdamPanorama()
     table = source.fetch_metadata(lat, lon, radius, output_file)
     typer.echo(f"Saved {len(table)} records to {output_file}")

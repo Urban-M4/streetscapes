@@ -1,15 +1,5 @@
-import os
-import json
-from pathlib import Path
 
-from PIL import Image
-import numpy as np
 import typer
-
-from streetscapes.models.sam import SAM
-from streetscapes.models.ade20k import ADE20KFacade
-from streetscapes.models.groundingdino import GroundingDINO
-
 segment_images_cli = typer.Typer(help="Segment images")
 
 
@@ -17,6 +7,9 @@ segment_images_cli = typer.Typer(help="Segment images")
 # Helpers
 # ---------------------------
 def _parse_image_input(images: list[str] | str) -> list[str]:
+    import os
+    import json
+    from pathlib import Path
     """
     Normalize input to a list of image paths.
 
@@ -47,11 +40,15 @@ def _parse_image_input(images: list[str] | str) -> list[str]:
     return all_paths
 
 
-def _load_image(path: str) -> np.ndarray:
+def _load_image(path: str):
+    import numpy as np
+    from PIL import Image
     return np.array(Image.open(path).convert("RGB"))
 
 
 def _save_masks(masks, out_dir: str, filename: str):
+    import os
+    import numpy as np
     os.makedirs(out_dir, exist_ok=True)
     np.save(os.path.join(out_dir, f"{filename}_masks.npy"), masks)
 
@@ -62,6 +59,7 @@ def _save_masks(masks, out_dir: str, filename: str):
 @segment_images_cli.command("sam")
 def segment_images_sam(images: list[str], out: str):
     """Segment images with SAM."""
+    from streetscapes.models.sam import SAM
     images_list = _parse_image_input(images)
     model = SAM(checkpoint="sam_vit_h_4b8939.pth")
     manifest = model.process_batch(images_list, out)
@@ -71,6 +69,7 @@ def segment_images_sam(images: list[str], out: str):
 @segment_images_cli.command("dino")
 def segment_images_dino(images: list[str], out: str):
     """Detect objects with GroundingDino"""
+    from streetscapes.models.groundingdino import GroundingDINO
     images_list = _parse_image_input(images)
     model = GroundingDINO(
         config="GroundingDINO_SwinT_OGC.py", weights="groundingdino_swint_ogc.pth"
@@ -86,6 +85,9 @@ def classify_images_openclip(
     model_name: str = "ViT-B-32",
     pretrained: str = "laion2b_s34b_b79k",
 ):
+    import numpy as np
+    from PIL import Image
+    from streetscapes.models.openclip import OpenCLIP
     labels_list = labels.split(",")
     image = np.array(Image.open(image_path).convert("RGB"))
     model = OpenCLIP(model_name=model_name, pretrained=pretrained)
@@ -99,6 +101,9 @@ def segment_images_clipseg(
     prompt: str,
     output_path: str = "./clipseg_mask.npy",
 ):
+    import numpy as np
+    from PIL import Image
+    from streetscapes.models.clipseg import CLIPSeg
     image = np.array(Image.open(image_path).convert("RGB"))
     model = CLIPSeg()
     mask = model.predict(image, prompt)
@@ -119,7 +124,11 @@ def segment_images_ade20k(
 
     Returns masked images, empty mask, and manifest per image.
     """
+    import os
     import torch
+    from pathlib import Path
+    from PIL import Image
+    from streetscapes.models.ade20k import ADE20KFacade
 
     os.makedirs(output_dir, exist_ok=True)
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
@@ -172,6 +181,12 @@ def segment_images_dinosam(
 
     Outputs masks and a manifest file with bounding boxes and labels.
     """
+    import os
+    import json
+    from pathlib import Path
+    from streetscapes.models.sam import SAM
+    from streetscapes.models.groundingdino import GroundingDINO
+
     image_paths = _parse_image_input(images)
 
     # Initialize models
