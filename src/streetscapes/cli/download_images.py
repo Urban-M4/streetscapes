@@ -56,6 +56,9 @@ def download_mapillary(
         df, id_column="id", url_column="thumb_2048_url", overwrite=overwrite
     )
     typer.echo(f"Downloaded {len(df)} Mapillary images to {images_dir}")
+    manifest_db_path = manifest_dir / "download_manifest.duckdb"
+    typer.echo("To preview your manifest, run:")
+    typer.echo(f"streetscapes manifest head {manifest_db_path}")
 
 
 @download_images_cli.command("amsterdam")

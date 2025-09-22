@@ -27,7 +27,7 @@ def fetch_metadata_mapillary(
         None, help="Mapillary OAuth token (optional, will use .env if not provided)"
     ),
 ):
-    """Fetch Mapillary metadata in tiles and store as GeoParquet."""
+    """Fetch Mapillary metadata in tiles and store as DuckDB manifest."""
 
     ws = Workspace.from_env() if output_dir is None else Workspace(Path(output_dir))
     token = token or os.getenv("MAPILLARY_TOKEN")
@@ -37,17 +37,19 @@ def fetch_metadata_mapillary(
             err=True,
         )
         raise typer.Exit(code=1)
-    output_file = ws.manifests / "fetch_metadata_mapillary.parquet"
+    manifest_db_path = ws.manifests / "fetch_metadata_mapillary.duckdb"
     logging.info(f"Using token: {'***' + token[-6:] if token else None}")
     logging.info(
-        f"Starting Mapillary metadata fetch for bbox={bbox}, tile_size={tile_size}, output_file={output_file}"
+        f"Starting Mapillary metadata fetch for bbox={bbox}, tile_size={tile_size}, manifest_db={manifest_db_path}"
     )
     source = Mapillary(token)
-    table = source.fetch_metadata(bbox, tile_size, output_file)
+    table = source.fetch_metadata(bbox, tile_size, manifest_db_path)
     if table is not None and len(table) > 0:
-        logging.info(f"Saved {len(table)} records to {output_file}")
+        logging.info(f"Saved {len(table)} records to {manifest_db_path}")
     else:
-        logging.warning(f"No records found for bbox={bbox}. Output file may be empty.")
+        logging.warning(f"No records found for bbox={bbox}. Manifest may be empty.")
+    typer.echo("To preview your manifest, run:")
+    typer.echo(f"streetscapes manifest head {manifest_db_path}")
 
 
 @fetch_metadata_cli.command("amsterdam")

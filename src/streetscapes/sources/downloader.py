@@ -44,25 +44,18 @@ class ImageDownloader:
         ).fetchall()
         return bool(result)
 
-    def export_manifest(self):
-        """
-        Export the downloads table to a Parquet manifest for downstream use using ibis' to_parquet().
-        Delete the DuckDB file after export to avoid remnants.
-        """
-        self.manifest_dir.mkdir(parents=True, exist_ok=True)
-        output_file = str(self.manifest_dir / "downloaded_images.parquet")
-        self.con.table("downloads").to_parquet(output_file)
-        # Close and delete DuckDB file
-        self.con.disconnect()
-        if self.path.exists():
-            self.path.unlink()
-        return output_file
+    def get_manifest_df(self):
+        """Return the manifest as a pandas DataFrame from DuckDB."""
+        return self.con.table("downloads").to_pandas()
+
+    # Removed: DuckDB is now the canonical manifest. No export needed.
 
     def download_by_id(self, image_ids, overwrite=False):
         for idx, image_id in enumerate(
             track(image_ids, description="Downloading images by ID...")
         ):
-            if not overwrite and self._is_downloaded(image_id):
+            already_downloaded = self._is_downloaded(image_id)
+            if already_downloaded and not overwrite:
                 continue
             path = self._shard_path(image_id, index=idx)
             path.parent.mkdir(parents=True, exist_ok=True)
@@ -78,9 +71,11 @@ class ImageDownloader:
             safe_path = str(path).replace("'", "''")
             safe_url = str(url).replace("'", "''")
             safe_timestamp = timestamp.replace("'", "''")
+            if already_downloaded and overwrite:
+                # Update entry
+                self.con.raw_sql(f"DELETE FROM downloads WHERE image_id = '{safe_id}'")
             sql = f"INSERT INTO downloads VALUES ('{safe_id}', '{safe_path}', '{safe_timestamp}', '{safe_url}')"
             self.con.raw_sql(sql)
-        self.export_manifest()
 
     def download_from_manifest(
         self, manifest_df, id_column, url_column, overwrite=False
@@ -92,7 +87,8 @@ class ImageDownloader:
             )
         ):
             image_id = str(row[id_column])
-            if not overwrite and self._is_downloaded(image_id):
+            already_downloaded = self._is_downloaded(image_id)
+            if already_downloaded and not overwrite:
                 continue
             url = row.get(url_column)
             if not url:
@@ -103,13 +99,13 @@ class ImageDownloader:
             resp.raise_for_status()
             with open(path, "wb") as f:
                 shutil.copyfileobj(resp.raw, f)
-            # Interpolate values directly into SQL string
             timestamp = datetime.datetime.now(datetime.timezone.utc).isoformat()
-            # Escape single quotes in strings
             safe_id = str(image_id).replace("'", "''")
             safe_path = str(path).replace("'", "''")
             safe_url = str(url).replace("'", "''")
             safe_timestamp = timestamp.replace("'", "''")
+            if already_downloaded and overwrite:
+                # Update entry
+                self.con.raw_sql(f"DELETE FROM downloads WHERE image_id = '{safe_id}'")
             sql = f"INSERT INTO downloads VALUES ('{safe_id}', '{safe_path}', '{safe_timestamp}', '{safe_url}')"
             self.con.raw_sql(sql)
-        self.export_manifest()
