@@ -1,22 +1,34 @@
 import os
+import ibis
 import typer
 from pathlib import Path
-import pandas as pd
 from streetscapes.sources.downloader import ImageDownloader
-from streetscapes.sources.mapillary import Mapillary
-from streetscapes.sources.amsterdam import AmsterdamPanorama
+
 from streetscapes.workspace import Workspace
 
 
 download_images_cli = typer.Typer(help="Download images from a source using a manifest")
 
 
-def _load_manifest(manifest_path: Path):
-    return pd.read_parquet(manifest_path)
+def _load_manifest(p: Path | str, table="metadata"):
+    con = ibis.duckdb.connect(p)
+    return con.table(table).to_pandas()
+
+
+def _get_token(token: str | None = None):
+    token = token or os.getenv("MAPILLARY_TOKEN")
+    if token:
+        return token
+    if not token:
+        typer.echo(
+            "Error: Mapillary token not provided and MAPILLARY_TOKEN not set in .env.",
+            err=True,
+        )
+        raise typer.Exit(code=2)
 
 
 @download_images_cli.command("mapillary")
-def download_mapillary(
+def mapillary(
     manifest_path: Path = typer.Argument(
         None, help="Manifest file ((geo)parquet from fetch_metadata)"
     ),
@@ -30,14 +42,10 @@ def download_mapillary(
         None, help="Mapillary OAuth token (or set MAPILLARY_TOKEN env var)"
     ),
 ):
+    from streetscapes.sources.mapillary import Mapillary
+
     ws = Workspace.from_env() if output_dir is None else Workspace(Path(output_dir))
-    token = token or os.getenv("MAPILLARY_TOKEN")
-    if not token:
-        typer.echo(
-            "Error: Mapillary token not provided and MAPILLARY_TOKEN not set in .env.",
-            err=True,
-        )
-        raise typer.Exit(code=2)
+
     images_dir = ws.images
     manifest_dir = ws.manifests
 
@@ -59,17 +67,3 @@ def download_mapillary(
     manifest_db_path = manifest_dir / "download_manifest.duckdb"
     typer.echo("To preview your manifest, run:")
     typer.echo(f"streetscapes manifest head {manifest_db_path}")
-
-
-@download_images_cli.command("amsterdam")
-def download_amsterdam(
-    manifest_path: Path = typer.Argument(..., help="Manifest file (CSV or Parquet)"),
-    output_dir: Path = typer.Option("images", help="Directory to store images"),
-    overwrite: bool = typer.Option(False, help="Overwrite existing images"),
-):
-    df = _load_manifest(manifest_path)
-    image_ids = df["pano_id"].astype(str).tolist()
-    source = AmsterdamPanorama()
-    downloader = ImageDownloader(source, output_dir=output_dir)
-    downloader.download(image_ids, overwrite=overwrite)
-    typer.echo(f"Downloaded {len(image_ids)} Amsterdam Panorama images to {output_dir}")

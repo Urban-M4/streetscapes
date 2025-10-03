@@ -1,71 +1,16 @@
-from streetscapes.utils.logging import logger
-from pathlib import Path
-from typing import List
-from time import sleep
+# streetscapes/sources/mapillary.py
 import math
 import requests
+from time import sleep
 import pandas as pd
-import geopandas as gpd
-import duckdb
 from shapely.geometry import Point
-from shapely.wkb import dumps as wkb_dumps
-from rich.progress import track
 
 
-class DuckDBManifest:
-    """
-    Incremental cache for Mapillary metadata in DuckDB using spatial extension.
-    """
-
-    def __init__(self, path: Path):
-        self.path = path
-        self.con = duckdb.connect(str(path))
-
-        # Load spatial extension for GEOMETRY support
-        self.con.execute("INSTALL spatial;")
-        self.con.execute("LOAD spatial;")
-
-        self.first_batch = True
-        self.con.execute(
-            "CREATE TABLE IF NOT EXISTS processed_tiles (tile_id VARCHAR PRIMARY KEY)"
-        )
-
-    def get_processed_tiles(self) -> set:
-        return set(
-            row[0]
-            for row in self.con.execute(
-                "SELECT tile_id FROM processed_tiles"
-            ).fetchall()
-        )
-
-    def add_batch(self, gdf: gpd.GeoDataFrame, tile_id: str):
-        gdf = gdf.copy()
-        # Geometry is already parsed as shapely Point in GeoDataFrame
-        # Convert geometry to WKB BLOB (bytes)
-        gdf["geometry"] = gdf["geometry"].apply(
-            lambda geom: wkb_dumps(geom) if geom is not None else None
-        )
-
-        if self.first_batch:
-            self.con.register("gdf_view", gdf)
-            self.con.execute("""
-                CREATE TABLE IF NOT EXISTS metadata AS
-                SELECT * EXCLUDE geometry, ST_GeomFromWKB(geometry) AS geometry
-                FROM (SELECT * FROM gdf_view)
-            """)
-            self.first_batch = False
-        else:
-            self.con.register("gdf_view", gdf)
-            self.con.execute("""
-                INSERT INTO metadata
-                SELECT * EXCLUDE geometry, ST_GeomFromWKB(geometry) AS geometry
-                FROM gdf_view
-            """)
-
-        self.con.execute("INSERT OR IGNORE INTO processed_tiles VALUES (?)", [tile_id])
+Bbox = tuple[float, float, float, float]
+"""(west, south, east, north)"""
 
 
-class Mapillary:
+class MapillaryClient:
     BASE_URL = "https://graph.mapillary.com/images"
     DEFAULT_FIELDS = [
         "id",
@@ -85,11 +30,12 @@ class Mapillary:
         self.session = requests.Session()
         self.session.headers.update({"Authorization": f"OAuth {self.token}"})
 
-    def fetch_metadata_tile(self, tile: List[float]) -> List[dict]:
+    def fetch_metadata_tile(self, tile: Bbox, limit=1000):
+        """Fetch metadata for one bounding box tile."""
         params = {
             "bbox": ",".join(map(str, tile)),
             "fields": ",".join(self.DEFAULT_FIELDS),
-            "limit": 1000,
+            "limit": limit,
         }
         attempt = 0
         while attempt < self.retries:
@@ -97,23 +43,15 @@ class Mapillary:
                 res = self.session.get(self.BASE_URL, params=params, timeout=10)
                 res.raise_for_status()
                 return res.json().get("data", [])
-            except (requests.RequestException, ValueError) as e:
+            except (requests.RequestException, ValueError):
                 attempt += 1
-                logger.warning(f"Tile {tile} request failed (attempt {attempt}): {e}")
                 sleep(0.5 * attempt)
-        logger.error(f"Tile {tile} failed after {self.retries} attempts.")
         return []
 
-    @staticmethod
-    def _decimals_for_tile_size(tile_size: float) -> int:
-        return max(0, -int(math.floor(math.log10(tile_size))) + 1)
-
-    def iter_tiles(self, bbox: List[float], tile_size: float):
-        """
-        Generator yielding (tile_bbox, tile_id) for a bounding box.
-        """
+    def iter_tiles(self, bbox: Bbox, tile_size=0.01):
+        """Yield (tile_bbox, tile_id) for a bounding box."""
         west, south, east, north = bbox
-        precision = self._decimals_for_tile_size(tile_size)
+        precision = _decimals_for_tile_size(tile_size)
         lon_steps = int((east - west) / tile_size + 1)
         lat_steps = int((north - south) / tile_size + 1)
 
@@ -127,56 +65,51 @@ class Mapillary:
                 tile_id = "_".join(f"{v:.{precision}f}" for v in tile)
                 yield tile, tile_id
 
-    def fetch_metadata(
-        self,
-        bbox: List[float],
-        tile_size: float,
-        output_file: Path,
-    ) -> gpd.GeoDataFrame:
-        """
-        Fetch Mapillary metadata incrementally, exporting to a duckDB manifest file.
-        """
-        logger.info(
-            f"Preparing to fetch metadata for bbox={bbox}, tile_size={tile_size}, output_file={output_file}"
-        )
-        manifest = DuckDBManifest(output_file)
-        processed_tiles = manifest.get_processed_tiles()
+    def iter_metadata(self, bbox: Bbox, tile_size=0.01, limit=1000):
+        """Yield (tile_id, DataFrame) for each tile."""
 
-        for tile, tile_id in track(
-            self.iter_tiles(bbox, tile_size), description="Fetching Mapillary tiles..."
-        ):
-            if tile_id in processed_tiles:
-                logger.info(f"Tile {tile_id} already processed. Skipping.")
-                continue
+        for tile, tile_id in self.iter_tiles(bbox, tile_size):
+            records = self.fetch_metadata_tile(tile, limit)
 
-            records = self.fetch_metadata_tile(tile)
             if not records:
-                logger.warning(f"No records for tile {tile_id}.")
                 continue
 
-            # Convert records to GeoDataFrame using computed_geometry if present, else geometry, else None
-            df = pd.DataFrame(records)
+            df = _process_tile(records)
+            yield tile_id, df
 
-            def pick_geometry(row):
-                cg = row.get("computed_geometry")
-                if isinstance(cg, dict) and "coordinates" in cg:
-                    return Point(cg["coordinates"])
-                g = row.get("geometry")
-                if isinstance(g, dict) and "coordinates" in g:
-                    return Point(g["coordinates"])
-                return None
+    def fetch_metadata(self, bbox: Bbox, tile_size=0.01, limit=1000):
+        """Fetch all tiles and combine into a single dataframe."""
+        return pd.concat([df for _, df in self.iter_metadata(bbox, tile_size, limit)])
 
-            df["geometry"] = df.apply(pick_geometry, axis=1)
-            if df["geometry"].isnull().all():
-                logger.warning(
-                    f"All geometry values are null for tile {tile_id}. This may indicate an empty or invalid API response."
-                )
-                # TODO: sometimes I still get "geometry column does not contain geometry"
-            gdf = gpd.GeoDataFrame(
-                df.drop(columns=["computed_geometry"]),
-                geometry="geometry",
-                crs="EPSG:4326",
-            )
-            gdf["tile_id"] = tile_id
 
-            manifest.add_batch(gdf, tile_id)
+## Helpers
+def _decimals_for_tile_size(tile_size: float) -> int:
+    return max(0, -int(math.floor(math.log10(tile_size))) + 1)
+
+
+def _unpack_geometry(geometry):
+    """Extract geometry from mapillary metadata dict."""
+    if isinstance(geometry, dict) and "coordinates" in geometry:
+        return Point(geometry["coordinates"])
+
+    return None
+
+
+def _process_tile(records):
+    df = pd.DataFrame(records)
+
+    df["geometry"] = df["geometry"].apply(_unpack_geometry)
+    df["computed_geometry"] = df["computed_geometry"].apply(_unpack_geometry)
+
+    return df
+
+
+if __name__ == "__main__":
+    import os
+    from dotenv import load_dotenv
+    from streetscapes.sources.mapillary import MapillaryClient
+
+    load_dotenv()
+    token = os.getenv("MAPILLARY_TOKEN")
+    m = MapillaryClient(token)
+    df = m.fetch_metadata(bbox=[4.89, 52.37, 4.91, 52.38])

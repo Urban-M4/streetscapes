@@ -60,7 +60,7 @@ def _save_masks(masks, out_dir: str, filename: str):
 # Standalone models that can operate directly on a list of images
 # ---------------------------
 @segment_images_cli.command("sam")
-def segment_images_sam(images: list[str], out: str):
+def segment_images_sam(images: str, out: str):
     """Segment images with SAM."""
     images_list = _parse_image_input(images)
     model = SAM(checkpoint="sam_vit_h_4b8939.pth")
