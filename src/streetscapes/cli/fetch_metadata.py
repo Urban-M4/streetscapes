@@ -1,7 +1,6 @@
 import typer
+from streetscapes.utils.bbox import Bbox, split_bbox
 
-Bbox = tuple[float, float, float, float]
-"""(west, south, east, north)"""
 
 fetch_metadata_cli = typer.Typer(help="Fetch metadata for a source")
 
@@ -9,7 +8,7 @@ fetch_metadata_cli = typer.Typer(help="Fetch metadata for a source")
 @fetch_metadata_cli.command("mapillary")
 def fetch_metadata_mapillary(
     bbox: Bbox = typer.Option(..., help="Bounding box (west, south, east, north)"),
-    tile_size: float = typer.Option(0.01, help="Tile size in degrees"),
+    tile_size: float = typer.Option(0.001, help="Tile size in degrees"),
     limit: int = typer.Option(1000, help="Maximum number of images per tile"),
     token: str = typer.Option(None, help="Mapillary OAuth token."),
 ):
@@ -19,6 +18,8 @@ def fetch_metadata_mapillary(
     import ibis
     from rich import print
 
+    from rich.progress import track
+    from streetscapes.cli.console import console
     from streetscapes.sources.mapillary import MapillaryClient
 
     token = token or os.getenv("MAPILLARY_TOKEN")
@@ -32,7 +33,21 @@ def fetch_metadata_mapillary(
     db = ibis.duckdb.connect("streetscapes.duckdb")
     db.raw_sql("INSTALL spatial; LOAD spatial;")
 
-    for _, df in m.iter_metadata(bbox, tile_size, limit):
+    ntiles, tiles = split_bbox(bbox, tile_size)
+    for tile, tile_id in track(
+        tiles, description="Fetching Mapillary tiles", total=ntiles, console=console
+    ):
+        df = m.fetch_metadata_bbox(tile, limit)
+
+        # TODO: maybe this failsafe/optimization is not necessary?
+        if len(df) == 0:
+            continue
+
+        # TODO: consider re-implementing crash recovery by keeping track of
+        # which tiles have already been ingested? Could use a temporary
+        # table "processed_tiles", skip tiles from that table, and drop it
+        # when the CLI completes successfully.
+
         db.con.register("metadata_tile", df)
 
         if "mapillary_data" not in db.list_tables():
@@ -43,13 +58,15 @@ def fetch_metadata_mapillary(
                     ST_GeomFromText(geometry) AS geometry,
                     ST_GeomFromText(computed_geometry) AS computed_geometry
                 FROM metadata_tile;
-                       
+                    
                 ALTER TABLE mapillary_data
                 ADD PRIMARY KEY (id);
             """)
         else:
+            # TODO: consider adding duplicate behaviour (REPLACE or IGNORE) as
+            # CLI option
             db.raw_sql("""
-                INSERT INTO mapillary_data
+                INSERT OR REPLACE INTO mapillary_data
                 SELECT
                     * EXCLUDE (geometry, computed_geometry),
                     ST_GeomFromText(geometry) AS geometry,
@@ -60,3 +77,12 @@ def fetch_metadata_mapillary(
     # preview metadata table
     ibis.options.interactive = True
     print(db.table("mapillary_data"))
+
+
+# To check the table:
+# import ibis
+# ibis.options.interactive = True
+# db = ibis.duckdb.connect("streetscapes.duckdb")
+# tab = db.table('mapillary_data')
+# print(tab.count())
+# print(tab.nunique())

@@ -5,9 +5,7 @@ import ibis
 class Project:
     """
     A project manages persistence of imagery and analysis metadata
-    in a DuckDB database. It is source-agnostic: it does not know
-    about Mapillary, Kartaview, or other clients. It only provides
-    ingestion, table creation, and recovery tracking.
+    in a DuckDB database.
     """
 
     def __init__(self, path: Path, create: bool = True):
