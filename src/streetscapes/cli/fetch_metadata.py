@@ -22,6 +22,7 @@ def fetch_metadata_mapillary(
     from rich.progress import track
     from streetscapes.cli.console import console
     from streetscapes.sources.mapillary import MapillaryClient
+    from streetscapes.project import Project
 
     token = token or os.getenv("MAPILLARY_TOKEN")
     if not token:
@@ -31,8 +32,7 @@ def fetch_metadata_mapillary(
     logger.info(f"Fetching metadata for {bbox=}")
     m = MapillaryClient(token)
 
-    db = ibis.duckdb.connect("streetscapes.duckdb")
-    db.raw_sql("INSTALL spatial; LOAD spatial;")
+    project = Project()
 
     ntiles, tiles = split_bbox(bbox, tile_size)
     logger.info(f"Splitting bbox in {ntiles} tiles with {tile_size=}")
@@ -45,52 +45,13 @@ def fetch_metadata_mapillary(
         if len(df) == 0:
             continue
 
-        # TODO: consider re-implementing crash recovery by keeping track of
-        # which tiles have already been ingested? Could use a temporary
-        # table "processed_tiles", skip tiles from that table, and drop it
-        # when the CLI completes successfully.
-
-        db.con.register("metadata_tile", df)
-
-        if "mapillary_data" not in db.list_tables():
-            db.raw_sql("""
-                CREATE TABLE mapillary_data AS
-                SELECT
-                    * EXCLUDE (geometry, computed_geometry),
-                    ST_GeomFromText(geometry) AS geometry,
-                    ST_GeomFromText(computed_geometry) AS computed_geometry
-                FROM metadata_tile;
-                    
-                ALTER TABLE mapillary_data
-                ADD PRIMARY KEY (id);
-            """)
-        else:
-            # TODO: consider adding duplicate behaviour (REPLACE or IGNORE) as
-            # CLI option
-            db.raw_sql("""
-                INSERT OR REPLACE INTO mapillary_data
-                SELECT
-                    * EXCLUDE (geometry, computed_geometry),
-                    ST_GeomFromText(geometry) AS geometry,
-                    ST_GeomFromText(computed_geometry) AS computed_geometry
-                FROM metadata_tile
-            """)
+        project.ingest_mapillary(df)
 
     # Inform user about result
-    # Count images in bbox
-    from shapely.geometry import box
-
-    bbox_wkt = box(*bbox).wkt
-    envelope_expr = ibis.literal(bbox_wkt, type="geospatial:geometry")
-
-    tab = db.table("mapillary_data")
-    filtered = tab.filter(tab.geometry.within(envelope_expr))
-
     ibis.options.interactive = True
+    filtered = project.filter_bbox("mapillary", bbox)
     logger.info(f"Total images in bbox: {filtered.count().execute()}, first 5 rows:")
-    # Nice preview of table:
-    console.print(filtered.limit(5))
-
+    console.print(filtered.limit(5))  # console print gives nicer table than logger
     logger.info("Ready.")
 
 
@@ -101,3 +62,9 @@ def fetch_metadata_mapillary(
 # tab = db.table('mapillary_data')
 # print(tab.count())
 # print(tab.nunique())
+
+
+# TODO: consider re-implementing crash recovery by keeping track of
+# which tiles have already been ingested? Could use a temporary
+# table "processed_tiles", skip tiles from that table, and drop it
+# when the CLI completes successfully.

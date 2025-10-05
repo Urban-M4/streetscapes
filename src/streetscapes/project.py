@@ -1,92 +1,45 @@
-# streetscapes/project.py
-from pathlib import Path
-import ibis
-
 class Project:
-    """
-    A project manages persistence of imagery and analysis metadata
-    in a DuckDB database.
-    """
+    """Minimal project managing a DuckDB/Ibis connection."""
 
-    def __init__(self, path: Path, create: bool = True):
-        self.path = Path(path)
-        self.path.mkdir(parents=True, exist_ok=True)
-        self.db_path = self.path / "streetscapes.duckdb"
-        self.con = ibis.duckdb.connect(str(self.db_path))
-        if create:
-            self._init_db()
+    def __init__(self, db_path: str = "streetscapes.duckdb"):
+        import ibis
 
-    # ------------------------------------------------------------
-    # Core initialization
-    # ------------------------------------------------------------
-    def _init_db(self):
-        """Load spatial extension and create core tables."""
-        self.con.raw_sql("INSTALL spatial; LOAD spatial;")
-        # Images table: explicit schema
-        self.ensure_table_from_schema(
-            "images",
-            """
-            id TEXT PRIMARY KEY,
-            source TEXT,
-            path TEXT,
-            geometry GEOMETRY,
-            captured_at TIMESTAMP
-            """,
-        )
+        self.db = ibis.duckdb.connect(db_path)
+        self.db.raw_sql("INSTALL spatial; LOAD spatial;")
 
-    # ------------------------------------------------------------
-    # Table helpers
-    # ------------------------------------------------------------
-    def ensure_table_from_schema(self, table_name: str, schema: str):
-        """Ensure a table exists with an explicit SQL schema."""
-        try:
-            self.con.table(table_name)
-        except Exception:
-            self.con.raw_sql(f"CREATE TABLE {table_name} ({schema})")
+    def get_table(self, name: str):
+        """Return an ibis table reference."""
+        return self.db.table(name)
 
-    def ensure_table_from_dataframe(self, table_name: str, df):
-        """Ensure a table exists, creating it from the DataFrame schema."""
-        try:
-            self.con.table(table_name)
-        except Exception:
-            self.con.create_table(df, table_name=table_name)
+    def ingest_mapillary(self, df, table_name="mapillary"):
+        """Ingest a DataFrame of Mapillary metadata."""
+        self.db.con.register("metadata_tile", df)
+        if table_name not in self.db.list_tables():
+            self.db.raw_sql(f"""
+                CREATE TABLE {table_name} AS
+                SELECT
+                    * EXCLUDE (geometry, computed_geometry),
+                    ST_GeomFromText(geometry) AS geometry,
+                    ST_GeomFromText(computed_geometry) AS computed_geometry
+                FROM metadata_tile;
+                ALTER TABLE {table_name} ADD PRIMARY KEY (id);
+            """)
+        else:
+            # TODO: consider configurable duplicate behaviour (REPLACE or IGNORE)
+            self.db.raw_sql(f"""
+                INSERT OR REPLACE INTO {table_name}
+                SELECT
+                    * EXCLUDE (geometry, computed_geometry),
+                    ST_GeomFromText(geometry) AS geometry,
+                    ST_GeomFromText(computed_geometry) AS computed_geometry
+                FROM metadata_tile
+            """)
 
-    # ------------------------------------------------------------
-    # Processed tile tracking (for resumable ingestion)
-    # ------------------------------------------------------------
-    def get_processed_tiles(self, source: str) -> set[str]:
-        """Return set of processed tile IDs for this source."""
-        self.ensure_table_from_schema(
-            f"{source}_processed_tiles", "tile_id TEXT PRIMARY KEY"
-        )
-        rows = self.con.raw_sql(
-            f"SELECT tile_id FROM {source}_processed_tiles"
-        ).fetchall()
-        return {r[0] for r in rows}
+    def filter_bbox(self, table_name, bbox):
+        """Return an Ibis table expression filtered by a bounding box."""
+        import ibis
+        from shapely.geometry import box
 
-    def mark_tile_processed(self, source: str, tile_id: str):
-        """Mark a tile as processed (idempotent)."""
-        self.ensure_table_from_schema(
-            f"{source}_processed_tiles", "tile_id TEXT PRIMARY KEY"
-        )
-        self.con.raw_sql(
-            f"INSERT OR REPLACE INTO {source}_processed_tiles VALUES (?)", (tile_id,)
-        )
-
-    # ------------------------------------------------------------
-    # Ingestion
-    # ------------------------------------------------------------
-    def ingest_metadata_batch(self, source: str, df, tile_id: str, table: str):
-        """
-        Insert a metadata batch (DataFrame) into the given table,
-        and record that the tile_id has been processed.
-        """
-        if df.empty:
-            return
-        # Create table if missing (dynamic schema)
-        self.ensure_table_from_dataframe(table, df)
-        # Insert batch
-        self.con.create_table("batch_view", df, overwrite=True)
-        self.con.raw_sql(f"INSERT INTO {table} SELECT * FROM batch_view")
-        # Track tile
-        self.mark_tile_processed(source, tile_id)
+        table = self.get_table(table_name)
+        envelope_expr = ibis.literal(box(*bbox).wkt, type="geospatial:geometry")
+        return table.filter(table.geometry.within(envelope_expr))
