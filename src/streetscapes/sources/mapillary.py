@@ -13,8 +13,7 @@ Bbox = tuple[float, float, float, float]
 """west, south, easth, north."""
 
 class MapillaryClient:
-    """
-    Minimal client for fetching Mapillary image metadata via bounding boxes.
+    """Minimal client for fetching Mapillary image metadata via bounding boxes.
 
     Handles authentication, retries, and conversion of geometry fields to WKT
     strings suitable for use with GeoPandas or DuckDB.
@@ -50,7 +49,9 @@ class MapillaryClient:
         Fetch metadata for a bounding box and return as a pandas DataFrame.
     fetch_metadata_bbox_gpd(bbox: tuple[float, float, float, float], limit: int = 1000) -> gpd.GeoDataFrame
         Fetch metadata for a bounding box and return as a GeoDataFrame with CRS EPSG:4326.
+
     """
+
     BASE_URL = "https://graph.mapillary.com/images"
     DEFAULT_FIELDS = [
         "id",
@@ -92,8 +93,7 @@ class MapillaryClient:
         return []
 
     def fetch_metadata_bbox(self, bbox: Bbox, limit: int = 1000) -> pd.DataFrame:
-        """
-        Fetch metadata for a bounding box and convert to a pandas DataFrame.
+        """Fetch metadata for a bounding box and convert to a pandas DataFrame.
 
         Geometry columns are converted to WKT strings for downstream processing
         with GeoPandas or spatial databases like DuckDB.
@@ -115,6 +115,7 @@ class MapillaryClient:
         -------
         pd.DataFrame
             DataFrame with Mapillary metadata and WKT geometry columns.
+
         """
         records = self._fetch_bbox(bbox, limit)
 
@@ -138,8 +139,7 @@ class MapillaryClient:
     def fetch_metadata_bbox_gpd(
         self, bbox: Bbox, limit: int = 1000
     ) -> gpd.GeoDataFrame:
-        """
-        Fetch metadata for a bounding box and convert to a GeoDataFrame.
+        """Fetch metadata for a bounding box and convert to a GeoDataFrame.
 
         Geometry columns are parsed from WKT and the CRS is set to EPSG:4326.
 
@@ -160,6 +160,7 @@ class MapillaryClient:
         -------
         gpd.GeoDataFrame
             GeoDataFrame with Mapillary metadata and geometry columns.
+
         """
         df = self.fetch_metadata_bbox(bbox, limit)
 

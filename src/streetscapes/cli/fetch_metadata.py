@@ -7,7 +7,7 @@ fetch_metadata_cli = typer.Typer(help="Fetch metadata for a source")
 
 @fetch_metadata_cli.command("mapillary")
 def fetch_metadata_mapillary(
-    bbox: Bbox = typer.Option(..., help="Bounding box (west, south, east, north)"),
+    bbox: Bbox = typer.Option(..., help="Bounding box (west, south, east, north)"),  # noqa: B008
     tile_size: float = typer.Option(0.001, help="Tile size in degrees"),
     limit: int = typer.Option(1000, help="Maximum number of images per tile"),
     token: str = typer.Option(None, help="Mapillary OAuth token."),
