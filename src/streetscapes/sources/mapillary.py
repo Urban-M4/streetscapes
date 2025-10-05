@@ -1,10 +1,14 @@
 # streetscapes/sources/mapillary.py
+from itertools import product
 import math
-import requests
 from time import sleep
-import pandas as pd
-from shapely.geometry import Point
+from typing import Iterable
 
+import numpy as np
+import pandas as pd
+import requests
+import geopandas as gpd
+from shapely.geometry import Point
 
 Bbox = tuple[float, float, float, float]
 """(west, south, east, north)"""
@@ -48,22 +52,28 @@ class MapillaryClient:
                 sleep(0.5 * attempt)
         return []
 
-    def iter_tiles(self, bbox: Bbox, tile_size=0.01):
-        """Yield (tile_bbox, tile_id) for a bounding box."""
+    def iter_tiles(
+        self, bbox: Bbox, tile_size: float = 0.01
+    ) -> Iterable[tuple[Bbox, str]]:
+        """Yield (tile_bbox, tile_id) for a bounding box using numpy for edges."""
         west, south, east, north = bbox
-        precision = _decimals_for_tile_size(tile_size)
-        lon_steps = int((east - west) / tile_size + 1)
-        lat_steps = int((north - south) / tile_size + 1)
+        precision = max(0, -int(np.floor(np.log10(tile_size))) + 1)
 
-        for i in range(lon_steps):
-            for j in range(lat_steps):
-                w = round(west + i * tile_size, precision)
-                s = round(south + j * tile_size, precision)
-                e = round(min(w + tile_size, east), precision)
-                n = round(min(s + tile_size, north), precision)
-                tile = [w, s, e, n]
-                tile_id = "_".join(f"{v:.{precision}f}" for v in tile)
-                yield tile, tile_id
+        # Create longitude and latitude edges
+        lon_starts = np.arange(west, east, tile_size)[:-1]
+        lat_starts = np.arange(south, north, tile_size)[:-1]
+
+        for w, s in product(lon_starts, lat_starts):
+            e = w + tile_size
+            n = s + tile_size
+            tile = [
+                round(float(w), precision),
+                round(float(s), precision),
+                round(float(e), precision),
+                round(float(n), precision),
+            ]
+            tile_id = "_".join(f"{v:.{precision}f}" for v in tile)
+            yield tile, tile_id
 
     def iter_metadata(self, bbox: Bbox, tile_size=0.01, limit=1000):
         """Yield (tile_id, DataFrame) for each tile."""
@@ -78,8 +88,12 @@ class MapillaryClient:
             yield tile_id, df
 
     def fetch_metadata(self, bbox: Bbox, tile_size=0.01, limit=1000):
-        """Fetch all tiles and combine into a single dataframe."""
-        return pd.concat([df for _, df in self.iter_metadata(bbox, tile_size, limit)])
+        """Iterate over tiles and combine into a single dataframe."""
+        df = pd.concat([df for _, df in self.iter_metadata(bbox, tile_size, limit)])
+
+        # Convert to geopandas; use geometry as geometry
+        gdf = gpd.GeoDataFrame(df, geometry=gpd.GeoSeries.from_wkt(df["geometry"]))
+        return gdf.set_crs("EPSG:4326")
 
 
 ## Helpers
@@ -90,7 +104,8 @@ def _decimals_for_tile_size(tile_size: float) -> int:
 def _unpack_geometry(geometry):
     """Extract geometry from mapillary metadata dict."""
     if isinstance(geometry, dict) and "coordinates" in geometry:
-        return Point(geometry["coordinates"])
+        # Using WKT makes it easy to ingest in geopandas and in duckdb later
+        return Point(geometry["coordinates"]).wkt
 
     return None
 
@@ -106,10 +121,15 @@ def _process_tile(records):
 
 if __name__ == "__main__":
     import os
+
     from dotenv import load_dotenv
+
     from streetscapes.sources.mapillary import MapillaryClient
 
     load_dotenv()
     token = os.getenv("MAPILLARY_TOKEN")
     m = MapillaryClient(token)
-    df = m.fetch_metadata(bbox=[4.89, 52.37, 4.91, 52.38])
+    gdf = m.fetch_metadata(bbox=[4.89, 52.37, 4.91, 52.38])
+
+    # Note: this is more realistic (but much more requests / data):
+    # gdf = m.fetch_metadata(bbox=[4.89, 52.37, 4.91, 52.38], tile_size=0.001, limit=1000)

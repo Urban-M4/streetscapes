@@ -1,6 +1,3 @@
-import os
-
-from rich import print
 import typer
 
 Bbox = tuple[float, float, float, float]
@@ -17,6 +14,11 @@ def fetch_metadata_mapillary(
     token: str = typer.Option(None, help="Mapillary OAuth token."),
 ):
     """Fetch Mapillary metadata in tiles and store as DuckDB manifest."""
+    import os
+
+    import ibis
+    from rich import print
+
     from streetscapes.sources.mapillary import MapillaryClient
 
     token = token or os.getenv("MAPILLARY_TOKEN")
@@ -25,8 +27,36 @@ def fetch_metadata_mapillary(
         raise typer.Exit(code=1)
 
     print(f"Fetching Mapillary metadata for bbox={bbox}")
-
     m = MapillaryClient(token)
-    df = m.fetch_metadata(bbox=bbox, tile_size=tile_size, limit=limit)
 
-    print(df.head())
+    db = ibis.duckdb.connect("streetscapes.duckdb")
+    db.raw_sql("INSTALL spatial; LOAD spatial;")
+
+    for _, df in m.iter_metadata(bbox, tile_size, limit):
+        db.con.register("metadata_tile", df)
+
+        if "mapillary_data" not in db.list_tables():
+            db.raw_sql("""
+                CREATE TABLE mapillary_data AS
+                SELECT
+                    * EXCLUDE (geometry, computed_geometry),
+                    ST_GeomFromText(geometry) AS geometry,
+                    ST_GeomFromText(computed_geometry) AS computed_geometry
+                FROM metadata_tile;
+                       
+                ALTER TABLE mapillary_data
+                ADD PRIMARY KEY (id);
+            """)
+        else:
+            db.raw_sql("""
+                INSERT INTO mapillary_data
+                SELECT
+                    * EXCLUDE (geometry, computed_geometry),
+                    ST_GeomFromText(geometry) AS geometry,
+                    ST_GeomFromText(computed_geometry) AS computed_geometry
+                FROM metadata_tile
+            """)
+
+    # preview metadata table
+    ibis.options.interactive = True
+    print(db.table("mapillary_data"))
