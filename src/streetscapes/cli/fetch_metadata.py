@@ -1,6 +1,8 @@
 import typer
 from streetscapes.utils.bbox import Bbox, split_bbox
+import logging
 
+logger = logging.getLogger(__name__)
 
 fetch_metadata_cli = typer.Typer(help="Fetch metadata for a source")
 
@@ -16,7 +18,6 @@ def fetch_metadata_mapillary(
     import os
 
     import ibis
-    from rich import print
 
     from rich.progress import track
     from streetscapes.cli.console import console
@@ -24,18 +25,19 @@ def fetch_metadata_mapillary(
 
     token = token or os.getenv("MAPILLARY_TOKEN")
     if not token:
-        print("Error: token not provided and MAPILLARY_TOKEN not set in .env.")
+        logger.error("Error: token not provided and MAPILLARY_TOKEN not set in .env.")
         raise typer.Exit(code=1)
 
-    print(f"Fetching Mapillary metadata for bbox={bbox}")
+    logger.info(f"Fetching metadata for {bbox=}")
     m = MapillaryClient(token)
 
     db = ibis.duckdb.connect("streetscapes.duckdb")
     db.raw_sql("INSTALL spatial; LOAD spatial;")
 
     ntiles, tiles = split_bbox(bbox, tile_size)
+    logger.info(f"Splitting bbox in {ntiles} tiles with {tile_size=}")
     for tile, tile_id in track(
-        tiles, description="Fetching Mapillary tiles", total=ntiles, console=console
+        tiles, description="Fetching tiles", total=ntiles, console=console
     ):
         df = m.fetch_metadata_bbox(tile, limit)
 
@@ -74,9 +76,22 @@ def fetch_metadata_mapillary(
                 FROM metadata_tile
             """)
 
-    # preview metadata table
+    # Inform user about result
+    # Count images in bbox
+    from shapely.geometry import box
+
+    bbox_wkt = box(*bbox).wkt
+    envelope_expr = ibis.literal(bbox_wkt, type="geospatial:geometry")
+
+    tab = db.table("mapillary_data")
+    filtered = tab.filter(tab.geometry.within(envelope_expr))
+
     ibis.options.interactive = True
-    print(db.table("mapillary_data"))
+    logger.info(f"Total images in bbox: {filtered.count().execute()}, first 5 rows:")
+    # Nice preview of table:
+    console.print(filtered.limit(5))
+
+    logger.info("Ready.")
 
 
 # To check the table:

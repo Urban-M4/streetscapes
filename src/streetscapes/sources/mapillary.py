@@ -86,7 +86,7 @@ class MapillaryClient:
                 return res.json().get("data", [])
             except (requests.RequestException, ValueError):
                 sleep_time = 0.5 * (attempt + 1)
-                logger.info(f"Request failed - retrying in {sleep_time}")
+                logger.info(f"Request failed for {bbox=} - retrying in {sleep_time}")
                 sleep(sleep_time)
 
         logger.warning(f"Failed to retrieve metadata for bbounding box: {bbox}")
