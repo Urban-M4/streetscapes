@@ -7,10 +7,7 @@ jobs:
 
   test:
     runs-on: ubuntu-latest
-    
-    env:
-      NO_COLOR: 1  # <-- disables ANSI globally
-    
+
     strategy:
       matrix:
         python-version: ["3.12"]
