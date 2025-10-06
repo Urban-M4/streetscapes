@@ -8,15 +8,22 @@ from streetscapes.cli.main import app
 runner = CliRunner()
 
 
-def strip_ansi(text: str) -> str:
-    ansi_escape = re.compile(r"\x1b\[[0-9;]*m")
-    return ansi_escape.sub("", text)
-
-
 def run_cli(cmd: str):
     """Run a CLI command string as if typed in the shell."""
     args = shlex.split(cmd)[1:]  # skip the script name if included
     return runner.invoke(app, args)
+
+
+def strip_ansi(text: str) -> str:
+    """Strip ansi color codes from string.
+
+    This helps to resolve some weird CI issues where e.g. --bbox was
+    interspersed with ANSI codes and therefore tests looking for the literal
+    text failed.
+    """
+    ansi_escape = re.compile(r"\x1b\[[0-9;]*m")
+    return ansi_escape.sub("", text)
+
 
 
 class TestCLIHelp:
