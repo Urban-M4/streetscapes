@@ -7,6 +7,7 @@
 class GroundingDINO:
     pass
 
+
 # class GroundingDINO:
 #     def __init__(self, config_path: str, weights_path: str):
 #         self.model = load_model(config_path, weights_path)

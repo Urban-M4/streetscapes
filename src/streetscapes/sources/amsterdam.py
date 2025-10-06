@@ -15,8 +15,7 @@ class AmsterdamPanorama(ImageSourceBase):
         self,
         root_dir: str | Path | None = None,
     ):
-        """
-        An interface for downloading and manipulating
+        """An interface for downloading and manipulating
         street view images from the Amsterdam repository.
 
         Args:
@@ -24,8 +23,8 @@ class AmsterdamPanorama(ImageSourceBase):
                 An optional custom root directory. Defaults to
                 DATA_HOME/sources/amsterdampanorama, where DATA_HOME is read from the
                 environment variables. Defaults to None.
-        """
 
+        """
         super().__init__(
             root_dir=root_dir,
             url="https://api.data.amsterdam.nl/panorama/panoramas/",

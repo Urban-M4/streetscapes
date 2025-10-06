@@ -1,11 +1,11 @@
 import os
+from pathlib import Path
+
 import ibis
 import typer
-from pathlib import Path
-from streetscapes.sources.downloader import ImageDownloader
-
 from streetscapes.workspace import Workspace
 
+from streetscapes.sources.downloader import ImageDownloader
 
 download_images_cli = typer.Typer(help="Download images from a source using a manifest")
 

@@ -5,16 +5,15 @@ from __future__ import annotations
 import os
 
 # --------------------------------------
-from abc import ABC
-from abc import abstractmethod
+from abc import ABC, abstractmethod
 
 # --------------------------------------
 from pathlib import Path
 
 # --------------------------------------
 import PIL
-from PIL import Image
 import PIL.ImageFile
+from PIL import Image
 
 PIL.ImageFile.LOAD_TRUNCATED_IMAGES = True
 
@@ -25,17 +24,14 @@ import itertools
 import ibis
 
 # --------------------------------------
-from tqdm import tqdm
-
-# --------------------------------------
 import numpy as np
 
 # --------------------------------------
-import awkward as ak
+from tqdm import tqdm
 
 # --------------------------------------
+# --------------------------------------
 from streetscapes import utils
-from streetscapes.streetview import SVSegmentation
 
 PathLike = Path | str | list[Path | str]
 
@@ -51,12 +47,12 @@ class ModelBase(ABC):
         self,
         device: str = None,
     ):
-        """
-        A model serving as the base for all segmentation models.
+        """A model serving as the base for all segmentation models.
 
         Args:
             device:
                 Device to use for processign. Defaults to None.
+
         """
         import torch
 
@@ -77,21 +73,21 @@ class ModelBase(ABC):
 
     @abstractmethod
     def _from_pretrained(self, *args, **kwargs):
-        """
-        Load a pretrained model.
+        """Load a pretrained model.
 
-        NOTE
+        Note:
         This method that should be overriden in derived classes.
+
         """
         pass
 
     @abstractmethod
     def _segment_images(self, *args, **kwargs):
-        """
-        Segments a list of images and looks for the requested labels.
+        """Segments a list of images and looks for the requested labels.
 
-        NOTE
+        Note:
         This method that should be overriden in derived classes.
+
         """
         pass
 
@@ -99,14 +95,13 @@ class ModelBase(ABC):
         self,
         segmentation: dict,
     ):
-        """
-        Save an image segmentation mask and the corresponding instances.
+        """Save an image segmentation mask and the corresponding instances.
 
         Args:
             segmentation:
                 A dictionary containing image segmentation information.
-        """
 
+        """
         # Masks and instances are saved in separate directories for each model,
         # so it's useful to have the model name handy.
         model_name = self.name.lower()
@@ -137,8 +132,7 @@ class ModelBase(ABC):
         self,
         labels: dict,
     ) -> dict:
-        """
-        Flatten a nested dictionary of labels.
+        """Flatten a nested dictionary of labels.
 
         Useful for defining masks in terms of more general labels
         that can be subtracted.
@@ -169,14 +163,14 @@ class ModelBase(ABC):
             A flattened category tree where each key is a
             category and the corresponding value is a list of
             masks that should be subtracted from it.
+
         """
 
         def _flatten(
             tree: dict,
             _subtree: dict = None,
         ) -> dict:
-            """
-            An internal function that performs the actual flattening.
+            """An internal function that performs the actual flattening.
 
             Args:
                 tree:
@@ -190,6 +184,7 @@ class ModelBase(ABC):
 
             Returns:
                 The flattened dictionary.
+
             """
             if _subtree is None:
                 _subtree = {}
@@ -215,8 +210,7 @@ class ModelBase(ABC):
         self,
         images: PathLike,
     ) -> tuple[list[Path], list[np.ndarray]]:
-        """
-        A list of images or paths to image files.
+        """A list of images or paths to image files.
 
         Args:
             images:
@@ -226,8 +220,8 @@ class ModelBase(ABC):
             A tuple containing:
                 1. The paths to the images.
                 2. The images as NumPy arrays.
-        """
 
+        """
         if isinstance(images, (str, Path)):
             # Ensure that we have an iterable.
             images = [images]
@@ -241,8 +235,7 @@ class ModelBase(ABC):
         self,
         path: Path | str,
     ) -> tuple[list[Path], list[np.ndarray]]:
-        """
-        A list of images or paths to image files.
+        """A list of images or paths to image files.
 
         Args:
             path:
@@ -252,8 +245,8 @@ class ModelBase(ABC):
             A tuple containing:
                 1. The ID of the image.
                 2. The images as a NumPy array.
-        """
 
+        """
         return int(path.stem), np.array(Image.open(path))
 
     def segment(
@@ -262,8 +255,7 @@ class ModelBase(ABC):
         labels: dict,
         batch_size: int = 10,
     ) -> ibis.Table:
-        """
-        Retrieve the paths of local images from a dataset.
+        """Retrieve the paths of local images from a dataset.
 
         Args:
             paths:
@@ -281,8 +273,8 @@ class ModelBase(ABC):
 
         Returns:
             A table of information about the segmentations.
-        """
 
+        """
         # Segment the images and save the results
         # ==================================================
         segmentations = []
@@ -298,7 +290,7 @@ class ModelBase(ABC):
             total += 1
 
         # Segment the images and extract the metadata
-        pbar = tqdm(total=total, desc=f"Segmenting images...")
+        pbar = tqdm(total=total, desc="Segmenting images...")
         for path_batch in itertools.batched(list(paths), batch_size):
             segmentations = self._segment_images(path_batch, labels)
             [self._save_segmentation(seg) for seg in segmentations]

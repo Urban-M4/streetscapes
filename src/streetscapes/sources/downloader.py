@@ -1,7 +1,8 @@
+import datetime
 import hashlib
 import shutil
 from pathlib import Path
-import datetime
+
 from rich.progress import track
 
 
@@ -10,6 +11,7 @@ class ImageDownloader:
         self, source, manifest_dir: Path, images_dir: Path, shard_size: int = 1000
     ):
         import ibis
+
         self.source = source
         self.shard_size = shard_size
         self.images_dir = images_dir

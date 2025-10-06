@@ -1,19 +1,17 @@
 # --------------------------------------
+# --------------------------------------
+import typing as tp
+
 import numpy as np
 
 # --------------------------------------
 import skimage as ski
 
 # --------------------------------------
-import typing as tp
-
-# --------------------------------------
-from streetscapes.models.base import PathLike
-from streetscapes.models.base import ModelBase
+from streetscapes.models.base import ModelBase, PathLike
 
 
 class DinoSAM(ModelBase):
-
     def __init__(
         self,
         sam_model_id: str = "facebook/sam2.1-hiera-large",
@@ -23,8 +21,7 @@ class DinoSAM(ModelBase):
         *args,
         **kwargs,
     ):
-        """
-        A model combining SAM2 and GroundingDINO for promptable instance segmentation.
+        """A model combining SAM2 and GroundingDINO for promptable instance segmentation.
         Inspired by [LangSAM](https://github.com/luca-medeiros/lang-segment-anything) and [SamGeo](https://samgeo.gishub.org/samgeo/).
 
         Args:
@@ -49,6 +46,7 @@ class DinoSAM(ModelBase):
                 This parameter is also used for influencing the selectivity of the model
                 by requiring a stronger association between the prompt and the segment.
                 Defaults to 0.3.
+
         """
         import sam2
         import transformers as tform
@@ -66,19 +64,15 @@ class DinoSAM(ModelBase):
         # Processors and models
         # ==================================================
         self.sam_model: sam2.sam2_image_predictor.SAM2ImagePredictor = None
-        self.sam_mask_generator: (
-            sam2.automatic_mask_generator.SAM2AutomaticMaskGenerator
-        ) = None
+        self.sam_mask_generator: sam2.automatic_mask_generator.SAM2AutomaticMaskGenerator = None
         self.dino_processor: tform.AutoProcessor = None
         self.dino_model: tform.AutoModelForZeroShotObjectDetection = None
         self._from_pretrained()
 
     def _from_pretrained(self):
-        """
-        Convenience method for loading processors and models.
-        """
-        from sam2.sam2_image_predictor import SAM2ImagePredictor
+        """Convenience method for loading processors and models."""
         import transformers as tform
+        from sam2.sam2_image_predictor import SAM2ImagePredictor
 
         # SAM2 model.
         # ==================================================
@@ -100,8 +94,7 @@ class DinoSAM(ModelBase):
         image: np.ndarray,
         instance_masks: dict,
     ) -> dict[str, tp.Any]:
-        """
-        Merge separate instance masks.
+        """Merge separate instance masks.
 
         Args:
             image:
@@ -112,8 +105,8 @@ class DinoSAM(ModelBase):
 
         Returns:
             A dictionary of merged masks.
-        """
 
+        """
         # A global mask.
         # All instances will be accessible via this mask.
         global_masks = np.zeros(image.shape[:2], dtype=np.uint32)
@@ -130,7 +123,6 @@ class DinoSAM(ModelBase):
         for label, instances in instance_masks.items():
             merged_mask = np.zeros_like(global_masks, dtype=bool)
             for instance in instances:
-
                 # Merge the instance
                 merged_mask |= instance > 0
 
@@ -155,8 +147,7 @@ class DinoSAM(ModelBase):
         image: np.ndarray,
         bboxes: np.ndarray,
     ) -> np.ndarray:
-        """
-        Segment a single image.
+        """Segment a single image.
 
         Args:
             image:
@@ -168,6 +159,7 @@ class DinoSAM(ModelBase):
         Returns:
             np.ndarray:
                 A mask.
+
         """
         self.sam_model.set_image(image)
         masks, _, _ = self.sam_model.predict(box=bboxes, multimask_output=False)
@@ -180,8 +172,7 @@ class DinoSAM(ModelBase):
         images: list[np.ndarray],
         bboxes: list[np.ndarray],
     ) -> list[np.ndarray]:
-        """
-        Segment a batch of images.
+        """Segment a batch of images.
 
         Args:
             images:
@@ -193,6 +184,7 @@ class DinoSAM(ModelBase):
         Returns:
             list[np.ndarray]:
                 A list of masks.
+
         """
         self.sam_model.set_image_batch(images)
 
@@ -210,8 +202,7 @@ class DinoSAM(ModelBase):
         images: PathLike,
         labels: dict,
     ) -> list[dict]:
-        """
-        Segment the provided sequence of images.
+        """Segment the provided sequence of images.
 
         Args:
             images:
@@ -225,6 +216,7 @@ class DinoSAM(ModelBase):
 
         Returns:
             A list of dictionaries containing instance-level segmentation information.
+
         """
         import torch
 
@@ -242,7 +234,6 @@ class DinoSAM(ModelBase):
         segmentations = []
 
         for idx, image in enumerate(image_list):
-
             # Dictionary that will hold all the information about the segmentation
             segmentation = {"image_path": image_paths[idx]}
 
@@ -289,7 +280,9 @@ class DinoSAM(ModelBase):
 
             # A new dictionary of instances for this image
             instances = {}
-            for instance_label, sam_mask in zip(instance_labels, sam_masks):
+            for instance_label, sam_mask in zip(
+                instance_labels, sam_masks, strict=False
+            ):
                 instance_id = len(instance_masks) + 1
                 instances[instance_id] = instance_label
                 instances_by_label.setdefault(instance_label, []).append(instance_id)

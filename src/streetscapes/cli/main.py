@@ -1,12 +1,13 @@
 import typer
 from dotenv import load_dotenv
 
-from .read_manifest import manifest_cli
 from .fetch_metadata import fetch_metadata_cli
 from .finetune_model import finetune_model_cli
-from .segment_images import segment_images_cli
+
 # from .download_images import download_images_cli
 from .identify_buildings import identify_buildings_cli
+from .read_manifest import manifest_cli
+from .segment_images import segment_images_cli
 
 load_dotenv()
 

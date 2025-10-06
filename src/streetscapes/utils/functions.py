@@ -2,12 +2,13 @@ import os
 import re
 from pathlib import Path
 
-import numpy as np
-from dotenv import load_dotenv
-import seedir as sd
-from IPython import get_ipython
-import skimage as ski
 import geopandas as gpd
+import numpy as np
+import seedir as sd
+import skimage as ski
+from dotenv import load_dotenv
+from IPython import get_ipython
+
 
 def is_notebook() -> bool:
     """Determine if the caller is running in a Jupyter notebook.
@@ -17,6 +18,7 @@ def is_notebook() -> bool:
     Returns:
         bool:
             True if running in a notebook.
+
     """
     try:
         shell = get_ipython().__class__.__name__
@@ -36,8 +38,7 @@ def is_notebook() -> bool:
 
 
 def ensure_dir(path: Path | str) -> Path:
-    """
-    Resolve and expand a directory path and
+    """Resolve and expand a directory path and
     create the directory if it doesn't exist.
 
     Args:
@@ -46,6 +47,7 @@ def ensure_dir(path: Path | str) -> Path:
 
     Returns:
         The (potentially newly created) expanded path.
+
     """
     path = Path(path).expanduser().resolve().absolute()
     path.mkdir(exist_ok=True, parents=True)
@@ -53,8 +55,7 @@ def ensure_dir(path: Path | str) -> Path:
 
 
 def hide_home(dir: Path) -> str:
-    """
-    A very simple function that replaces the home directory
+    """A very simple function that replaces the home directory
     with a tilde.
 
     Useful for printing the home directory in notebooks without
@@ -66,19 +67,20 @@ def hide_home(dir: Path) -> str:
 
     Returns:
         The directory with a tilde (~) instead of the user's home directory.
+
     """
     return str(dir).replace(str(Path.home()), "~")
 
 
 def show_dir_tree(dir: Path) -> str | None:
-    """
-    Create and return a tree-like representation of a directory.
+    """Create and return a tree-like representation of a directory.
 
     TODO: Limit the depth, etc. Perhaps use **kwargs to pass options to `seedir.`
 
     Returns:
         The directory structure with the subdirectories and
         files that they contain.
+
     """
     return sd.seedir(
         dir,
@@ -92,8 +94,7 @@ def filter_files(
     path: Path | str,
     pattern: str,
 ):
-    """
-    Filter files in a directory based on a pattern.
+    """Filter files in a directory based on a pattern.
 
     Args:
         path:
@@ -108,8 +109,8 @@ def filter_files(
 
     Returns:
         The filtered file paths.
-    """
 
+    """
     if not (path := Path(path)).exists():
         return set()
 
@@ -127,8 +128,7 @@ def make_path(
     root: Path | None = None,
     suffix: str | None = None,
 ):
-    """
-    Construct a path (a file or a directory)
+    """Construct a path (a file or a directory)
     with optional modifications.
 
     Args:
@@ -144,8 +144,8 @@ def make_path(
 
     Returns:
         The resolved path.
-    """
 
+    """
     # Ensure that we have a Path object
     path = Path(path)
 
@@ -164,8 +164,7 @@ def as_rgb(
     image: np.ndarray,
     greyscale: bool = False,
 ) -> np.ndarray:
-    """
-    Convert an image into an RGB version.
+    """Convert an image into an RGB version.
 
     Args:
         image:
@@ -177,8 +176,8 @@ def as_rgb(
 
     Returns:
         The RGB image.
-    """
 
+    """
     if len(image.shape) == 2:
         # The image is already greyscale.
         # Just convert it to RGB.
@@ -200,8 +199,7 @@ def as_rgb(
 
 
 def as_hsv(image: np.ndarray) -> np.ndarray:
-    """
-    Convert an RGB image into HSV format
+    """Convert an RGB image into HSV format
 
     Args:
         image:
@@ -209,8 +207,8 @@ def as_hsv(image: np.ndarray) -> np.ndarray:
 
     Returns:
         The HSV image.
-    """
 
+    """
     return ski.color.rgb2hsv(as_rgb(image))
 
 
@@ -218,8 +216,7 @@ def make_colourmap(
     labels: dict | list | tuple,
     cmap: str = "jet",
 ) -> dict:
-    """
-    Create a dictionary of colours (used for visualising instances).
+    """Create a dictionary of colours (used for visualising instances).
 
     Args:
         labels:
@@ -231,6 +228,7 @@ def make_colourmap(
     Returns:
         dict:
             Dictionary of class/colour associations.
+
     """
     import matplotlib.pyplot as plt
 
@@ -239,15 +237,14 @@ def make_colourmap(
 
     cmap = plt.get_cmap(cmap, len(labels))
     cmap = cmap(np.linspace(0.0, 1.0, cmap.N))[:, :3]
-    return {label: colour for label, colour in zip(sorted(labels), cmap)}
+    return {label: colour for label, colour in zip(sorted(labels), cmap, strict=False)}
 
 
 def open_image(
     path: Path,
     as_grey: bool = False,
 ) -> np.ndarray:
-    """
-    Open an image as a NumPy array.
+    """Open an image as a NumPy array.
 
     Args:
         path:
@@ -257,14 +254,13 @@ def open_image(
 
     Returns:
         A NumPy array containing the image.
-    """
 
+    """
     return ski.io.imread(path, as_grey)
 
 
 def camel2snake(string: str) -> str:
-    """
-    Convert a CamelCase string into a snake_case version.
+    """Convert a CamelCase string into a snake_case version.
 
     Args:
         string:
@@ -272,8 +268,8 @@ def camel2snake(string: str) -> str:
 
     Returns:
         The output snake_case string.
-    """
 
+    """
     # Replace each character with an underscore and its lowercase version:
     return "".join(
         [f"_{x.lower()}" if x.isupper() else x for x in string]
@@ -295,8 +291,7 @@ def get_env(key: str):
 
 
 def plot_metadata(gdf: gpd.GeoDataFrame, ax=None):
-    """
-    Plot the metadata from a GeoDataFrame.
+    """Plot the metadata from a GeoDataFrame.
 
     Args:
         gdf:
@@ -306,6 +301,7 @@ def plot_metadata(gdf: gpd.GeoDataFrame, ax=None):
 
     Returns:
         The axes with the plotted metadata.
+
     """
     import contextily as ctx
 
@@ -325,11 +321,12 @@ def show_image(id: str, source: str):
     Args:
         id: The image ID.
         source: The source of the image (e.g., 'mapillary').
+
     """
     from pathlib import Path
 
-    from PIL import Image
     import matplotlib.pyplot as plt
+    from PIL import Image
 
     image_dir = Path(get_env("DATA_HOME")) / "sources" / source / "images"
     image_path = image_dir / f"{id}.jpeg"

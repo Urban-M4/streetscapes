@@ -1,13 +1,17 @@
 import shlex
+
 from typer.testing import CliRunner
+
 from streetscapes.cli.main import app
 
 runner = CliRunner()
+
 
 def run_cli(cmd: str):
     """Run a CLI command string as if typed in the shell."""
     args = shlex.split(cmd)[1:]  # skip the script name if included
     return runner.invoke(app, args)
+
 
 class TestCLIHelp:
     """Test the basic structure and help messages of the CLI."""

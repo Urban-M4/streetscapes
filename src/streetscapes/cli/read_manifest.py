@@ -1,9 +1,9 @@
-import typer
-import ibis
 from pathlib import Path
 
-from rich.table import Table
+import ibis
+import typer
 from rich import print
+from rich.table import Table
 
 manifest_cli = typer.Typer(help="Preview DuckDB manifest table.")
 

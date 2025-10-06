@@ -1,9 +1,11 @@
-import typer
 import logging
+
+import typer
 
 logger = logging.getLogger(__name__)
 
 fetch_metadata_cli = typer.Typer(help="Fetch metadata for a source")
+
 
 def _get_mapillary_client(token):
     """Handle lazy import of MapillaryClient."""
@@ -30,8 +32,8 @@ def fetch_metadata_mapillary(
     import os
 
     import ibis
-
     from rich.progress import track
+
     from streetscapes.cli.console import console
     from streetscapes.project import Project
     from streetscapes.utils.bbox import split_bbox

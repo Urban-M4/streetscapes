@@ -1,16 +1,17 @@
 # streetscapes/sources/mapillary.py
-from time import sleep
 import logging
+from time import sleep
 
+import geopandas as gpd
 import pandas as pd
 import requests
-import geopandas as gpd
 from shapely.geometry import Point
 
 logger = logging.getLogger(__name__)
 
 Bbox = tuple[float, float, float, float]
 """west, south, easth, north."""
+
 
 class MapillaryClient:
     """Minimal client for fetching Mapillary image metadata via bounding boxes.

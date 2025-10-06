@@ -1,4 +1,3 @@
-import numpy as np
 from streetscapes.utils.bbox import split_bbox
 
 

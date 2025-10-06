@@ -1,7 +1,6 @@
 import numpy as np
-from typing import Any
-from transformers import CLIPSegForImageSegmentation, CLIPSegProcessor
 from PIL import Image
+from transformers import CLIPSegForImageSegmentation, CLIPSegProcessor
 
 
 class CLIPSeg:
