@@ -1,24 +1,29 @@
+import shlex
 from typer.testing import CliRunner
 from streetscapes.cli.main import app
 
 runner = CliRunner()
 
+def run_cli(cmd: str):
+    """Run a CLI command string as if typed in the shell."""
+    args = shlex.split(cmd)[1:]  # skip the script name if included
+    return runner.invoke(app, args)
 
 class TestCLIHelp:
     """Test the basic structure and help messages of the CLI."""
 
     def test_main_help(self):
-        result = runner.invoke(app, ["--help"])
+        result = run_cli("streetscapes --help")
         assert result.exit_code == 0
         assert "fetch_metadata" in result.output
 
     def test_fetch_metadata_help(self):
-        result = runner.invoke(app, ["fetch_metadata", "--help"])
+        result = run_cli("streetscapes fetch_metadata --help")
         assert result.exit_code == 0
         assert "mapillary" in result.output
 
     def test_fetch_metadata_mapillary_help(self):
-        result = runner.invoke(app, ["fetch_metadata", "mapillary", "--help"])
+        result = run_cli("streetscapes fetch_metadata mapillary --help")
         assert result.exit_code == 0
         assert "--bbox" in result.output
         assert "--tile-size" in result.output
@@ -32,22 +37,12 @@ def test_cli_fetch_metadata_mapillary(fake_mapillary_client, monkeypatch, tmp_pa
         lambda token: fake_mapillary_client,
     )
 
-    result = runner.invoke(
-        app,
-        [
-            "fetch_metadata",
-            "mapillary",
-            "--bbox",
-            "4.89",
-            "52.37",
-            "4.91",
-            "52.38",
-            "--tile-size",
-            "0.01",
-            "--project",
-            f"{tmp_path / 'test_project.duckdb'}",
-        ],
-    )
+    result = run_cli(f"""
+    streetscapes fetch_metadata mapillary \
+    --bbox 4.89 52.37 4.91 52.38 \
+    --tile-size 0.01 \
+    --project {tmp_path / "test_project.duckdb"}
+    """)
 
     assert result.exit_code == 0
     assert "Fetching tiles" in result.output
