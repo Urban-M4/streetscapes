@@ -36,13 +36,6 @@ class MapillaryClient:
         # Or fetch directly as GeoDataFrame
         gdf = client.fetch_metadata_bbox_gpd(bbox)
 
-    Parameters
-    ----------
-    token : str
-        Mapillary OAuth token.
-    retries : int, optional
-        Number of request retries on failure (default is 3).
-
     Methods
     -------
     fetch_metadata_bbox(bbox: tuple[float, float, float, float], limit: int = 1000) -> pd.DataFrame
@@ -66,6 +59,16 @@ class MapillaryClient:
     ]
 
     def __init__(self, token: str, retries: int = 3):
+        """Instantiate the client.
+
+        Parameters
+        ----------
+        token : str
+            Mapillary OAuth token.
+        retries : int, optional
+            Number of request retries on failure (default is 3).
+
+        """
         self.session = requests.Session()
         self.session.headers.update({"Authorization": f"OAuth {token}"})
         self.retries = retries

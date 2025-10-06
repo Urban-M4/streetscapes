@@ -1,0 +1,53 @@
+from typer.testing import CliRunner
+from streetscapes.cli.main import app
+
+runner = CliRunner()
+
+
+class TestCLIHelp:
+    """Test the basic structure and help messages of the CLI."""
+
+    def test_main_help(self):
+        result = runner.invoke(app, ["--help"])
+        assert result.exit_code == 0
+        assert "fetch_metadata" in result.output
+
+    def test_fetch_metadata_help(self):
+        result = runner.invoke(app, ["fetch_metadata", "--help"])
+        assert result.exit_code == 0
+        assert "mapillary" in result.output
+
+    def test_fetch_metadata_mapillary_help(self):
+        result = runner.invoke(app, ["fetch_metadata", "mapillary", "--help"])
+        assert result.exit_code == 0
+        assert "--bbox" in result.output
+        assert "--tile-size" in result.output
+        assert "--limit" in result.output
+
+
+def test_cli_fetch_metadata_mapillary(fake_mapillary_client, monkeypatch, tmp_path):
+    # Replace the real MapillaryClient with the fake one
+    monkeypatch.setattr(
+        "streetscapes.cli.fetch_metadata._get_mapillary_client",
+        lambda token: fake_mapillary_client,
+    )
+
+    result = runner.invoke(
+        app,
+        [
+            "fetch_metadata",
+            "mapillary",
+            "--bbox",
+            "4.89",
+            "52.37",
+            "4.91",
+            "52.38",
+            "--tile-size",
+            "0.01",
+            "--project",
+            f"{tmp_path / 'test_project.duckdb'}",
+        ],
+    )
+
+    assert result.exit_code == 0
+    assert "Fetching tiles" in result.output

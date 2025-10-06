@@ -15,9 +15,16 @@ def split_bbox(
     west, south, east, north = bbox
     precision = max(0, -int(np.floor(np.log10(tile_size))) + 1)
 
+    # Snap bbox to tile raster
+    west_snapped = np.floor(west / tile_size) * tile_size
+    south_snapped = np.floor(south / tile_size) * tile_size
+    east_snapped = np.ceil(east / tile_size) * tile_size
+    north_snapped = np.ceil(north / tile_size) * tile_size
+
     # Create longitude and latitude edges
-    lon_starts = np.arange(west, east, tile_size)[:-1]
-    lat_starts = np.arange(south, north, tile_size)[:-1]
+    lon_starts = np.arange(west_snapped, east_snapped + tile_size, tile_size)[:-1]
+    lat_starts = np.arange(south_snapped, north_snapped + tile_size, tile_size)[:-1]
+
     total = len(lon_starts) * len(lat_starts)
 
     def iter_tiles():
