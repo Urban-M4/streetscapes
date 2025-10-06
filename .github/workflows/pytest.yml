@@ -23,5 +23,5 @@ jobs:
           enable-cache: true
 
       - name: Test with python ${{ matrix.python-version }}
-        run: uv run pytest
+        run: uv run pytest -v
         # TODO: add --frozen but requires lockfile in env

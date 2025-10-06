@@ -4,7 +4,7 @@ from typer.testing import CliRunner
 
 from streetscapes.cli.main import app
 
-runner = CliRunner(echo_stdin=True)
+runner = CliRunner()
 
 
 def run_cli(cmd: str):
@@ -46,6 +46,7 @@ def test_cli_fetch_metadata_mapillary(fake_mapillary_client, monkeypatch, tmp_pa
     --bbox 4.89 52.37 4.91 52.38 \
     --tile-size 0.01 \
     --project {tmp_path / "test_project.duckdb"}
+    --token fake_token
     """)
 
     assert result.exit_code == 0

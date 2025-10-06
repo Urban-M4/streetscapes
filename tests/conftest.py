@@ -1,15 +1,6 @@
 import pytest
-from rich.console import Console
 
 from streetscapes.sources.mapillary import MapillaryClient
-
-
-@pytest.fixture(autouse=True)
-def no_color_console(monkeypatch):
-    """Patch the CLI console to disable colors in tests."""
-    plain_console = Console(force_terminal=False, color_system=None)
-    monkeypatch.setattr("streetscapes.cli.console.console", plain_console)
-    return plain_console
 
 
 @pytest.fixture
