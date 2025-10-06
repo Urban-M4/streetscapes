@@ -22,9 +22,4 @@ jobs:
       - name: Run Ruff
         id: ruff
         run: |
-          ruff check . --exit-zero --format github
-
-      - name: Post Ruff annotations
-        uses: github/codeql-action/upload-sarif@v3
-        with:
-          sarif_file: ./ruff.sarif
+          ruff check src --exit-zero --output-format github
