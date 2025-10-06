@@ -68,6 +68,7 @@ dev = [
     "mkdocstrings[python]",
     "mkdocs-material",
     "mkdocs-jupyter",
+    "pytest",
 ]
 
 [tool.ruff]
