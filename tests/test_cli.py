@@ -10,7 +10,7 @@ runner = CliRunner()
 def run_cli(cmd: str):
     """Run a CLI command string as if typed in the shell."""
     args = shlex.split(cmd)[1:]  # skip the script name if included
-    return runner.invoke(app, args)
+    return runner.invoke(app, args, env={"NO_COLOR": "1"})
 
 
 class TestCLIHelp:
@@ -29,7 +29,7 @@ class TestCLIHelp:
     def test_fetch_metadata_mapillary_help(self):
         result = run_cli("streetscapes fetch_metadata mapillary --help")
         assert result.exit_code == 0
-        # assert "--bbox" in result.output
+        assert "--bbox" in result.output
         assert "--tile-size" in result.output
         assert "--limit" in result.output
 
