@@ -34,7 +34,7 @@ def fetch_metadata_mapillary(
     import ibis
     from rich.progress import track
 
-    from streetscapes.cli.console import console
+    # from streetscapes.cli.console import console
     from streetscapes.project import Project
     from streetscapes.utils.bbox import split_bbox
 
@@ -50,9 +50,7 @@ def fetch_metadata_mapillary(
 
     ntiles, tiles = split_bbox(bbox, tile_size)
     logger.info(f"Splitting bbox in {ntiles} tiles with {tile_size=}")
-    for tile, tile_id in track(
-        tiles, description="Fetching tiles", total=ntiles, console=console
-    ):
+    for tile, tile_id in track(tiles, description="Fetching tiles", total=ntiles):
         df = m.fetch_metadata_bbox(tile, limit)
 
         # TODO: maybe this failsafe/optimization is not necessary?
@@ -65,7 +63,7 @@ def fetch_metadata_mapillary(
     ibis.options.interactive = True
     filtered = project.filter_bbox("mapillary", bbox)
     logger.info(f"Total images in bbox: {filtered.count().execute()}, first 5 rows:")
-    console.print(filtered.limit(5))  # console print gives nicer table than logger
+    print(filtered.limit(5))  # console print gives nicer table than logger
     logger.info("Ready.")
 
 
