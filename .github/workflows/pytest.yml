@@ -22,6 +22,9 @@ jobs:
           python-version: ${{ matrix.python-version }}
           enable-cache: true
 
-      - name: Test with python ${{ matrix.python-version }}
+      - name: Install the project
+        run: uv sync --locked --all-extras --dev
+
+      - name: Run tests
         run: uv run pytest -v
-        # TODO: add --frozen but requires lockfile in env
+
