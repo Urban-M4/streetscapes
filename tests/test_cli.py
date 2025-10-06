@@ -16,9 +16,7 @@ def strip_ansi(text: str) -> str:
 def run_cli(cmd: str):
     """Run a CLI command string as if typed in the shell."""
     args = shlex.split(cmd)[1:]  # skip the script name if included
-    result = runner.invoke(app, args)
-    result.output = strip_ansi(result.output)
-    return
+    return runner.invoke(app, args)
 
 
 class TestCLIHelp:
@@ -27,19 +25,19 @@ class TestCLIHelp:
     def test_main_help(self):
         result = run_cli("streetscapes --help")
         assert result.exit_code == 0
-        assert "fetch_metadata" in result.output
+        assert "fetch_metadata" in strip_ansi(result.output)
 
     def test_fetch_metadata_help(self):
         result = run_cli("streetscapes fetch_metadata --help")
         assert result.exit_code == 0
-        assert "mapillary" in result.output
+        assert "mapillary" in strip_ansi(result.output)
 
     def test_fetch_metadata_mapillary_help(self):
         result = run_cli("streetscapes fetch_metadata mapillary --help")
         assert result.exit_code == 0
-        assert "--bbox" in result.output
-        assert "--tile-size" in result.output
-        assert "--limit" in result.output
+        assert "--bbox" in strip_ansi(result.output)
+        assert "--tile-size" in strip_ansi(result.output)
+        assert "--limit" in strip_ansi(result.output)
 
 
 def test_cli_fetch_metadata_mapillary(fake_mapillary_client, monkeypatch, tmp_path):
@@ -58,4 +56,4 @@ def test_cli_fetch_metadata_mapillary(fake_mapillary_client, monkeypatch, tmp_pa
     """)
 
     assert result.exit_code == 0
-    assert "Fetching tiles" in result.output
+    assert "Fetching tiles" in strip_ansi(result.output)
