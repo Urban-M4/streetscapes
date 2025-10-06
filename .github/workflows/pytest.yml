@@ -25,6 +25,9 @@ jobs:
       - name: Install the project
         run: uv sync --locked --all-extras --dev
 
+      - name: document env
+        run: uv pip freeze
+
       - name: Run tests
         run: uv run pytest -v
 
