@@ -10,7 +10,7 @@ runner = CliRunner(echo_stdin=True)
 def run_cli(cmd: str):
     """Run a CLI command string as if typed in the shell."""
     args = shlex.split(cmd)[1:]  # skip the script name if included
-    return runner.invoke(app, args, env={"RICH_FORCE_COLOR": "0"})
+    return runner.invoke(app, args)
 
 
 class TestCLIHelp:
