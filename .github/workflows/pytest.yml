@@ -4,24 +4,23 @@ on:
   pull_request
 
 jobs:
-  tests:
-    runs-on: ubuntu-latest
 
+  test:
+    runs-on: ubuntu-latest
+    
     strategy:
       matrix:
-        python-version: [3.12]
-
+        python-version: ["3.12"]
+    
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v3
-
-      - name: Set up Python
-        uses: actions/setup-python@v4
+        uses: actions/checkout@v5
+    
+      - name: Setup uv with cache and python version
+        uses: astral-sh/setup-uv@v6
         with:
-          python-version: 3.12
+          python-version: ${{ matrix.python-version }}
+          enable-cache: true
 
-      - name: Install uv
-        run: pip install uv
-
-      - name: Run tests
-        run: uv run pytest -v --maxfail=1 --disable-warnings
+      - name: Test with python ${{ matrix.python-version }}
+        run: uv run --frozen pytest
