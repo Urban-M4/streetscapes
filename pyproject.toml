@@ -59,8 +59,15 @@ license = { file = "LICENCE.md" }
 [project.scripts]
 streetscapes = "streetscapes.cli.main:app"
 
-[project.optional-dependencies]
+[tool.ruff]
+lint.select = ["F", "E", "TYP", "B", "D", "C", "Q", "I"]
+
+[tool.ruff.lint.per-file-ignores]
+"tests/*.py" = ["D"]
+
+[dependency-groups]
 dev = [
+    "pytest>=8.4.2",
     "ruff",
     "py-spy",
     "mike",
@@ -68,11 +75,4 @@ dev = [
     "mkdocstrings[python]",
     "mkdocs-material",
     "mkdocs-jupyter",
-    "pytest",
 ]
-
-[tool.ruff]
-lint.select = ["F", "E", "TYP", "B", "D", "C", "Q", "I"]
-
-[tool.ruff.lint.per-file-ignores]
-"tests/*.py" = ["D"]
