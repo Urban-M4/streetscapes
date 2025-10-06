@@ -1,0 +1,30 @@
+name: Lint with Ruff
+
+on:
+  pull_request
+
+jobs:
+  lint:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v3
+
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: 3.12
+
+      - name: Install Ruff
+        run: pip install ruff
+
+      - name: Run Ruff
+        id: ruff
+        run: |
+          ruff check . --exit-zero --format github
+
+      - name: Post Ruff annotations
+        uses: github/codeql-action/upload-sarif@v3
+        with:
+          sarif_file: ./ruff.sarif
