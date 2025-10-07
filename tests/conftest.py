@@ -1,6 +1,25 @@
+import pandas as pd
 import pytest
 
 from streetscapes.sources.mapillary import MapillaryClient
+
+
+@pytest.fixture
+def fake_mapillary_data():
+    return pd.DataFrame(
+        [
+            {
+                "id": "1",
+                "geometry": "POINT(4.89 52.37)",
+                "computed_geometry": "POINT(4.89 52.37)",
+            },
+            {
+                "id": "2",
+                "geometry": "POINT(4.91 52.39)",
+                "computed_geometry": "POINT(4.91 52.39)",
+            },
+        ]
+    )
 
 
 @pytest.fixture

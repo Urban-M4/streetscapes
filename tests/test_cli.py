@@ -1,9 +1,11 @@
 import re
 import shlex
 
+import pandas as pd
 from typer.testing import CliRunner
 
 from streetscapes.cli.main import app
+from streetscapes.project import Project
 
 runner = CliRunner()
 
@@ -46,21 +48,68 @@ class TestCLIHelp:
         assert "--tile-size" in strip_ansi(result.output)
         assert "--limit" in strip_ansi(result.output)
 
+    def test_export_help(self):
+        result = run_cli("streetscapes export --help")
+        assert result.exit_code == 0
+        assert "table" in strip_ansi(result.output)
 
-def test_cli_fetch_metadata_mapillary(fake_mapillary_client, monkeypatch, tmp_path):
-    # Replace the real MapillaryClient with the fake one
+    def test_export_table_help(self):
+        result = run_cli("streetscapes export table --help")
+        assert result.exit_code == 0
+        assert "table_name" in strip_ansi(result.output)
+        assert "output" in strip_ansi(result.output)
+        assert "--project" in strip_ansi(result.output)
+
+
+def test_fetch_and_export_integration(fake_mapillary_client, monkeypatch, tmp_path):
+    # -----------------------
+    # 1. Fetch Mapillary metadata via CLI
+    # -----------------------
     monkeypatch.setattr(
         "streetscapes.cli.fetch_metadata._get_mapillary_client",
         lambda token: fake_mapillary_client,
     )
 
-    result = run_cli(f"""
+    project_file = tmp_path / "test_project.duckdb"
+
+    fetch_cmd = f"""
     streetscapes fetch_metadata mapillary \
     --bbox 4.89 52.37 4.91 52.38 \
     --tile-size 0.01 \
-    --project {tmp_path / "test_project.duckdb"}
+    --project {project_file} \
     --token fake_token
-    """)
-
+    """
+    result = run_cli(fetch_cmd)
     assert result.exit_code == 0
     assert "Fetching tiles" in strip_ansi(result.output)
+
+    # -----------------------
+    # 2. Export to CSV
+    # -----------------------
+    csv_file = tmp_path / "mapillary.csv"
+    export_csv_cmd = (
+        f"streetscapes export table mapillary {csv_file} --project {project_file}"
+    )
+    result_csv = run_cli(export_csv_cmd)
+    assert result_csv.exit_code == 0
+    assert csv_file.exists()
+    assert csv_file.stat().st_size > 0
+
+    # -----------------------
+    # 3. Export to Parquet
+    # -----------------------
+    parquet_file = tmp_path / "mapillary.parquet"
+    export_parquet_cmd = (
+        f"streetscapes export table mapillary {parquet_file} --project {project_file}"
+    )
+    result_parquet = run_cli(export_parquet_cmd)
+    assert result_parquet.exit_code == 0
+    assert parquet_file.exists()
+
+    # Optionally, read back Parquet to verify content
+    project = Project(db_path=str(project_file))
+    df_out = pd.read_parquet(parquet_file)
+    table_expr = project.get_table("mapillary")
+    count = table_expr.count().execute()
+    assert len(df_out) == count
+    assert "geometry" in df_out.columns
