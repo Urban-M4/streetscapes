@@ -20,9 +20,8 @@ class Project:
             self.db.raw_sql(f"""
                 CREATE TABLE {table_name} AS
                 SELECT
-                    * EXCLUDE (geometry, computed_geometry),
+                    * EXCLUDE (geometry),
                     ST_GeomFromText(geometry) AS geometry,
-                    ST_GeomFromText(computed_geometry) AS computed_geometry
                 FROM metadata_tile;
                 ALTER TABLE {table_name} ADD PRIMARY KEY (id);
             """)
@@ -31,9 +30,8 @@ class Project:
             self.db.raw_sql(f"""
                 INSERT OR REPLACE INTO {table_name}
                 SELECT
-                    * EXCLUDE (geometry, computed_geometry),
+                    * EXCLUDE (geometry),
                     ST_GeomFromText(geometry) AS geometry,
-                    ST_GeomFromText(computed_geometry) AS computed_geometry
                 FROM metadata_tile
             """)
 
