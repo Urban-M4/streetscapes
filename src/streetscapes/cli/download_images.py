@@ -1,69 +1,101 @@
+import logging
 import os
 from pathlib import Path
 
-import ibis
+import pygeohash
 import typer
-from streetscapes.workspace import Workspace
+from rich.progress import track
+from shapely import from_wkb
 
-from streetscapes.sources.downloader import ImageDownloader
-
-download_images_cli = typer.Typer(help="Download images from a source using a manifest")
-
-
-def _load_manifest(p: Path | str, table="metadata"):
-    con = ibis.duckdb.connect(p)
-    return con.table(table).to_pandas()
+logger = logging.getLogger(__name__)
 
 
-def _get_token(token: str | None = None):
+download_images_cli = typer.Typer(name="download_images")
+
+
+def _get_mapillary_client(token=None):
+    """Handle lazy import of MapillaryClient."""
+    from streetscapes.sources.mapillary import MapillaryClient
+
     token = token or os.getenv("MAPILLARY_TOKEN")
-    if token:
-        return token
     if not token:
-        typer.echo(
-            "Error: Mapillary token not provided and MAPILLARY_TOKEN not set in .env.",
-            err=True,
-        )
-        raise typer.Exit(code=2)
+        logger.error("Error: token not provided and MAPILLARY_TOKEN not set in .env.")
+        raise typer.Exit(code=1)
+
+    return MapillaryClient(token)
 
 
 @download_images_cli.command("mapillary")
-def mapillary(
-    manifest_path: Path = typer.Argument(
-        None, help="Manifest file ((geo)parquet from fetch_metadata)"
+def download_mapillary(
+    skip_existing: bool = typer.Option(
+        True, help="If true, only download missing images, otherwise overwrite."
     ),
-    output_dir: Path = typer.Option(
-        None,
-        help="Base output directory (default: STREETSCAPES_OUTPUT_DIR from env or ./streetscapes_output)",
-    ),
-    overwrite: bool = typer.Option(False, help="Overwrite existing images"),
-    limit: int = typer.Option(None, help="Limit number of images to download"),
     token: str = typer.Option(
-        None, help="Mapillary OAuth token (or set MAPILLARY_TOKEN env var)"
+        None, help="Mapillary OAuth token (if not set via MAPILLARY_TOKEN)."
     ),
 ):
-    from streetscapes.sources.mapillary import Mapillary
+    """Download Mapillary images to a local directory."""
+    from streetscapes import config
+    from streetscapes.project import Project
 
-    ws = Workspace.from_env() if output_dir is None else Workspace(Path(output_dir))
+    project = Project(config.get("active_project"))
+    records = project.get_mapillary_download_records(skip_existing)
 
-    images_dir = ws.images
-    manifest_dir = ws.manifests
+    if not records:
+        typer.echo("No new images to download.")
+        raise typer.Exit()
 
-    # Use default manifest path if not provided
-    if manifest_path is None:
-        manifest_path = manifest_dir / "fetch_metadata_mapillary.parquet"
+    mapillary = _get_mapillary_client(token)
+    data_home = Path(config.get("data_home"))
 
-    df = _load_manifest(manifest_path)
-    if limit is not None:
-        df = df.head(limit)
-    source = Mapillary(token)
-    downloader = ImageDownloader(
-        source, manifest_dir=manifest_dir, images_dir=images_dir
-    )
-    downloader.download_from_manifest(
-        df, id_column="id", url_column="thumb_2048_url", overwrite=overwrite
-    )
-    typer.echo(f"Downloaded {len(df)} Mapillary images to {images_dir}")
-    manifest_db_path = manifest_dir / "download_manifest.duckdb"
-    typer.echo("To preview your manifest, run:")
-    typer.echo(f"streetscapes manifest head {manifest_db_path}")
+    batch = []
+    for image_id, url, geometry in track(records, "Downloading images..."):
+        # Determine path
+        shard = _get_geohash_shard_path(geometry)
+        path = data_home / "images" / "mapillary" / shard / f"{image_id}.jpg"
+
+        # Download image
+        mapillary.download_image(url, path)
+
+        # Add metadata to batch
+        batch.append(
+            {"id": image_id, "source": "mapillary", "path": path, "geometry": geometry}
+        )
+
+        # Insert batch into database
+        if len(batch) >= 5:
+            project.ingest_local_images(batch)
+            batch.clear()
+
+    # Insert remaining records into database
+    if batch:
+        project.ingest_local_images(batch)
+
+
+def _get_geohash_shard_path(geometry):
+    """Get nested geo-hash path for given location.
+
+    # Geo-hash precision from
+    # https://python-bloggers.com/2024/02/geohashing-from-scratch-in-python/
+    # Precision          Dimension
+    #         1: 5,000km x 5,000km
+    #         2:   1,250km x 625km
+    #         3:     156km x 156km
+    #         4:   31.9km x 19.5km
+    #         5:   4.89km x 4.89km
+    #         6:   1.22km x 0.61km
+    #         7:       153m x 153m
+    #         8:     38.2m x 19.1m
+    #         9:     4.77m x 4.77m
+    #        10:    1.19m x 0.596m
+    #        11:     149mm x 149mm
+    #        12:   37.2mm x 18.6mm
+    #
+    # Each level of precision subdivides the previous level into 32 subtiles
+    # Shard path of precision 6, split in three parts ab/cd/ef
+    # results in 3 nested folders, each with up to 1024 (32^2) subfolders
+
+    """
+    geom = from_wkb(geometry)
+    geohash = pygeohash.encode(geom.y, geom.x, precision=6)  # 1.22 km x 0.61 km
+    return Path(geohash[:2]) / geohash[2:4] / geohash[4:6]

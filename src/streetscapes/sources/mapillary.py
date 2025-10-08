@@ -1,5 +1,6 @@
 # streetscapes/sources/mapillary.py
 import logging
+from pathlib import Path
 from time import sleep
 
 import geopandas as gpd
@@ -47,16 +48,37 @@ class MapillaryClient:
     """
 
     BASE_URL = "https://graph.mapillary.com/images"
+    # https://www.mapillary.com/developer/api-documentation#image
     DEFAULT_FIELDS = [
-        "id",
-        "geometry",
-        "captured_at",
-        "sequence",
-        "thumb_2048_url",
         "altitude",
+        "atomic_scale",
+        "camera_type",
+        "captured_at",
         "compass_angle",
         "computed_altitude",
+        "computed_compass_angle",
         "computed_geometry",
+        "computed_rotation",
+        "creator",
+        "exif_orientation",
+        "geometry",
+        "height",
+        "id",
+        "is_pano",
+        "make",
+        "model",
+        "sequence",
+        "sequence",
+        "thumb_1024_url",
+        "thumb_2048_url",
+        "thumb_256_url",
+        "thumb_original_url",
+        "width",
+        # "camera_parameters",
+        # "detections",
+        # "merge_cc",
+        # "mesh",
+        # "sfm_cluster",
     ]
 
     def __init__(self, token: str, retries: int = 3):
@@ -73,6 +95,23 @@ class MapillaryClient:
         self.session = requests.Session()
         self.session.headers.update({"Authorization": f"OAuth {token}"})
         self.retries = retries
+
+    # NOTE: could make this "fetch_metadata_id" to be similar to bbox retrieval
+    def fetch_image_url(self, image_id: str) -> str:
+        """Fetch image URL from the Mapillary API by image ID."""
+        endpoint = f"https://graph.mapillary.com/{image_id}?fields=thumb_2048_url"
+        response = self.session.get(endpoint)
+        response.raise_for_status()
+        return response.json().get("thumb_2048_url")
+
+    def download_image(self, url: str, output_path: Path) -> Path:
+        """Download image from a URL to output_path."""
+        output_path.parent.mkdir(parents=True, exist_ok=True)
+
+        response = self.session.get(url)
+        response.raise_for_status()
+        with open(output_path, "wb") as f:
+            f.write(response.content)
 
     def _fetch_bbox(self, bbox: Bbox, limit: int = 1000) -> list[dict]:
         """Perform the raw API request to Mapillary for a single bounding box tile."""

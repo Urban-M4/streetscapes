@@ -45,7 +45,7 @@ def test_project_export_requires_geometry(tmp_path, fake_mapillary_data):
     project = Project(db_path=str(db_path))
 
     project.ingest_mapillary(fake_mapillary_data)
-    project.db.raw_sql("ALTER TABLE mapillary DROP geometry")
+    project.con.raw_sql("ALTER TABLE mapillary DROP geometry")
 
     # GeoPackage
     with pytest.raises(ValueError, match="requires a 'geometry'"):
