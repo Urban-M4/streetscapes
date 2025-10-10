@@ -66,6 +66,9 @@ lint.select = ["F", "E", "TYP", "B", "D", "C", "Q", "I"]
 [tool.ruff.lint.per-file-ignores]
 "tests/*.py" = ["D"]
 
+[tool.ruff.lint.pydocstyle]
+convention = "google"
+
 [dependency-groups]
 dev = [
     "pytest>=8.4.2",
