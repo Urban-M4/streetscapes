@@ -7,8 +7,9 @@ import typer
 from rich.progress import track
 from shapely import from_wkb
 
-logger = logging.getLogger(__name__)
+from streetscapes.cli.console import console
 
+logger = logging.getLogger(__name__)
 
 download_images_cli = typer.Typer(name="download_images")
 
@@ -38,7 +39,15 @@ def download_mapillary(
     from streetscapes import config
     from streetscapes.project import Project
 
-    project = Project(config.get("active_project"))
+    project_name = config.get("active_project")
+    data_home = Path(config.get("data_home"))
+
+    # TODO: perhaps move this to context in main cli?
+    console.rule("Streetscapes")
+    console.print(f"Active project: {project_name}")
+    console.print(f"Data home: {data_home}")
+
+    project = Project(project_name)
     records = project.get_mapillary_download_records(skip_existing)
 
     if not records:
@@ -46,16 +55,21 @@ def download_mapillary(
         raise typer.Exit()
 
     mapillary = _get_mapillary_client(token)
-    data_home = Path(config.get("data_home"))
+    base_path = data_home / "images" / "mapillary"
+
+    total = len(records)
+    console.print(f"Downloading {total} image(s) to {base_path}.")
 
     batch = []
+    downloaded = 0
     for image_id, url, geometry in track(records, "Downloading images..."):
         # Determine path
         shard = _get_geohash_shard_path(geometry)
-        path = data_home / "images" / "mapillary" / shard / f"{image_id}.jpg"
+        path = base_path / shard / f"{image_id}.jpg"
 
         # Download image
         mapillary.download_image(url, path)
+        downloaded += 1
 
         # Add metadata to batch
         batch.append(
@@ -70,6 +84,10 @@ def download_mapillary(
     # Insert remaining records into database
     if batch:
         project.ingest_local_images(batch)
+
+    console.print(
+        f"Download complete: {downloaded}/{total} images saved under {base_path}."
+    )
 
 
 def _get_geohash_shard_path(geometry):
