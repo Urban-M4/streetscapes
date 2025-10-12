@@ -6,7 +6,7 @@ from streetscapes.sources.mapillary import MapillaryClient
 
 
 @pytest.fixture(autouse=True)
-def patch_data_home(tmp_path, monkeypatch):
+def test_config(tmp_path, monkeypatch):
     """Patch config.get('data_home') to point to a temporary path for all tests."""
     patched_config = {
         "data_home": str(tmp_path),

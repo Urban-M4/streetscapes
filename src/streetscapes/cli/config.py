@@ -4,7 +4,7 @@ import typer
 from rich.table import Table
 
 from streetscapes import config
-from streetscapes.cli import console
+from streetscapes.cli.console import console
 
 config_cli = typer.Typer(name="config")
 

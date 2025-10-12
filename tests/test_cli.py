@@ -67,7 +67,14 @@ class TestCLIHelp:
         assert "output" in strip_ansi(result.output)
 
 
-def test_fetch_and_export_integration(fake_mapillary_client, monkeypatch, tmp_path):
+def test_fetch_and_export_integration(fake_mapillary_client, tmp_path):
+    # -----------------------
+    # Print test config
+    # -----------------------
+    result_cfg = run_cli("streetscapes config get active_project")
+    assert result_cfg.exit_code == 0
+    assert "test_streetscapes" in result_cfg.output
+
     # -----------------------
     # Fetch Mapillary metadata via CLI
     # -----------------------
