@@ -3,9 +3,9 @@ import pytest
 
 from streetscapes.project import Project
 
-def test_ingest_and_filter_bbox(tmp_path, fake_mapillary_data):
-    db_path = tmp_path / "test.duckdb"
-    project = Project(db_path=str(db_path))
+
+def test_ingest_and_filter_bbox(fake_mapillary_data):
+    project = Project("test_project")
 
     project.ingest_mapillary(fake_mapillary_data)
 
@@ -18,8 +18,7 @@ def test_ingest_and_filter_bbox(tmp_path, fake_mapillary_data):
 
 def test_export_csv_parquet(tmp_path, fake_mapillary_data):
     """Test that the Project can export CSV and Parquet from a table."""
-    db_path = tmp_path / "project.duckdb"
-    project = Project(db_path=str(db_path))
+    project = Project("test_project")
 
     project.ingest_mapillary(fake_mapillary_data)
 
@@ -41,8 +40,7 @@ def test_export_csv_parquet(tmp_path, fake_mapillary_data):
 
 def test_project_export_requires_geometry(tmp_path, fake_mapillary_data):
     """Test that exporting geospatial formats raises if geometry is missing."""
-    db_path = tmp_path / "project.duckdb"
-    project = Project(db_path=str(db_path))
+    project = Project("test_project")
 
     project.ingest_mapillary(fake_mapillary_data)
     project.con.raw_sql("ALTER TABLE mapillary DROP geometry")

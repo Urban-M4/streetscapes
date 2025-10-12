@@ -1,13 +1,28 @@
+from pathlib import Path
+
 import ibis
 from shapely.geometry import box
+
+from streetscapes import config
 
 
 class Project:
     """Minimal project managing a DuckDB/Ibis connection."""
 
     def __init__(self, name: str = "streetscapes"):
-        self.con = ibis.duckdb.connect(f"{name}.duckdb")
+        # TODO: also read name from config? But keep option to overwrite?
+        self.name = name
+        self.data_home = Path(config.get("data_home"))
+
+        database_path = self.data_home / "projects" / f"{name}.duckdb"
+        database_path.parent.mkdir(parents=True, exist_ok=True)
+        self.con = ibis.duckdb.connect(database_path)
         self.con.raw_sql("INSTALL spatial; LOAD spatial;")
+
+    def image_dir(self, source: str | None = None):
+        if source is None:
+            return self.data_home / "images"
+        return self.data_home / "images" / source
 
     def get_table(self, name: str):
         """Return an ibis table reference."""

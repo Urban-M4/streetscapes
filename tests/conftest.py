@@ -1,7 +1,22 @@
 import pandas as pd
 import pytest
 
+from streetscapes import config
 from streetscapes.sources.mapillary import MapillaryClient
+
+
+@pytest.fixture(autouse=True)
+def patch_data_home(tmp_path, monkeypatch):
+    """Patch config.get('data_home') to point to a temporary path for all tests."""
+    patched_config = {
+        "data_home": str(tmp_path),
+        "active_project": "test_streetscapes",
+    }
+    monkeypatch.setattr(
+        config,
+        "get",
+        patched_config.get,
+    )
 
 
 @pytest.fixture
@@ -21,14 +36,12 @@ def fake_mapillary_data():
         ]
     )
 
-
 @pytest.fixture
 def fake_mapillary_client(monkeypatch):
-    """A mock MapillaryClient that avoids real network calls."""
+    """Patch only the API-call methods of MapillaryClient, keep the rest intact."""
 
-    client = MapillaryClient(token="fake_token")
-
-    def fake_fetch_bbox(bbox, limit=1000):
+    # Fake implementations
+    def fake_fetch_bbox(self, bbox, limit=1000):
         return [
             {
                 "id": "1",
@@ -39,7 +52,13 @@ def fake_mapillary_client(monkeypatch):
             }
         ]
 
-    # Monkeypatch the private method just once, hidden from the test
-    monkeypatch.setattr(client, "_fetch_bbox", fake_fetch_bbox)
+    def fake_download_image(self, url, path):
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text("FAKE IMAGE DATA")  # simulate an image file
 
-    return client
+    # Patch the class methods
+    monkeypatch.setattr(MapillaryClient, "_fetch_bbox", fake_fetch_bbox)
+    monkeypatch.setattr(MapillaryClient, "download_image", fake_download_image)
+
+    # Return a real instance for convenience
+    return MapillaryClient(token="fake_token")

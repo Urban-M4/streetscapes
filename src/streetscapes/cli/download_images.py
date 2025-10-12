@@ -1,5 +1,4 @@
 import logging
-import os
 from pathlib import Path
 
 import pygeohash
@@ -7,23 +6,14 @@ import typer
 from rich.progress import track
 from shapely import from_wkb
 
+from streetscapes import config
 from streetscapes.cli.console import console
+from streetscapes.project import Project
+from streetscapes.sources.mapillary import MapillaryClient
 
 logger = logging.getLogger(__name__)
 
 download_images_cli = typer.Typer(name="download_images")
-
-
-def _get_mapillary_client(token=None):
-    """Handle lazy import of MapillaryClient."""
-    from streetscapes.sources.mapillary import MapillaryClient
-
-    token = token or os.getenv("MAPILLARY_TOKEN")
-    if not token:
-        logger.error("Error: token not provided and MAPILLARY_TOKEN not set in .env.")
-        raise typer.Exit(code=1)
-
-    return MapillaryClient(token)
 
 
 @download_images_cli.command("mapillary")
@@ -36,9 +26,6 @@ def download_mapillary(
     ),
 ):
     """Download Mapillary images to a local directory."""
-    from streetscapes import config
-    from streetscapes.project import Project
-
     project_name = config.get("active_project")
     data_home = Path(config.get("data_home"))
 
@@ -54,7 +41,7 @@ def download_mapillary(
         typer.echo("No new images to download.")
         raise typer.Exit()
 
-    mapillary = _get_mapillary_client(token)
+    mapillary = MapillaryClient(token)
     base_path = data_home / "images" / "mapillary"
 
     total = len(records)
