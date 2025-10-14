@@ -74,7 +74,7 @@ class MapillaryClient:
         "thumb_256_url",
         "thumb_original_url",
         "width",
-        # "camera_parameters",
+        "camera_parameters",
         # "detections",
         # "merge_cc",
         # "mesh",

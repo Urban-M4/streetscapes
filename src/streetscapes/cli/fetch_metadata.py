@@ -8,15 +8,12 @@ from rich.progress import track
 from streetscapes import config
 from streetscapes.cli.console import console
 from streetscapes.project import Project
-from streetscapes.sources.mapillary import MapillaryClient
+from streetscapes.sources.mapillary import MapillaryClient, Bbox
 from streetscapes.utils.bbox import split_bbox
 
 logger = logging.getLogger(__name__)
 
 fetch_metadata_cli = typer.Typer(help="Fetch metadata for a source")
-
-Bbox = tuple[float, float, float, float]
-"""west, south, easth, north."""
 
 
 @fetch_metadata_cli.command("mapillary")
@@ -25,7 +22,7 @@ def fetch_metadata_mapillary(
     tile_size: float = typer.Option(0.001, help="Tile size in degrees"),
     limit: int = typer.Option(1000, help="Maximum number of images per tile"),
     token: str = typer.Option(
-        ..., help="Mapillary OAuth token (if not set via MAPILLARY_TOKEN)."
+        None, help="Mapillary OAuth token (if not set via MAPILLARY_TOKEN)."
     ),
 ):
     """Fetch Mapillary metadata in tiles and store as DuckDB manifest."""

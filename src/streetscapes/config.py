@@ -1,11 +1,12 @@
 import json
-from pathlib import Path
 
-CONFIG_FILE = Path.home() / ".config/streetscapes/config.json"
-CONFIG_FILE.parent.mkdir(parents=True, exist_ok=True)
+from platformdirs import user_config_path, user_data_dir
+
+CONFIG_FILE = user_config_path("streetscapes", ensure_exists=True) / "config.json"
+
 
 DEFAULTS = {
-    "data_home": str(Path.home() / ".local/share/streetscapes"),
+    "data_home": user_data_dir("streetscapes"),
     "active_project": "streetscapes",
 }
 
