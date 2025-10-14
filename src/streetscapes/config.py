@@ -1,5 +1,5 @@
 import json
-
+from omegaconf import OmegaConf
 from platformdirs import user_config_path, user_data_dir
 
 CONFIG_FILE = user_config_path("streetscapes", ensure_exists=True) / "config.json"
@@ -14,13 +14,14 @@ DEFAULTS = {
 def initialize_config():
     """Create config file with defaults if it doesn’t exist."""
     if not CONFIG_FILE.exists():
-        CONFIG_FILE.write_text(json.dumps(DEFAULTS, indent=2))
+        cfg = OmegaConf.create(DEFAULTS)
+        OmegaConf.save(cfg, CONFIG_FILE)
 
 
 def load() -> dict:
     """Load config, initializing it if necessary."""
     initialize_config()
-    cfg = json.loads(CONFIG_FILE.read_text())
+    cfg = OmegaConf.load(CONFIG_FILE)
     # Optional: fill in missing keys for forward compatibility
     for k, v in DEFAULTS.items():
         if k not in cfg:
@@ -35,4 +36,4 @@ def get(key: str, default=None):
 def set(key: str, value):
     cfg = load()
     cfg[key] = value
-    CONFIG_FILE.write_text(json.dumps(cfg, indent=2))
+    OmegaConf.save(cfg, CONFIG_FILE)
