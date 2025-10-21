@@ -20,17 +20,18 @@ def export_table(
     project = Project(config.get("active_project"))
     ext = os.path.splitext(output)[1].lower()
 
-    if ext in [".csv"]:
-        project.export_csv(table_name, output)
-    elif ext in [".parquet"]:
-        project.export_parquet(table_name, output)
-    elif ext in [".json"]:
-        project.export_json(table_name, output)
-    elif ext in [".gpkg"]:
-        project.export_gpkg(table_name, output)
-    elif ext in [".geojson"]:
-        project.export_geojson(table_name, output)
-    else:
+    exporters = {
+        ".csv": project.export_csv,
+        ".parquet": project.export_parquet,
+        ".json": project.export_json,
+        ".gpkg": project.export_gpkg,
+        ".geojson": project.export_geojson,
+    }
+
+    exporter = exporters.get(ext)
+    if exporter is None:
         raise typer.BadParameter(f"Unsupported file extension: {ext}")
+
+    exporter(table_name, output)
 
     logger.info(f"Exported {table_name} to {output}")
