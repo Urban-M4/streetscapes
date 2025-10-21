@@ -1,286 +1,211 @@
+# streetscapes/sources/mapillary.py
+import logging
 from pathlib import Path
-from typing import List, Protocol, Any
 from time import sleep
-import math
-import requests
-from rich.progress import track
-import json
-from shapely.geometry import Point
-import pandas as pd
+
 import geopandas as gpd
-import pyarrow as pa
-import pyarrow.parquet as pq
+import pandas as pd
+import requests
+from shapely.geometry import Point
+
+from streetscapes.utils.bbox import Bbox
+
+logger = logging.getLogger(__name__)
 
 
-class OutputWriter(Protocol):
-    """
-    Protocol for writing batches of metadata to storage.
 
-    Methods:
-        init(path: Path) -> None:
-            Initialize storage (e.g., create empty file if missing).
-        append(records: List[dict], path: Path) -> None:
-            Append a batch of records to storage.
-        read(path: Path) -> Any:
-            Read the entire stored dataset.
-    """
+class MapillaryClient:
+    """Minimal client for fetching Mapillary image metadata via bounding boxes.
 
-    def init(self, path: Path) -> None: ...
+    Handles authentication, retries, and conversion of geometry fields to WKT
+    strings suitable for use with GeoPandas or DuckDB.
 
-    def append(self, records: List[dict], path: Path) -> None: ...
+    Usage example:
+        import os
+        from dotenv import load_dotenv
+        from streetscapes.sources.mapillary import MapillaryClient
 
-    def read(self, path: Path) -> Any: ...
+        load_dotenv()
+        token = os.getenv("MAPILLARY_TOKEN")
+        client = MapillaryClient(token)
 
+        # bbox: (west, south, east, north)
+        bbox = (4.899, 52.372, 4.901, 52.374)
 
-class Mapillary:
-    """
-    Mapillary street view interface with incremental, crash-safe metadata fetching.
+        # Fetch as pandas DataFrame
+        df = client.fetch_metadata_bbox(bbox)
 
-    Attributes:
-        token: Mapillary OAuth token.
-        retries: number of retries per tile in case of request failure.
-        session: authenticated requests session.
+        # Or fetch directly as GeoDataFrame
+        gdf = client.fetch_metadata_bbox_gpd(bbox)
+
+    Methods
+    -------
+    fetch_metadata_bbox(bbox: tuple[float, float, float, float], limit: int = 1000) -> pd.DataFrame
+        Fetch metadata for a bounding box and return as a pandas DataFrame.
+    fetch_metadata_bbox_gpd(bbox: tuple[float, float, float, float], limit: int = 1000) -> gpd.GeoDataFrame
+        Fetch metadata for a bounding box and return as a GeoDataFrame with CRS EPSG:4326.
+
     """
 
     BASE_URL = "https://graph.mapillary.com/images"
+    # https://www.mapillary.com/developer/api-documentation#image
     DEFAULT_FIELDS = [
-        "id",
-        "geometry",
-        "captured_at",
-        "sequence",
-        "thumb_2048_url",
         "altitude",
+        "atomic_scale",
+        "camera_type",
+        "captured_at",
         "compass_angle",
         "computed_altitude",
+        "computed_compass_angle",
         "computed_geometry",
+        "computed_rotation",
+        "creator",
+        "exif_orientation",
+        "geometry",
+        "height",
+        "id",
+        "is_pano",
+        "make",
+        "model",
+        "sequence",
+        "sequence",
+        "thumb_1024_url",
+        "thumb_2048_url",
+        "thumb_256_url",
+        "thumb_original_url",
+        "width",
+        "camera_parameters",
+        # "detections",
+        # "merge_cc",
+        # "mesh",
+        # "sfm_cluster",
     ]
 
     def __init__(self, token: str, retries: int = 3):
-        """
-        Initialize MapillarySource.
+        """Instantiate the client.
 
-        Args:
-            token: Mapillary OAuth token.
-            retries: number of retries for failed API requests.
+        Parameters
+        ----------
+        token : str
+            Mapillary OAuth token.
+        retries : int, optional
+            Number of request retries on failure (default is 3).
+
         """
-        self.token = token
-        self.retries = retries
         self.session = requests.Session()
-        self.session.headers.update({"Authorization": f"OAuth {self.token}"})
+        self.session.headers.update({"Authorization": f"OAuth {token}"})
+        self.retries = retries
 
-    def get_image_url(
-        self, image_id: str, resolution: str = "thumb_2048_url"
-    ) -> str | None:
-        """
-        Retrieve the image URL for a given image ID.
+    # NOTE: could make this "fetch_metadata_id" to be similar to bbox retrieval
+    def fetch_image_url(self, image_id: str) -> str:
+        """Fetch image URL from the Mapillary API by image ID."""
+        endpoint = f"https://graph.mapillary.com/{image_id}?fields=thumb_2048_url"
+        response = self.session.get(endpoint)
+        response.raise_for_status()
+        return response.json().get("thumb_2048_url")
 
-        Args:
-            image_id: Mapillary image ID.
-            resolution: field specifying image resolution, default is "thumb_2048_url".
+    def download_image(self, url: str, output_path: Path) -> Path:
+        """Download image from a URL to output_path."""
+        output_path.parent.mkdir(parents=True, exist_ok=True)
 
-        Returns:
-            URL string or None if request fails.
-        """
-        url = f"{self.BASE_URL}/{image_id}?fields={resolution}"
-        try:
-            res = self.session.get(url, timeout=10)
-            res.raise_for_status()
-            return res.json().get(resolution)
-        except requests.RequestException:
-            return None
+        response = self.session.get(url)
+        response.raise_for_status()
+        with open(output_path, "wb") as f:
+            f.write(response.content)
 
-    @staticmethod
-    def _decimals_for_tile_size(tile_size: float) -> int:
-        """
-        Determine decimal rounding precision for a given tile size in degrees.
-        Ensures consistent raster snapping and avoids duplicate tiles.
+    def _fetch_bbox(self, bbox: Bbox, limit: int = 1000) -> list[dict]:
+        """Perform the raw API request to Mapillary for a single bounding box tile."""
+        logger.debug(f"Fetching metadata for bounding box: {bbox}")
 
-        Examples:
-            tile_size=0.01  -> precision=3
-            tile_size=0.001 -> precision=4
-        """
-        return max(0, -int(math.floor(math.log10(tile_size))) + 1)
-
-    @classmethod
-    def split_bbox(
-        cls, bbox: List[float], tile_size: float = 0.01
-    ) -> List[List[float]]:
-        """
-        Split a bounding box into smaller tiles.
-
-        Args:
-            bbox: [west, south, east, north]
-            tile_size: size of each tile in degrees
-
-        Returns:
-            List of [west, south, east, north] tiles.
-        """
-        west, south, east, north = bbox
-        precision = cls._decimals_for_tile_size(tile_size)
-        tiles = []
-        lon_steps = int((east - west) / tile_size + 1)
-        lat_steps = int((north - south) / tile_size + 1)
-        for i in range(lon_steps):
-            for j in range(lat_steps):
-                w = round(west + i * tile_size, precision)
-                s = round(south + j * tile_size, precision)
-                e = round(min(w + tile_size, east), precision)
-                n = round(min(s + tile_size, north), precision)
-                tiles.append([w, s, e, n])
-        return tiles
-
-    def fetch_metadata_tile(self, tile: List[float]) -> List[dict]:
-        """
-        Fetch metadata for a single tile.
-
-        Args:
-            tile: bounding box [west, south, east, north] for this tile.
-
-        Returns:
-            List of metadata records (JSON/dict) for this tile.
-        """
         params = {
-            "bbox": ",".join(map(str, tile)),
+            "bbox": ",".join(map(str, bbox)),
             "fields": ",".join(self.DEFAULT_FIELDS),
-            "limit": 1000,
+            "limit": limit,
         }
-        attempt = 0
-        while attempt < self.retries:
+        for attempt in range(self.retries):
             try:
                 res = self.session.get(self.BASE_URL, params=params, timeout=10)
                 res.raise_for_status()
                 return res.json().get("data", [])
-            except (requests.RequestException, json.JSONDecodeError):
-                attempt += 1
-                sleep(0.5 * attempt)
-        print(f"Tile {tile} failed after {self.retries} attempts.")
+            except (requests.RequestException, ValueError):
+                sleep_time = 0.5 * (attempt + 1)
+                logger.info(f"Request failed for {bbox=} - retrying in {sleep_time}")
+                sleep(sleep_time)
+
+        logger.warning(f"Failed to retrieve metadata for bbounding box: {bbox}")
         return []
 
-    def fetch_metadata(
-        self,
-        bbox: List[float],
-        tile_size: float,
-        output_file: Path,
-        writer: OutputWriter | None = None,
-    ) -> Any:
+    def fetch_metadata_bbox(self, bbox: Bbox, limit: int = 1000) -> pd.DataFrame:
+        """Fetch metadata for a bounding box and convert to a pandas DataFrame.
+
+        Geometry columns are converted to WKT strings for downstream processing
+        with GeoPandas or spatial databases like DuckDB.
+
+        Note
+        ----
+        The Mapillary API endpoint doesn't support pagination beyond ~2000 results.
+        For dense areas (like Amsterdam), consider splitting your bounding box into
+        smaller tiles (~0.001 deg) to ensure complete coverage.
+
+        Parameters
+        ----------
+        bbox : tuple[float, float, float, float]
+            Bounding box as (west, south, east, north).
+        limit : int
+            Maximum number of images to fetch (default 1000).
+
+        Returns
+        -------
+        pd.DataFrame
+            DataFrame with Mapillary metadata and WKT geometry columns.
+
         """
-        Fetch Mapillary metadata for a bounding box and write incrementally.
+        records = self._fetch_bbox(bbox, limit)
 
-        Args:
-            bbox: bounding box [west, south, east, north]
-            tile_size: size of each tile in degrees
-            output_file: path to output file
-            writer: OutputWriter instance (default: PyArrowWriter)
-
-        Returns:
-            Final combined dataset, depending on writer backend.
-        """
-        writer = writer or PyArrowGeoParquetWriter()
-        writer.init(output_file)
-
-        state_file = output_file.with_suffix(".state.json")
-        if state_file.exists():
-            with open(state_file) as f:
-                processed_tiles = set(json.load(f))
-        else:
-            processed_tiles = set()
-
-        tiles = self.split_bbox(bbox, tile_size)
-        precision = self._decimals_for_tile_size(tile_size)
-
-        for tile in track(tiles, description="Fetching Mapillary tiles..."):
-            tile_id = "_".join(f"{v:.{precision}f}" for v in tile)
-            if tile_id in processed_tiles:
-                continue
-
-            records = self.fetch_metadata_tile(tile)
-            writer.append(records, output_file)
-
-            processed_tiles.add(tile_id)
-            with open(state_file, "w") as f:
-                json.dump(list(processed_tiles), f)
-
-        return writer.read(output_file)
-
-
-GEO_METADATA = {
-    "primary_column": "geometry",
-    "columns": {
-        "geometry": {"encoding": "WKB", "geometry_type": "Point", "crs": "EPSG:4326"}
-    },
-}
-
-
-class PyArrowGeoParquetWriter:
-    """
-    Efficient writer for GeoParquet using PyArrow.
-
-    Converts Mapillary JSON geometries to WKB and writes
-    Arrow tables directly to Parquet with GeoParquet metadata.
-    Supports incremental appends.
-    """
-
-    def init(self, path: Path) -> None:
-        if not path.exists():
-            empty_table = pa.table(
-                {}, metadata={b"geo": json.dumps(GEO_METADATA).encode("utf-8")}
-            )
-            pq.write_table(empty_table, path)
-
-    def append(self, records: List[dict], path: Path) -> None:
         if not records:
-            return
-
-        # Convert geometry dict → WKB
-        for rec in records:
-            geom = rec.get("geometry")
-            if geom and "coordinates" in geom:
-                rec["geometry"] = Point(geom["coordinates"]).wkb
-            else:
-                rec["geometry"] = None
-
-        batch = pa.Table.from_pylist(records)
-        batch = batch.replace_schema_metadata(
-            {b"geo": json.dumps(GEO_METADATA).encode("utf-8")}
-        )
-        pq.write_table(batch, path, append=True)
-
-    def read(self, path: Path):
-        return pq.read_table(path)
-
-
-class GeoPandasGeoParquetWriter:
-    """
-    Writer for GeoParquet using GeoPandas.
-
-    Converts JSON geometries to Shapely Points and writes
-    GeoDataFrames to Parquet with CRS EPSG:4326.
-    Supports incremental appends.
-    """
-
-    def init(self, path: Path) -> None:
-        if not path.exists():
-            gpd.GeoDataFrame().to_parquet(path)
-
-    def append(self, records: List[dict], path: Path) -> None:
-        if not records:
-            return
+            return pd.DataFrame()
 
         df = pd.DataFrame(records)
-        df["geometry"] = df["geometry"].apply(
-            lambda c: Point(c["coordinates"]) if c else None
-        )
-        gdf = gpd.GeoDataFrame(df, geometry="geometry", crs="EPSG:4326")
 
-        if path.exists():
-            gdf_existing = gpd.read_parquet(path)
-            gdf = gpd.GeoDataFrame(
-                pd.concat([gdf_existing, gdf], ignore_index=True),
-                geometry="geometry",
-                crs="EPSG:4326",
-            )
+        # Geometry colums are dicts, flatten to wkt strings instead
+        def unpack_geometry(geometry):
+            if isinstance(geometry, dict) and "coordinates" in geometry:
+                # wkt facilitates conversion to either geopandas or duckdb geometry
+                return Point(geometry["coordinates"]).wkt
+            return None
 
-        gdf.to_parquet(path)
+        df["geometry"] = df["geometry"].apply(unpack_geometry)
+        df["computed_geometry"] = df["computed_geometry"].apply(unpack_geometry)
 
-    def read(self, path: Path):
-        return gpd.read_parquet(path)
+        return df
+
+    def fetch_metadata_bbox_gpd(
+        self, bbox: Bbox, limit: int = 1000
+    ) -> gpd.GeoDataFrame:
+        """Fetch metadata for a bounding box and convert to a GeoDataFrame.
+
+        Geometry columns are parsed from WKT and the CRS is set to EPSG:4326.
+
+        Note
+        ----
+        The Mapillary API endpoint doesn't support pagination beyond ~2000 results.
+        For dense areas (like Amsterdam), consider splitting your bounding box into
+        smaller tiles (~0.001 deg) to ensure complete coverage.
+
+        Parameters
+        ----------
+        bbox : tuple[float, float, float, float]
+            Bounding box as (west, south, east, north).
+        limit : int
+            Maximum number of images to fetch (default 1000).
+
+        Returns
+        -------
+        gpd.GeoDataFrame
+            GeoDataFrame with Mapillary metadata and geometry columns.
+
+        """
+        df = self.fetch_metadata_bbox(bbox, limit)
+
+        gdf = gpd.GeoDataFrame(df, geometry=gpd.GeoSeries.from_wkt(df["geometry"]))
+        return gdf.set_crs("EPSG:4326")

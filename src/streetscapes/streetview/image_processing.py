@@ -1,5 +1,4 @@
 import numpy as np
-from PIL import Image
 from scipy.ndimage import gaussian_filter
 
 
@@ -18,18 +17,20 @@ def luminance(img_lin):
 
 
 def estimate_illumination(Y, sigma_shade=100, method="linear"):
-    """
-    Estimate local illumination from a luminance map Y.
+    """Estimate local illumination from a luminance map Y.
     Rescale so that the maximum Y corresponds to illumination = 1,
     ensuring that apparent albedo Y / illum_est ≤ 1.
 
-    Parameters:
+    Parameters
+    ----------
         Y: ndarray, luminance map in [0,1]
         sigma_shade: float, Gaussian smoothing parameter
         method: str, 'linear' or 'retinex'
 
-    Returns:
+    Returns
+    -------
         illum_est: ndarray, estimated illumination map
+
     """
     if method == "linear":
         illum_est = gaussian_filter(Y, sigma=sigma_shade)

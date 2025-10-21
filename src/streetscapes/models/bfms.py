@@ -1,18 +1,18 @@
+from pathlib import Path
+from typing import Any
+
 import numpy as np
 import torch
-from typing import Any
-from pathlib import Path
 from PIL import Image
 from transformers import (
+    AutoImageProcessor,
     Mask2FormerConfig,
     Mask2FormerForUniversalSegmentation,
-    AutoImageProcessor,
 )
 
 
 class BFMS:
-    """
-    Building/Facade Material Segmentation model
+    """Building/Facade Material Segmentation model
     based on Mask2Former.
     """
 
@@ -35,8 +35,7 @@ class BFMS:
         )
 
     def segment(self, image: np.ndarray | Image.Image) -> dict[str, Any]:
-        """
-        Run BFMS segmentation.
+        """Run BFMS segmentation.
 
         Args:
             image: Input image as numpy array or PIL Image.
@@ -45,6 +44,7 @@ class BFMS:
             dict with:
                 - mask: np.ndarray [H, W], semantic labels
                 - labels: list[str], predicted class names
+
         """
         if isinstance(image, np.ndarray):
             image = Image.fromarray(image).convert("RGB")

@@ -1,14 +1,14 @@
-import os
 import json
+import os
 from pathlib import Path
 
-from PIL import Image
 import numpy as np
 import typer
+from PIL import Image
 
-from streetscapes.models.sam import SAM
 from streetscapes.models.ade20k import ADE20KFacade
 from streetscapes.models.groundingdino import GroundingDINO
+from streetscapes.models.sam import SAM
 
 segment_images_cli = typer.Typer(help="Segment images")
 
@@ -17,8 +17,7 @@ segment_images_cli = typer.Typer(help="Segment images")
 # Helpers
 # ---------------------------
 def _parse_image_input(images: list[str] | str) -> list[str]:
-    """
-    Normalize input to a list of image paths.
+    """Normalize input to a list of image paths.
 
     - Single image path
     - Folder containing images
@@ -60,7 +59,7 @@ def _save_masks(masks, out_dir: str, filename: str):
 # Standalone models that can operate directly on a list of images
 # ---------------------------
 @segment_images_cli.command("sam")
-def segment_images_sam(images: list[str], out: str):
+def segment_images_sam(images: str, out: str):
     """Segment images with SAM."""
     images_list = _parse_image_input(images)
     model = SAM(checkpoint="sam_vit_h_4b8939.pth")
@@ -114,8 +113,7 @@ def segment_images_ade20k(
     decoder_weights: str = "ckpt/ade20k-resnet50dilated-ppm_deepsup/decoder_epoch_20.pth",
     building_min_fraction: float = 0.2,
 ):
-    """
-    Segment images with ADE20K.
+    """Segment images with ADE20K.
 
     Returns masked images, empty mask, and manifest per image.
     """
@@ -167,8 +165,7 @@ def segment_images_dinosam(
     text_threshold: float = 0.3,
     output_dir: str = "./output",
 ):
-    """
-    Detect with GroundingDino, then segment with SAM.
+    """Detect with GroundingDino, then segment with SAM.
 
     Outputs masks and a manifest file with bounding boxes and labels.
     """

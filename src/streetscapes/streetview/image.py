@@ -2,13 +2,13 @@
 from pathlib import Path
 
 # --------------------------------------
-from PIL import Image
+import matplotlib.pyplot as plt
 
 # --------------------------------------
 import numpy as np
 
 # --------------------------------------
-import matplotlib.pyplot as plt
+from PIL import Image
 
 # --------------------------------------
 from streetscapes.streetview.instance import SVInstance
@@ -23,8 +23,7 @@ class SVImage:
         path: Path,
         segmentations: list[SVSegmentation] | None = None,
     ):
-        """
-        A convenience wrapper around an individual image.
+        """A convenience wrapper around an individual image.
         The wrapper is source-agnostic, meaning that many different
         image sources can be combined at a higher level.
 
@@ -35,8 +34,8 @@ class SVImage:
             segmentations:
                 A list of segmentations.
                 Defaults to None.
-        """
 
+        """
         self.path = path
         self.image = np.asarray(Image.open(self.path))
 
@@ -46,13 +45,12 @@ class SVImage:
         return self.path.stem
 
     def segmentations(self) -> list[SVSegmentation]:
-        """
-        Return a dictionary of models mapped to SVSegmentation objects.
+        """Return a dictionary of models mapped to SVSegmentation objects.
 
         Returns:
             A dictionary of SVSegmentation objects with the model as key.
-        """
 
+        """
         segmentations = {}
 
         # Search the segmentation directory
@@ -69,10 +67,7 @@ class SVImage:
         return segmentations
 
     def show(self):
-        """
-        Show the image
-        """
-
+        """Show the image"""
         plt.figure()
         plt.imshow(self.image)
 
@@ -81,8 +76,7 @@ class SVImage:
         model: str,
         label: str,
     ) -> list[SVInstance]:
-        """
-        Extract a list of instances.
+        """Extract a list of instances.
 
         Args:
             model:
@@ -93,15 +87,14 @@ class SVImage:
 
         Returns:
             A list of instances.
-        """
 
+        """
         mask = self.segmentation(model).get_instances(label=label)
 
         # TODO: return as Instance object, but currently that doesn't support RGB(A) images
         return np.ma.masked_array(self.image_array, mask=mask)
 
     def show_instances(self, label: str):
-
         mask = self.segmentation.get_instances(label=label)
 
         rgba_image = np.array(self.image.convert("RGBA"))
