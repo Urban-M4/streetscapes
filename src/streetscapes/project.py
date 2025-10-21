@@ -1,9 +1,11 @@
 from pathlib import Path
 
 import ibis
+from pandas import DataFrame
 from shapely.geometry import box
 
 from streetscapes import config
+from streetscapes.utils.bbox import Bbox
 
 
 class Project:
@@ -28,7 +30,7 @@ class Project:
         """Return an ibis table reference."""
         return self.con.table(name)
 
-    def ingest_mapillary(self, df, table_name="mapillary"):
+    def ingest_mapillary(self, df: DataFrame, table_name="mapillary"):
         """Ingest a DataFrame of Mapillary metadata."""
         self.con.con.register("metadata_tile", df)
         if table_name not in self.con.list_tables():
@@ -50,7 +52,7 @@ class Project:
                 FROM metadata_tile
             """)
 
-    def filter_bbox(self, table_name, bbox):
+    def filter_bbox(self, table_name, bbox: Bbox):
         """Return an Ibis table expression filtered by a bounding box."""
 
         table = self.get_table(table_name)
