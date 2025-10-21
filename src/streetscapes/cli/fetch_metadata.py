@@ -8,8 +8,8 @@ from rich.progress import track
 from streetscapes import config
 from streetscapes.cli.console import console
 from streetscapes.project import Project
-from streetscapes.sources.mapillary import MapillaryClient, Bbox
-from streetscapes.utils.bbox import split_bbox
+from streetscapes.sources.mapillary import MapillaryClient
+from streetscapes.utils.bbox import Bbox, split_bbox
 
 logger = logging.getLogger(__name__)
 

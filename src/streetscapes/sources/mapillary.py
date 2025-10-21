@@ -8,10 +8,10 @@ import pandas as pd
 import requests
 from shapely.geometry import Point
 
+from streetscapes.utils.bbox import Bbox
+
 logger = logging.getLogger(__name__)
 
-Bbox = tuple[float, float, float, float]
-"""west, south, easth, north."""
 
 
 class MapillaryClient:
