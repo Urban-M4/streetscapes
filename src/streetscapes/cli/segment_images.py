@@ -16,7 +16,10 @@ segment_images_cli = typer.Typer(help="Segment images")
 # ---------------------------
 # Helpers
 # ---------------------------
-def _parse_image_input(images: list[str] | str) -> list[str]:
+def _parse_image_input(
+    images: list[str] | str,
+    limit: int = 10,
+) -> list[str]:
     """
     Normalize input to a list of image paths.
 
@@ -60,22 +63,45 @@ def _save_masks(masks, out_dir: str, filename: str):
 # Standalone models that can operate directly on a list of images
 # ---------------------------
 @segment_images_cli.command("sam")
-def segment_images_sam(images: list[str], out: str):
-    """Segment images with SAM."""
-    images_list = _parse_image_input(images)
+def segment_images_sam(
+    image_path: list[str],
+    out: str,
+    limit: int = 10,
+):
+    """
+    Segment images with the SAM.
+
+    Args:
+        image_path: A single image or a directory of images.
+        out: Destination for the model output.
+        limit: Process only `limit` number of images.
+    """
+    image_list = _parse_image_input(image_path, limit)
     model = SAM(checkpoint="sam_vit_h_4b8939.pth")
-    manifest = model.process_batch(images_list, out)
+    manifest = model.process_batch(image_list, out)
     typer.echo(f"SAM finished. Manifest: {manifest}")
 
 
 @segment_images_cli.command("dino")
-def segment_images_dino(images: list[str], out: str):
-    """Detect objects with GroundingDino"""
-    images_list = _parse_image_input(images)
+def segment_images_dino(
+    image_path: list[str],
+    out: str,
+    limit: int = 10,
+):
+    """
+    Detect objects with GroundingDino.
+
+    Args:
+        image_path: A single image or a directory of images.
+        out: Destination for the model output.
+        limit: Process only `limit` number of images.
+    """
+    image_list = _parse_image_input(image_path, limit)
     model = GroundingDINO(
-        config="GroundingDINO_SwinT_OGC.py", weights="groundingdino_swint_ogc.pth"
+        config="GroundingDINO_SwinT_OGC.py",
+        weights="groundingdino_swint_ogc.pth",
     )
-    manifest = model.process_batch(images_list, out)
+    manifest = model.process_batch(image_list, out)
     typer.echo(f"GroundingDINO finished. Manifest: {manifest}")
 
 
@@ -85,7 +111,18 @@ def classify_images_openclip(
     labels: str,  # comma-separated
     model_name: str = "ViT-B-32",
     pretrained: str = "laion2b_s34b_b79k",
+    limit: int = 10,
 ):
+    """
+    Perform instance segmentation with OpenCLIP.
+
+    Args:
+        image_path: A single image or a directory of images.
+        labels: Object types to look for.
+        pretrained: Pretrained model verion.
+        limit: Process only `limit` number of images.
+    """
+    image_list = _parse_image_input(image_path, limit)
     labels_list = labels.split(",")
     image = np.array(Image.open(image_path).convert("RGB"))
     model = OpenCLIP(model_name=model_name, pretrained=pretrained)
@@ -98,7 +135,18 @@ def segment_images_clipseg(
     image_path: str,
     prompt: str,
     output_path: str = "./clipseg_mask.npy",
+    limit: int = 10,
 ):
+    """
+    Image segmentation with ClipSEG.
+
+    Args:
+        image_path: A single image or a directory of images.
+        prompt: Textual prompt to pass to the model.
+        output_path: Destination for the model output.
+        limit: Process only `limit` number of images.
+    """
+    image_list = _parse_image_input(image_path, limit)
     image = np.array(Image.open(image_path).convert("RGB"))
     model = CLIPSeg()
     mask = model.predict(image, prompt)
@@ -108,11 +156,12 @@ def segment_images_clipseg(
 
 @segment_images_cli.command("ade20k")
 def segment_images_ade20k(
-    images: str,
+    image_path: str,
     output_dir: str = "./output",
     encoder_weights: str = "ckpt/ade20k-resnet50dilated-ppm_deepsup/encoder_epoch_20.pth",
     decoder_weights: str = "ckpt/ade20k-resnet50dilated-ppm_deepsup/decoder_epoch_20.pth",
     building_min_fraction: float = 0.2,
+    limit: int = 10,
 ):
     """
     Segment images with ADE20K.
@@ -126,9 +175,9 @@ def segment_images_ade20k(
 
     model = ADE20KFacade(encoder_weights, decoder_weights, device)
 
-    image_paths = _parse_image_input(images)
+    image_list = _parse_image_input(image_path, limit)
 
-    for path in image_paths:
+    for path in image_list:
         filename = Path(path).stem
         try:
             img_np = _load_image(path)
@@ -158,7 +207,7 @@ def segment_images_ade20k(
 # ---------------------------
 @segment_images_cli.command("dinosam")
 def segment_images_dinosam(
-    images: str,  # list[str] | str ; typer doesn't support union
+    image_path: str,  # list[str] | str ; typer doesn't support union
     out: str,
     prompt: str,
     sam_model: str = "facebook/sam2.1-hiera-large",
@@ -166,13 +215,14 @@ def segment_images_dinosam(
     box_threshold: float = 0.3,
     text_threshold: float = 0.3,
     output_dir: str = "./output",
+    limit: int = 10,
 ):
     """
     Detect with GroundingDino, then segment with SAM.
 
     Outputs masks and a manifest file with bounding boxes and labels.
     """
-    image_paths = _parse_image_input(images)
+    image_list = _parse_image_input(image_path, limit)
 
     # Initialize models
     sam = SAM(model_id=sam_model)
@@ -180,7 +230,7 @@ def segment_images_dinosam(
 
     manifest = []
 
-    for path in image_paths:
+    for path in image_list:
         img = _load_image(path)
 
         # Dino
