@@ -1,10 +1,10 @@
 # streetscapes/models/ade20k.py
 
+import numpy as np
 import torch
 import torch.nn as nn
 import torchvision
 from mit_semseg.models import ModelBuilder, SegmentationModule
-import numpy as np
 
 
 class ADE20KFacade:

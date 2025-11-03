@@ -1,38 +1,28 @@
 # --------------------------------------
-from pathlib import Path
-
 # --------------------------------------
 import operator
-
-# --------------------------------------
-import ibis
 
 # --------------------------------------
 import typing as tp
 
 # --------------------------------------
-from streetscapes import utils
-from streetscapes import logger
-
-# --------------------------------------
-from abc import ABC
-from abc import abstractmethod
-
-# --------------------------------------
+from abc import ABC, abstractmethod
 from pathlib import Path
 
 # --------------------------------------
 import ibis
 
 # --------------------------------------
-from huggingface_hub import scan_cache_dir
-from huggingface_hub import hf_hub_download
-from huggingface_hub import try_to_load_from_cache
+# --------------------------------------
+# --------------------------------------
+from huggingface_hub import hf_hub_download, scan_cache_dir, try_to_load_from_cache
 from huggingface_hub.constants import HF_HUB_CACHE
 from huggingface_hub.file_download import repo_folder_name
 
 # --------------------------------------
-from streetscapes import utils
+from streetscapes import logger, utils
+
+# --------------------------------------
 from streetscapes.sources.base import SourceBase
 
 
@@ -45,11 +35,9 @@ class HFSourceBase(SourceBase, ABC):
         criteria: dict = None,
         columns: list | tuple | set = None,
     ) -> ibis.Table:
-        """
-        Load and return a dataset.
+        """Load and return a dataset.
 
         Args:
-
             criteria:
                 Optional criteria used to create a subset.
 
@@ -58,6 +46,7 @@ class HFSourceBase(SourceBase, ABC):
 
         Returns:
             An Ibis table.
+
         """
         pass
 
@@ -67,8 +56,7 @@ class HFSourceBase(SourceBase, ABC):
         repo_type: str,
         root_dir: Path | None = None,
     ):
-        """
-        A generic interface to a HuggingFace repository.
+        """A generic interface to a HuggingFace repository.
 
         Args:
             repo_id:
@@ -79,8 +67,8 @@ class HFSourceBase(SourceBase, ABC):
 
             root_dir:
                 An optional custom root directory. Defaults to None.
-        """
 
+        """
         # Repository details
         # ==================================================
         self.repo_id = repo_id
@@ -115,8 +103,7 @@ class HFSourceBase(SourceBase, ABC):
         self,
         filename: str | Path,
     ) -> Path:
-        """
-        Retrieve a single (potentially cached) file
+        """Retrieve a single (potentially cached) file
         from the Huggingface stored repo.
 
         Args:
@@ -125,8 +112,8 @@ class HFSourceBase(SourceBase, ABC):
 
         Returns:
             A Path object.
-        """
 
+        """
         # Ensure that we are not passing a path to the functions below.
         filename = str(filename)
 
@@ -152,8 +139,7 @@ class HFSourceBase(SourceBase, ABC):
         self,
         filenames: list[str | Path],
     ) -> list[Path]:
-        """
-        Retrieve multiple (potentially cached) files
+        """Retrieve multiple (potentially cached) files
         from the HuggingFace stored repo.
 
         Args:
@@ -162,6 +148,7 @@ class HFSourceBase(SourceBase, ABC):
 
         Returns:
             A list of Path objects.
+
         """
         return [self.get_file(fname) for fname in filenames]
 
@@ -173,14 +160,13 @@ class GlobalStreetscapesSource(HFSourceBase):
         self,
         root_dir: str | Path | None = None,
     ):
-        """
-        An interface to the Global Streetscapes repository.
+        """An interface to the Global Streetscapes repository.
 
         Args:
             root_dir:
                 An optional custom root directory. Defaults to None.
-        """
 
+        """
         super().__init__(
             repo_id="NUS-UAL/global-streetscapes",
             repo_type="dataset",
@@ -197,8 +183,7 @@ class GlobalStreetscapesSource(HFSourceBase):
         filename: str | Path,
         root: str | Path = None,
     ) -> ibis.Table:
-        """
-        Load a CSV file from the Global Streetscapes repository.
+        """Load a CSV file from the Global Streetscapes repository.
 
         Args:
             filename:
@@ -209,8 +194,8 @@ class GlobalStreetscapesSource(HFSourceBase):
 
         Returns:
             An Ibis table.
-        """
 
+        """
         fpath = utils.make_path(
             filename,
             root or self.csv_dir,
@@ -224,8 +209,7 @@ class GlobalStreetscapesSource(HFSourceBase):
         filename: str | Path,
         root: str | Path = None,
     ):
-        """
-        Load a Parquet file from the Global Streetscapes repository.
+        """Load a Parquet file from the Global Streetscapes repository.
 
         Args:
             filename:
@@ -236,8 +220,8 @@ class GlobalStreetscapesSource(HFSourceBase):
 
         Returns:
             An Ibis table.
-        """
 
+        """
         fpath = utils.make_path(
             filename,
             root or self.parquet_dir,
@@ -251,11 +235,9 @@ class GlobalStreetscapesSource(HFSourceBase):
         criteria: dict = None,
         columns: list | tuple | set = None,
     ) -> ibis.Table:
-        """
-        Load and return a dataset.
+        """Load and return a dataset.
 
         Args:
-
             criteria:
                 Optional criteria used to create a subset.
 
@@ -264,8 +246,8 @@ class GlobalStreetscapesSource(HFSourceBase):
 
         Returns:
             An Ibis table.
-        """
 
+        """
         # Load the entire dataset
         gs_all = self.load_parquet("streetscapes")
         subset = gs_all

@@ -1,14 +1,14 @@
-import os
 import json
+import os
 from pathlib import Path
 
-from PIL import Image
 import numpy as np
 import typer
+from PIL import Image
 
-from streetscapes.models.sam import SAM
 from streetscapes.models.ade20k import ADE20KFacade
 from streetscapes.models.groundingdino import GroundingDINO
+from streetscapes.models.sam import SAM
 
 segment_images_cli = typer.Typer(help="Segment images")
 
@@ -16,12 +16,8 @@ segment_images_cli = typer.Typer(help="Segment images")
 # ---------------------------
 # Helpers
 # ---------------------------
-def _parse_image_input(
-    images: list[str] | str,
-    limit: int = 10,
-) -> list[str]:
-    """
-    Normalize input to a list of image paths.
+def _parse_image_input(images: list[str] | str) -> list[str]:
+    """Normalize input to a list of image paths.
 
     - Single image path
     - Folder containing images
@@ -163,8 +159,7 @@ def segment_images_ade20k(
     building_min_fraction: float = 0.2,
     limit: int = 10,
 ):
-    """
-    Segment images with ADE20K.
+    """Segment images with ADE20K.
 
     Returns masked images, empty mask, and manifest per image.
     """
@@ -217,8 +212,7 @@ def segment_images_dinosam(
     output_dir: str = "./output",
     limit: int = 10,
 ):
-    """
-    Detect with GroundingDino, then segment with SAM.
+    """Detect with GroundingDino, then segment with SAM.
 
     Outputs masks and a manifest file with bounding boxes and labels.
     """

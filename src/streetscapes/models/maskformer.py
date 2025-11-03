@@ -1,9 +1,7 @@
-from streetscapes.models.base import PathLike
-from streetscapes.models.base import ModelBase
+from streetscapes.models.base import ModelBase, PathLike
 
 
 class MaskFormer(ModelBase):
-
     # All the labels recognised by Mask2Former.
     id_to_label = {
         0: "bird",
@@ -83,8 +81,7 @@ class MaskFormer(ModelBase):
         *args,
         **kwargs,
     ):
-        """
-        A wrapper for the [Mask2Former model](https://huggingface.co/docs/transformers/en/model_doc/mask2former).
+        """A wrapper for the [Mask2Former model](https://huggingface.co/docs/transformers/en/model_doc/mask2former).
 
         The following documentation for the model parameters is taken from the HuggingFace
         page for the panoptic [processing pipeline](https://huggingface.co/docs/transformers/v4.46.3/en/model_doc/mask2former#transformers.Mask2FormerImageProcessor.post_process_panoptic_segmentation)
@@ -119,6 +116,7 @@ class MaskFormer(ModelBase):
                 This differs slightly from the original parameter because it can also accept
                 strings instead of integers (the strings are converted to their IDs).
                 Defaults to None.
+
         """
         import transformers as tform
 
@@ -156,9 +154,7 @@ class MaskFormer(ModelBase):
         self._from_pretrained()
 
     def _from_pretrained(self):
-        """
-        Convenience method for loading processors and models.
-        """
+        """Convenience method for loading processors and models."""
         import transformers as tform
 
         # Mask2Former model
@@ -177,8 +173,7 @@ class MaskFormer(ModelBase):
         paths: PathLike,
         labels: dict,
     ) -> list[dict]:
-        """
-        Segment the provided sequence of images.
+        """Segment the provided sequence of images.
 
         Args:
             paths:
@@ -192,6 +187,7 @@ class MaskFormer(ModelBase):
 
         Returns:
             A list of dictionaries containing instance-level segmentation information.
+
         """
         import torch
 
@@ -214,7 +210,6 @@ class MaskFormer(ModelBase):
         segmentations = []
 
         with torch.no_grad():
-
             # Process the image with the processor
             inputs = self.processor(images=image_list, return_tensors="pt")
             inputs.to(self.device)
@@ -234,7 +229,6 @@ class MaskFormer(ModelBase):
             )
 
             for idx, item in enumerate(segmented):
-
                 # Dictionary that will hold all the information about the segmentation.
                 segmentation = {"image_path": image_paths[idx]}
 
@@ -246,7 +240,9 @@ class MaskFormer(ModelBase):
 
                 # Extract the masks.
                 masks = item["segmentation"].detach().clone().cpu().numpy()
-                segmentation["masks"] = {iid: masks.where(masks == iid) for iid in segmentation['instances']}
+                segmentation["masks"] = {
+                    iid: masks.where(masks == iid) for iid in segmentation["instances"]
+                }
 
                 # Extract and store the segmentations.
                 segmentations.append(segmentation)

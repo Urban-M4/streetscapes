@@ -2,16 +2,14 @@ from __future__ import annotations
 
 import os
 import re
-from abc import ABC
-from abc import abstractmethod
+from abc import ABC, abstractmethod
 from pathlib import Path
 
-from tqdm import tqdm
-from dotenv import load_dotenv
 import requests
+from dotenv import load_dotenv
+from tqdm import tqdm
 
-from streetscapes import utils
-from streetscapes import logger
+from streetscapes import logger, utils
 
 
 class SourceBase(ABC):
@@ -21,8 +19,7 @@ class SourceBase(ABC):
         self,
         root_dir: str | Path | None = None,
     ):
-        """
-        A generic interface used by all derived
+        """A generic interface used by all derived
         interfaces to various data sources
         (HuggingFace, street view imagery, etc.)
 
@@ -31,8 +28,8 @@ class SourceBase(ABC):
                 An optional custom root directory. Defaults to
                 DATA_HOME/sources, where DATA_HOME is read from environment
                 variables.
-        """
 
+        """
         # Source name and environment variables
         # ==================================================
         self.name = self.__class__.__name__.lower()
@@ -53,16 +50,12 @@ class SourceBase(ABC):
         self.token = os.getenv(f"{env_prefix}_TOKEN", None)
 
     def __repr__(self) -> str:
-        """
-        A printable representation of this class.
-        """
+        """A printable representation of this class."""
         cls = self.__class__.__name__
         return f"{cls}(root_dir={utils.hide_home(self.root_dir)!r})"
 
     def show_contents(self) -> str | None:
-        """
-        Create and return a tree-like representation of a directory.
-        """
+        """Create and return a tree-like representation of a directory."""
         return utils.show_dir_tree(self.root_dir)
 
 
@@ -79,8 +72,7 @@ class ImageSourceBase(SourceBase, ABC):
         root_dir: str | Path | None = None,
         url: str | None = None,
     ):
-        """
-        A generic interface to an image source.
+        """A generic interface to an image source.
 
         Args:
             root_dir:
@@ -89,6 +81,7 @@ class ImageSourceBase(SourceBase, ABC):
 
             url:
                 The base URL of the source. Defaults to None.
+
         """
         super().__init__(root_dir)
 
@@ -103,7 +96,6 @@ class ImageSourceBase(SourceBase, ABC):
     @property
     def images(self) -> list[Path]:
         """Return a list of paths to all images in the root directory."""
-
         files = []
         for x in self.root_dir.iterdir():
             a = re.search(ImageSourceBase.image_pattern, str(x))
@@ -117,8 +109,7 @@ class ImageSourceBase(SourceBase, ABC):
         self,
         image_id: int | str,
     ) -> str:
-        """
-        Retrieve the URL for an image with the given ID.
+        """Retrieve the URL for an image with the given ID.
 
         Args:
             image_id:
@@ -126,6 +117,7 @@ class ImageSourceBase(SourceBase, ABC):
 
         Returns:
             The URL to query.
+
         """
         pass
 
@@ -133,8 +125,7 @@ class ImageSourceBase(SourceBase, ABC):
         self,
         image_ids: set | list | tuple,
     ) -> tuple[set[Path], set[int | str]]:
-        """
-        Extract the set of IDs for images that have not been downloaded yet.
+        """Extract the set of IDs for images that have not been downloaded yet.
 
         Args:
             image_ids:
@@ -144,8 +135,8 @@ class ImageSourceBase(SourceBase, ABC):
             A tuple containing:
                 1. A set of paths to existing images.
                 2. A set of IDs of missing images (can be used to determine which images to download).
-        """
 
+        """
         # Check if images exist.
         # NOTE: This might not be generic.
         # It works for Mapillary and KartaView,
@@ -166,8 +157,7 @@ class ImageSourceBase(SourceBase, ABC):
         url: str = None,
         overwrite: bool = False,
     ) -> Path:
-        """
-        Download a single image.
+        """Download a single image.
 
         Args:
             image_id:
@@ -183,8 +173,8 @@ class ImageSourceBase(SourceBase, ABC):
         Returns:
             Path:
                 The path to the downloaded image file.
-        """
 
+        """
         # Set up the image path.
         image_dir = Path(f"{self.root_dir}/images")
         image_dir.mkdir(parents=True, exist_ok=True)
@@ -220,8 +210,7 @@ class ImageSourceBase(SourceBase, ABC):
         urls: list[str] | None,
         overwrite: bool = False,
     ) -> list[Path]:
-        """
-        Download a set of images concurrently.
+        """Download a set of images concurrently.
 
         Args:
             image_ids:
@@ -236,8 +225,8 @@ class ImageSourceBase(SourceBase, ABC):
 
         Returns:
             A list of paths to the saved images.
-        """
 
+        """
         # Ensure that we have URLs
         if urls is None:
             urls = [None] * len(image_ids)
@@ -252,7 +241,7 @@ class ImageSourceBase(SourceBase, ABC):
         results = []
         desc = f"Downloading images | {self.name}"
         with tqdm(total=len(image_ids), desc=desc) as pbar:
-            for image_id, url in zip(image_ids, urls):
+            for image_id, url in zip(image_ids, urls, strict=False):
                 try:
                     path = self.download_image(image_id, url, overwrite=overwrite)
                     results.append(path)
@@ -265,10 +254,10 @@ class ImageSourceBase(SourceBase, ABC):
         return results
 
     def create_session(self) -> requests.Session:
-        """
-        Create an (authenticated) session for the supplied source.
+        """Create an (authenticated) session for the supplied source.
 
         Returns:
             A `requests` session.
+
         """
         return requests.Session()
