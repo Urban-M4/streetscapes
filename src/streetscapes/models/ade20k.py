@@ -14,10 +14,16 @@ class ADE20KFacade:
     """
 
     def __init__(
-        self, encoder_weights: str, decoder_weights: str, device: torch.device
+        self,
+        encoder_weights: str = "DEFAULT",
+        decoder_weights: str = "DEFAULT",
+        device: torch.device | str | None = None,
     ):
+
         net_encoder = ModelBuilder.build_encoder(
-            arch="resnet50dilated", fc_dim=2048, weights=encoder_weights
+            arch="resnet50dilated",
+            fc_dim=2048,
+            weights=encoder_weights,
         )
         net_decoder = ModelBuilder.build_decoder(
             arch="ppm_deepsup",
@@ -30,7 +36,15 @@ class ADE20KFacade:
         self.seg_module = (
             SegmentationModule(net_encoder, net_decoder, crit).eval().to(device)
         )
-        self.device = device
+
+        if device is None:
+            device = (
+                "gpu"
+                if torch.cuda.is_available()
+                else ("mps" if torch.mps.is_available() else "cpu")
+            )
+
+        self.device = torch.device(device)
 
         self.transform = torchvision.transforms.Compose(
             [
