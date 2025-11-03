@@ -12,9 +12,9 @@ class ImageDownloader:
         import ibis
         self.source = source
         self.shard_size = shard_size
-        self.images_dir = images_dir
+        self.images_dir = Path(images_dir)
         self.images_dir.mkdir(parents=True, exist_ok=True)
-        self.manifest_dir = manifest_dir
+        self.manifest_dir = Path(manifest_dir)
 
         self.path = self.manifest_dir / "download_manifest.duckdb"
         self.con = ibis.duckdb.connect(str(self.path))
