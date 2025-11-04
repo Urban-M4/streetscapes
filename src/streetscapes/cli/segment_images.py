@@ -1,10 +1,14 @@
-import json
 import os
 from pathlib import Path
+import requests as rq
+import json
 
 import numpy as np
 import typer
 from PIL import Image
+import time
+import subprocess as sp
+import multiprocessing as mp
 
 from streetscapes.models.ade20k import ADE20KFacade
 from streetscapes.models.groundingdino import GroundingDINO
@@ -258,3 +262,67 @@ def segment_images_dinosam(
         json.dump(manifest, f, indent=2)
 
     typer.echo(f"DinoSAM finished. Manifest: {manifest_path}")
+
+
+@segment_images_cli.command("maskformer")
+def segment_images_maskformer(
+    image_path: str,  # list[str] | str ; typer doesn't support union
+    labels: str = "",  # TODO: Actually dict... typer doesn't support dictionaries either :\
+    output_dir: str = "./output",
+    limit: int = 10,
+):
+
+    # TODO: configuration for predictable model spawning
+    url = "http://127.0.0.1:8000/ping"
+    res = rq.get(url)
+
+    ok = res.status_code == 200
+
+    # Process for the served model
+    proc = None
+    if not ok or res.text != "pong":
+        from streetscapes.cli.model.maskformer import maskformer_app
+        from ray import serve
+        from threading import Thread
+
+        typer.echo("It seems that the MaskFormer model is not alive. Starting...")
+        proc = mp.Process(target=serve.run, args=(maskformer_app,))
+        proc.start()
+
+    # TODO wait for the model to spawn in a more inteligent way.
+    # Perhaps using the Ray dashboard API?
+    ok = False
+    for _ in range(10):
+        res = rq.get(url)
+        typer.echo(f"Ping: {res.text}")
+        ok = res.status_code == 200
+        if ok:
+            break
+        else:
+            typer.echo(f"Model not alive yet...")
+            time.sleep(2)
+
+    if not ok:
+        raise rq.ConnectionError(f"The MaskFormer model service is down.")
+    try:
+
+        typer.echo(f"Requesting segmentation...")
+        # Send an image to process
+        data = {
+            "img_path": image_path,
+            "labels": {
+                "building": None,
+                "sky": None,
+            },
+        }
+
+        url = "http://127.0.0.1:8000/segment"
+        resp = rq.post(url, json=json.dumps(data))
+
+        x = resp.json()
+        typer.echo(f"Response: {x}")
+        # Path("./segmentation.json").write_text(json.dumps(x))
+
+    finally:
+        if proc is not None and proc.is_alive():
+            proc.join()
