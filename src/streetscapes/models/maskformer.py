@@ -241,7 +241,7 @@ class MaskFormer(ModelBase):
                 # Extract the masks.
                 masks = item["segmentation"].detach().clone().cpu().numpy()
                 segmentation["masks"] = {
-                    iid: masks.where(masks == iid) for iid in segmentation["instances"]
+                    iid: masks[masks == iid] for iid in segmentation["instances"]
                 }
 
                 # Extract and store the segmentations.

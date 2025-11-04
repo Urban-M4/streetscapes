@@ -296,4 +296,8 @@ class ModelBase(ABC):
             [self._save_segmentation(seg) for seg in segmentations]
             pbar.update()
 
+
         pbar.set_description_str("Done")
+
+
+        return segmentations
