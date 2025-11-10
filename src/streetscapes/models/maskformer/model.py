@@ -1,5 +1,10 @@
 from streetscapes.models.base import ModelBase, PathLike
 
+from streetscapes.models.maskformer.schema import (
+    MaskFormerRequestSchema,
+    MaskFormerResponseSchema,
+)
+
 
 class MaskFormer(ModelBase):
     # All the labels recognised by Mask2Former.
@@ -248,3 +253,16 @@ class MaskFormer(ModelBase):
                 segmentations.append(segmentation)
 
         return segmentations
+
+    async def process(
+        self,
+        request: dict,
+    ):
+        # Convert the request into a schema to validate it.
+        schema = MaskFormerRequestSchema(**request)
+
+        # Segment the images
+        segmentations = self.segment(schema.image_path, schema.labels, schema.batch_size)
+
+        # A list of results
+        return [MaskFormerResponseSchema(**result) for result in segmentations]
