@@ -2,7 +2,7 @@ import logging
 from pathlib import Path
 
 import pygeohash
-import typer
+from cyclopts import App
 from rich.progress import track
 from shapely import from_wkb
 
@@ -13,19 +13,22 @@ from streetscapes.sources.mapillary import MapillaryClient
 
 logger = logging.getLogger(__name__)
 
-download_images_cli = typer.Typer(name="download_images")
+download_images_cli = App(help="Download images from various sources.")
 
-
-@download_images_cli.command("mapillary")
-def download_mapillary(
-    skip_existing: bool = typer.Option(
-        True, help="If true, only download missing images, otherwise overwrite."
-    ),
-    token: str = typer.Option(
-        None, help="Mapillary OAuth token (if not set via MAPILLARY_TOKEN)."
-    ),
+@download_images_cli.command(name="mapillary")
+def mapillary(
+    skip_existing: bool = True,
+    token: str | None = None,
 ):
-    """Download Mapillary images to a local directory."""
+    """Download Mapillary images to a local directory.
+
+    Parameters
+    ----------
+    skip_existing:
+        If true, only download missing images; otherwise overwrite.
+    token:
+        Mapillary OAuth token (if not set via MAPILLARY_TOKEN).
+    """
     project_name = config.get("active_project")
     data_home = Path(config.get("data_home"))
 
@@ -38,8 +41,8 @@ def download_mapillary(
     records = project.get_mapillary_download_records(skip_existing)
 
     if not records:
-        typer.echo("No new images to download.")
-        raise typer.Exit()
+        print("No new images to download.")
+        raise SystemExit(0)
 
     mapillary = MapillaryClient(token)
     base_path = data_home / "images" / "mapillary"

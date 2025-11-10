@@ -4,8 +4,6 @@ import requests as rq
 import json
 
 import numpy as np
-import typer
-from PIL import Image
 import time
 import subprocess as sp
 import multiprocessing as mp
@@ -274,13 +272,12 @@ def segment_images_maskformer(
 
     # TODO: configuration for predictable model spawning
     url = "http://127.0.0.1:8000/ping"
-    res = rq.get(url)
-
-    ok = res.status_code == 200
-
-    # Process for the served model
-    proc = None
-    if not ok or res.text != "pong":
+    try:
+        res = rq.get(url)
+        ok = res.status_code == 200
+        assert ok
+        assert res.text == "pong"
+    except rq.ConnectionError as e:
         from streetscapes.cli.model.maskformer import maskformer_app
         from ray import serve
         from threading import Thread

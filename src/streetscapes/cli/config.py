@@ -1,39 +1,48 @@
 import json
 
-import typer
+from cyclopts import App
 from rich.table import Table
 
 from streetscapes import config
 from streetscapes.cli.console import console
 
-config_cli = typer.Typer(name="config")
+config_cli = App(name="config")
 
 
-@config_cli.command("set")
+@config_cli.command(name="set")
 def set_config(key: str, value: str):
     """Set a global streetscapes config value."""
     config.set(key, value)
-    typer.echo(f"Config '{key}' set to '{value}'.")
+    print(f"Config '{key}' set to '{value}'.")
 
 
-@config_cli.command("get")
+@config_cli.command(name="get")
 def get_config(key: str):
     """Get a config value."""
     value = config.get(key)
     if value is not None:
-        typer.echo(value)
+        print(value)
     else:
-        typer.echo(f"No config value for '{key}'", err=True)
-        raise typer.Exit(code=1)
+        print(f"No config value for '{key}'", err=True)
+        raise SystemExit(code=1)
 
 
-@config_cli.command("list")
-def list_config(json_output: bool = typer.Option(False, "--json", help="Show as JSON")):
-    """List all configuration values."""
+@config_cli.command(name="list")
+def list_config(
+    json_output: bool = False,
+):
+    """
+    List configuration settings.
+
+    Parameters
+    ----------
+    json_output:
+        Show configuration as JSON if True.
+    """
     cfg = config.load()
 
     if json_output:
-        typer.echo(json.dumps(cfg, indent=2))
+        print(json.dumps(cfg, indent=2))
         return
 
     table = Table(title="Streetscapes Configuration")
