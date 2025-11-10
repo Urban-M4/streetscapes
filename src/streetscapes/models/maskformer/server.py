@@ -2,35 +2,30 @@ from pathlib import Path
 
 import typer
 from fastapi import FastAPI
-from pydantic import BaseModel
 from ray import serve
 from rich.console import Console
 
+from streetscapes.models.maskformer.schema import MaskFormerRequestSchema
 from streetscapes.models.maskformer import MaskFormer
 
 app = FastAPI()
 
 
-class SegmentationRequestModel(BaseModel):
-    img_path: str
-    labels: dict
-    batch_size: int = 10
-
-
 @serve.deployment(
     num_replicas=1,
     ray_actor_options={
+        # TODO: These should be taken from the configuration.
         "num_cpus": 0.2,
         "num_gpus": 0,
     },
 )
 @serve.ingress(app)
-class MaskFormerSegmenter:
+class MaskFormerServer:
     def __init__(self):
         self.model = MaskFormer()
         self.console = Console()
 
-    def segment(
+    def _segment(
         self,
         img_path: str,
         labels: dict,
@@ -56,7 +51,10 @@ class MaskFormerSegmenter:
         return segmentation
 
     @app.post("/segment")
-    def segment(self, req: SegmentationRequestModel) -> list:
+    def segment(
+        self,
+        req: MaskFormerRequestSchema,
+    ) -> list:
         """Endpoint for the segmentation request.
 
         TODO: Proper response model.
@@ -70,7 +68,7 @@ class MaskFormerSegmenter:
         typer.echo("==[ Request for segmentation received.")
 
         data = req.model_dump()
-        segmentations = self.segment(**data)
+        segmentations = self._segment(**data)
         return segmentations
 
     @app.get("/ping")
@@ -82,5 +80,7 @@ class MaskFormerSegmenter:
         """
         return "pong"
 
+        return "pong"
 
-maskformer_app = MaskFormerSegmenter.bind()
+
+segmentation_app = MaskFormerServer.bind()
