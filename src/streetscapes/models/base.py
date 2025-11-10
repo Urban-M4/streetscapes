@@ -64,7 +64,7 @@ class ModelBase(ABC):
         # Set up the device
         # ==================================================
         if device is None:
-            device = "cuda" if torch.cuda.is_available() else "cpu"
+            device = "cpu"  # if torch.cuda.is_available() else "cpu"
         self.device = torch.device(device)
 
         # Mapping of label ID to label

@@ -2,7 +2,7 @@ import logging
 import os
 
 import ibis
-import typer
+from cyclopts import App
 from rich.progress import track
 
 from streetscapes import config
@@ -13,20 +13,29 @@ from streetscapes.utils.bbox import Bbox, split_bbox
 
 logger = logging.getLogger(__name__)
 
-fetch_metadata_cli = typer.Typer(help="Fetch metadata for a source")
+fetch_metadata_cli = App(help="Fetch metadata for a source")
 
 
-@fetch_metadata_cli.command("mapillary")
-def fetch_metadata_mapillary(
-    bbox: Bbox = typer.Option(..., help="Bounding box (west, south, east, north)"),  # noqa: B008
-    tile_size: float = typer.Option(0.001, help="Tile size in degrees"),
-    limit: int = typer.Option(1000, help="Maximum number of images per tile"),
-    token: str = typer.Option(
-        None, help="Mapillary OAuth token (if not set via MAPILLARY_TOKEN)."
-    ),
+@fetch_metadata_cli.command(name="mapillary")
+def mapillary(
+    bbox: Bbox,
+    tile_size: float = 0.001,
+    limit: int = 1000,
+    token: str | None = None,
 ):
-    """Fetch Mapillary metadata in tiles and store as DuckDB manifest."""
+    """Fetch metadata from the Mapillary API.
 
+    Parameters
+    ----------
+    bbox:
+        Bounding box (west, south, east, north).
+    tile_size:
+        Tile size in degrees.
+    limit:
+        Maximum number of images per tile.
+    token:
+        Mapillary OAuth token (if not set via MAPILLARY_TOKEN).
+    """
     logger.info(f"Fetching metadata for {bbox=}")
 
     token = token or os.getenv("MAPILLARY_TOKEN")

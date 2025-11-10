@@ -12,9 +12,7 @@ from transformers import (
 
 
 class BFMS:
-    """Building/Facade Material Segmentation model
-    based on Mask2Former.
-    """
+    """Building/Facade Material Segmentation model based on Mask2Former."""
 
     def __init__(self, model_path: Path = Path("./trained_model"), device: str = None):
         self.model_path = Path(model_path)

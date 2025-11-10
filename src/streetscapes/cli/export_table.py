@@ -1,22 +1,30 @@
+import logging
 import os
 
-import typer
-from streetscapes import config
+from cyclopts import App
 
+from streetscapes import config
 from streetscapes.project import Project
-import logging
 
 logger = logging.getLogger(__name__)
 
-export_cli = typer.Typer(help="Export tables from the project.")
+export_cli = App(help="Export tables from the project.")
 
 
-@export_cli.command("table")
+@export_cli.command(name="table")
 def export_table(
-    table_name: str = typer.Argument(help="The name of the user to greet"),
-    output: str = typer.Argument(help="Output file path"),
+    table_name: str,
+    output: str,
 ):
-    """Export a table to (Geo)Parquet, CSV, JSON, GPKG, or GeoJSON."""
+    """Export a table to (Geo)Parquet, CSV, JSON, GPKG, or GeoJSON.
+
+    Parameters
+    ----------
+    table_name:
+        The name of the table to export.
+    output:
+        Output file path (must have .csv, .parquet, .json, .gpkg, or .geojson extension).
+    """
     project = Project(config.get("active_project"))
     ext = os.path.splitext(output)[1].lower()
 
@@ -30,8 +38,7 @@ def export_table(
 
     exporter = exporters.get(ext)
     if exporter is None:
-        raise typer.BadParameter(f"Unsupported file extension: {ext}")
+        raise ValueError(f"Unsupported file extension: {ext}")
 
     exporter(table_name, output)
-
     logger.info(f"Exported {table_name} to {output}")

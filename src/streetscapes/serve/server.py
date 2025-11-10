@@ -1,11 +1,12 @@
 import os
 from typing import Any
+
 from ray import serve
 from rich.console import Console
 
-from streetscapes.models.maskformer import MaskFormer
-from streetscapes.models.dinosam import DinoSAM
 from streetscapes.models.bfms import BFMS
+from streetscapes.models.dinosam import DinoSAM
+from streetscapes.models.maskformer import MaskFormer
 
 os.environ["RAY_ACCEL_ENV_VAR_OVERRIDE_ON_ZERO"] = "0"
 
