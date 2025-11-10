@@ -1,10 +1,10 @@
+import logging
 import os
 
 from cyclopts import App
-from streetscapes import config
 
+from streetscapes import config
 from streetscapes.project import Project
-import logging
 
 logger = logging.getLogger(__name__)
 

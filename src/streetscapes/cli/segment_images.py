@@ -1,12 +1,11 @@
-import os
-from pathlib import Path
-import requests as rq
 import json
+import multiprocessing as mp
+import os
+import time
+from pathlib import Path
 
 import numpy as np
-import time
-import subprocess as sp
-import multiprocessing as mp
+import requests as rq
 
 from streetscapes.models.ade20k import ADE20KFacade
 from streetscapes.models.groundingdino import GroundingDINO
@@ -66,8 +65,7 @@ def segment_images_sam(
     out: str,
     limit: int = 10,
 ):
-    """
-    Segment images with the SAM.
+    """Segment images with the SAM.
 
     Args:
         image_path: A single image or a directory of images.
@@ -86,8 +84,7 @@ def segment_images_dino(
     out: str,
     limit: int = 10,
 ):
-    """
-    Detect objects with GroundingDino.
+    """Detect objects with GroundingDino.
 
     Args:
         image_path: A single image or a directory of images.
@@ -111,8 +108,7 @@ def classify_images_openclip(
     pretrained: str = "laion2b_s34b_b79k",
     limit: int = 10,
 ):
-    """
-    Perform instance segmentation with OpenCLIP.
+    """Perform instance segmentation with OpenCLIP.
 
     Args:
         image_path: A single image or a directory of images.
@@ -135,8 +131,7 @@ def segment_images_clipseg(
     output_path: str = "./clipseg_mask.npy",
     limit: int = 10,
 ):
-    """
-    Image segmentation with ClipSEG.
+    """Image segmentation with ClipSEG.
 
     Args:
         image_path: A single image or a directory of images.
@@ -269,7 +264,6 @@ def segment_images_maskformer(
     output_dir: str = "./output",
     limit: int = 10,
 ):
-
     # TODO: configuration for predictable model spawning
     url = "http://127.0.0.1:8000/ping"
     try:
@@ -277,10 +271,11 @@ def segment_images_maskformer(
         ok = res.status_code == 200
         assert ok
         assert res.text == "pong"
-    except rq.ConnectionError as e:
-        from streetscapes.cli.model.maskformer import maskformer_app
+    except rq.ConnectionError:
+
         from ray import serve
-        from threading import Thread
+
+        from streetscapes.cli.model.maskformer import maskformer_app
 
         typer.echo("It seems that the MaskFormer model is not alive. Starting...")
         proc = mp.Process(target=serve.run, args=(maskformer_app,))
@@ -296,14 +291,13 @@ def segment_images_maskformer(
         if ok:
             break
         else:
-            typer.echo(f"Model not alive yet...")
+            typer.echo("Model not alive yet...")
             time.sleep(2)
 
     if not ok:
-        raise rq.ConnectionError(f"The MaskFormer model service is down.")
+        raise rq.ConnectionError("The MaskFormer model service is down.")
     try:
-
-        typer.echo(f"Requesting segmentation...")
+        typer.echo("Requesting segmentation...")
         # Send an image to process
         data = {
             "img_path": image_path,

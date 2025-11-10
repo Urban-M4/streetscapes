@@ -15,6 +15,7 @@ logger = logging.getLogger(__name__)
 
 download_images_cli = App(help="Download images from various sources.")
 
+
 @download_images_cli.command(name="mapillary")
 def mapillary(
     skip_existing: bool = True,

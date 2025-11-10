@@ -1,20 +1,21 @@
 from pathlib import Path
+
+import typer
+from fastapi import FastAPI
+from pydantic import BaseModel
 from ray import serve
 from rich.console import Console
-from fastapi import FastAPI
-import typer
 
-from requests import Request, Response
-from pydantic import BaseModel
 from streetscapes.models.maskformer import MaskFormer
 
 app = FastAPI()
 
-class SegmentationRequestModel(BaseModel):
 
+class SegmentationRequestModel(BaseModel):
     img_path: str
     labels: dict
     batch_size: int = 10
+
 
 @serve.deployment(
     num_replicas=1,
@@ -25,9 +26,7 @@ class SegmentationRequestModel(BaseModel):
 )
 @serve.ingress(app)
 class MaskFormerSegmenter:
-
     def __init__(self):
-
         self.model = MaskFormer()
         self.console = Console()
 
@@ -37,8 +36,7 @@ class MaskFormerSegmenter:
         labels: dict,
         batch_size: int = 10,
     ) -> str:
-        """
-        Perform the segmentation.
+        """Perform the segmentation.
 
         Args:
             img_path: Image path (a single image or a directory of images).
@@ -59,8 +57,7 @@ class MaskFormerSegmenter:
 
     @app.post("/segment")
     def segment(self, req: SegmentationRequestModel) -> list:
-        """
-        Endpoint for the segmentation request.
+        """Endpoint for the segmentation request.
 
         TODO: Proper response model.
 
@@ -70,8 +67,7 @@ class MaskFormerSegmenter:
         Returns:
             The segmentation results.
         """
-
-        typer.echo(f"==[ Request for segmentation received.")
+        typer.echo("==[ Request for segmentation received.")
 
         data = req.model_dump()
         segmentations = self.segment(**data)
@@ -79,13 +75,12 @@ class MaskFormerSegmenter:
 
     @app.get("/ping")
     async def ping(self) -> str:
-        """
-        Endpoint for checking if the model is alive.
+        """Endpoint for checking if the model is alive.
 
         Returns:
             'pong'
         """
+        return "pong"
 
-        return 'pong'
 
 maskformer_app = MaskFormerSegmenter.bind()

@@ -31,8 +31,7 @@ def get_config(key: str):
 def list_config(
     json_output: bool = False,
 ):
-    """
-    List configuration settings.
+    """List configuration settings.
 
     Parameters
     ----------
