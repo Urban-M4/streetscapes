@@ -1,4 +1,5 @@
 import os
+from typing import Any
 from pathlib import Path
 import requests as rq
 import json
@@ -6,15 +7,25 @@ import json
 import numpy as np
 import typer
 from PIL import Image
-import time
-import subprocess as sp
-import multiprocessing as mp
+from ray import serve
+from ray.serve.handle import DeploymentHandle
+
 
 from streetscapes.models.ade20k import ADE20KFacade
 from streetscapes.models.groundingdino import GroundingDINO
 from streetscapes.models.sam import SAM
+from streetscapes.serve import model_server
+from streetscapes.streetview import SVWorkspace
+
 
 segment_images_cli = typer.Typer(help="Segment images")
+
+
+def _spawn_model_server(model: str) -> DeploymentHandle:
+
+    app = model_server(model)
+    typer.echo("Starting model...")
+    return serve.run(app)
 
 
 # ---------------------------
@@ -272,57 +283,20 @@ def segment_images_maskformer(
     limit: int = 10,
 ):
 
-    # TODO: configuration for predictable model spawning
-    url = "http://127.0.0.1:8000/ping"
-    res = rq.get(url)
+    from streetscapes.models.maskformer.schema import MaskFormerResponseSchema
 
-    ok = res.status_code == 200
+    handle = _spawn_model_server("maskformer")
 
-    # Process for the served model
-    proc = None
-    if not ok or res.text != "pong":
-        from streetscapes.cli.model.maskformer import maskformer_app
-        from ray import serve
-        from threading import Thread
+    data = {
+        "image_path": image_path,
+        "labels": {
+            "building": None,
+            "sky": None,
+        },
+    }
+    response = handle.remote(data).result()
 
-        typer.echo("It seems that the MaskFormer model is not alive. Starting...")
-        proc = mp.Process(target=serve.run, args=(maskformer_app,))
-        proc.start()
+    if len(response) == 0:
+        print(f"==[ Zero-length response :(")
 
-    # TODO wait for the model to spawn in a more inteligent way.
-    # Perhaps using the Ray dashboard API?
-    ok = False
-    for _ in range(10):
-        res = rq.get(url)
-        typer.echo(f"Ping: {res.text}")
-        ok = res.status_code == 200
-        if ok:
-            break
-        else:
-            typer.echo(f"Model not alive yet...")
-            time.sleep(2)
-
-    if not ok:
-        raise rq.ConnectionError(f"The MaskFormer model service is down.")
-    try:
-
-        typer.echo(f"Requesting segmentation...")
-        # Send an image to process
-        data = {
-            "img_path": image_path,
-            "labels": {
-                "building": None,
-                "sky": None,
-            },
-        }
-
-        url = "http://127.0.0.1:8000/segment"
-        resp = rq.post(url, json=json.dumps(data))
-
-        x = resp.json()
-        typer.echo(f"Response: {x}")
-        # Path("./segmentation.json").write_text(json.dumps(x))
-
-    finally:
-        if proc is not None and proc.is_alive():
-            proc.join()
+    print(f"==[ Instances: {response[0].instances}")
