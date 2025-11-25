@@ -4,6 +4,15 @@ import ibis
 from pandas import DataFrame
 from shapely.geometry import box
 
+import numpy as np
+import uuid
+
+# TODO: uuid7gen can be removed if we ever move
+# to Python >=3.14 as the default since the built-in
+# uuid module provides uuid7 support.
+from uuid7gen import uuid7
+import orjson as oj
+
 from streetscapes import config
 from streetscapes.utils.bbox import Bbox
 
@@ -16,9 +25,12 @@ class Project:
         self.name = name
         self.data_home = Path(config.get("data_home"))
 
-        database_path = self.data_home / "projects" / f"{name}.duckdb"
-        database_path.parent.mkdir(parents=True, exist_ok=True)
-        self.con = ibis.duckdb.connect(database_path)
+        self.database_path = self.data_home / "projects" / f"{name}.duckdb"
+        self.database_path.parent.mkdir(parents=True, exist_ok=True)
+        self.segmentation_path = self.data_home / "segmentations"
+        self.segmentation_path.mkdir(parents=True, exist_ok=True)
+
+        self.con = ibis.duckdb.connect(self.database_path)
         self.con.raw_sql("INSTALL spatial; LOAD spatial;")
 
     def image_dir(self, source: str | None = None):
@@ -26,7 +38,7 @@ class Project:
             return self.data_home / "images"
         return self.data_home / "images" / source
 
-    def get_table(self, name: str):
+    def ensure_table(self, name: str):
         """Return an ibis table reference."""
         return self.con.table(name)
 
@@ -34,28 +46,32 @@ class Project:
         """Ingest a DataFrame of Mapillary metadata."""
         self.con.con.register("metadata_tile", df)
         if table_name not in self.con.list_tables():
-            self.con.raw_sql(f"""
+            self.con.raw_sql(
+                f"""
                 CREATE TABLE {table_name} AS
                 SELECT
                     * EXCLUDE (geometry),
                     ST_GeomFromText(geometry) AS geometry,
                 FROM metadata_tile;
                 ALTER TABLE {table_name} ADD PRIMARY KEY (id);
-            """)
+            """
+            )
         else:
             # TODO: consider configurable duplicate behaviour (REPLACE or IGNORE)
-            self.con.raw_sql(f"""
+            self.con.raw_sql(
+                f"""
                 INSERT OR REPLACE INTO {table_name}
                 SELECT
                     * EXCLUDE (geometry),
                     ST_GeomFromText(geometry) AS geometry,
                 FROM metadata_tile
-            """)
+            """
+            )
 
     def filter_bbox(self, table_name, bbox: Bbox):
         """Return an Ibis table expression filtered by a bounding box."""
 
-        table = self.get_table(table_name)
+        table = self.ensure_table(table_name)
         envelope_expr = ibis.literal(box(*bbox).wkt, type="geospatial:geometry")
         return table.filter(table.geometry.within(envelope_expr))
 
@@ -127,7 +143,8 @@ class Project:
             UUID will be generated inside DuckDB.
 
         """
-        self.con.raw_sql("""
+        self.con.raw_sql(
+            """
             CREATE TABLE IF NOT EXISTS local_images (
                 uuid TEXT PRIMARY KEY,
                 id TEXT NOT NULL,
@@ -135,7 +152,8 @@ class Project:
                 path TEXT NOT NULL,
                 geometry GEOMETRY,
             )
-        """)
+        """
+        )
 
         sql = """
         INSERT INTO local_images (uuid, id, source, path, geometry)
@@ -149,3 +167,28 @@ class Project:
 
         # Execute as batch
         self.con.con.executemany(sql, params)
+
+    def ensure_table(
+        self,
+        table: str,
+        schema: ibis.Schema,
+        replace: bool = False,
+    ) -> ibis.Table:
+        """
+        Ensure that a table exists with the given schema.
+
+        Args:
+            table: Table name.
+            schema: Schema to use for the table if it doesn't exist.
+            replace: Replace the table if it exists.
+
+        Returns:
+            An Ibis table.
+        """
+        if table in self.con.tables:
+            if not replace:
+                return
+            self.con.drop_table(table)
+
+        tbl = self.con.create_table(table, schema=schema)
+        return tbl
