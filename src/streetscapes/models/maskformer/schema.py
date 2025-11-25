@@ -1,6 +1,7 @@
 from pydantic import BaseModel
 from pathlib import Path
 
+
 class MaskFormerRequestSchema(BaseModel):
 
     image_path: str | Path
