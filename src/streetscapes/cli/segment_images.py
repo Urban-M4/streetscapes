@@ -1,39 +1,27 @@
 from cyclopts import App
-from ray import serve
-from ray.serve.handle import DeploymentHandle
+
+from streetscapes.models import maskformer
 
 
 segment_images_cli = App(help="Segment images")
 
 
-def _spawn_model_server(model: str) -> DeploymentHandle:
-    from streetscapes.serve import model_server
-    app = model_server(model)
-    print("Starting model...")
-    return serve.run(app)
-
-
 @segment_images_cli.command(name="maskformer")
 def segment_images_maskformer(
-    image_path: str,  # list[str] | str ; typer doesn't support union
-    labels: dict = None,
+    image_path: str,
+    labels: dict | None = None,
     batch_size: int = 10,
+    params: dict = None,
+    overwrite: bool = False,
 ):
-    from streetscapes.models.maskformer.schema import MaskFormerResponseSchema
+    '''
+    Segment images with the MaskFormer model.
 
-    if labels is None:
-        labels = {"building": None, "sky": None}
-
-    handle = _spawn_model_server("maskformer")
-
-    data = {
-        "image_path": image_path,
-        "labels": labels,
-        "batch_size": batch_size,
-    }
-    response = handle.remote(data).result()
-
-    if len(response) == 0:
-        print(f"==[ Zero-length response :(")
-
-    print(f"==[ Instances: {response[0].instances}")
+    Args:
+        image_path: Path to the images to be segmented.
+        labels: Labels to focus on.
+        batch_size: Batch size for the segmentation model.
+        params: Model parameters.
+        overwrite: Overwrite existing segmentations.
+    '''
+    maskformer.segment_images(image_path, labels, batch_size, params, overwrite)
