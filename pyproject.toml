@@ -7,7 +7,6 @@ name = "streetscapes"
 version = "0.3.2"
 requires-python = ">= 3.12"
 dependencies = [
-    "awkward",
     "black",
     "contextily",
     "duckdb",
@@ -28,6 +27,7 @@ dependencies = [
     "mit-semseg",
     "numpy",
     "osmnx",
+    "orjson",
     "pandas",
     "pyarrow",
     "pyproj",
@@ -48,6 +48,7 @@ dependencies = [
     "pygeohash>=3.2.0",
     "ray[serve]>=2.51.1",
     "cyclopts>=4.2.1",
+    "uuid7gen"
 ]
 authors = [
     { name = "Claire Donnelly", email = "c.donnelly@esciencecenter.nl" },
