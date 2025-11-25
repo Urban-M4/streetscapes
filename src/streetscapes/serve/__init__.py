@@ -1,1 +1,1 @@
-from .server import ModelServer, model_server
+from .server import ModelApp, serve_model

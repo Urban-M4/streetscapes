@@ -2,6 +2,8 @@ import os
 from typing import Any
 
 from ray import serve
+from ray.serve.handle import DeploymentHandle
+
 from rich.console import Console
 
 from streetscapes.models.bfms import BFMS
@@ -19,7 +21,7 @@ os.environ["RAY_ACCEL_ENV_VAR_OVERRIDE_ON_ZERO"] = "0"
         "num_gpus": 0,
     },
 )
-class ModelServer:
+class ModelApp:
 
     available_models = {
         m.__name__.lower(): m
@@ -38,7 +40,7 @@ class ModelServer:
         if model not in self.available_models:
             raise KeyError(f"Invalid model '{model}'")
 
-        self.model = self.available_models[model]()
+        self.model = self.available_models[model](*args, *kwargs)
 
     async def __call__(self, request: Any):
 
@@ -46,5 +48,11 @@ class ModelServer:
         return await self.model.process(request)
 
 
-def model_server(model: str, *args, **kwargs) -> serve.Application:
-    return ModelServer.bind(model, *args, **kwargs)
+def get_model_app(model: str, *args, **kwargs) -> serve.Application:
+    return ModelApp.bind(model, *args, **kwargs)
+
+
+def serve_model(model: str, *args, **kwargs) -> DeploymentHandle:
+
+    app = get_model_app(model, *args, **kwargs)
+    return serve.run(app)
