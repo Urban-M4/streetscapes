@@ -39,7 +39,7 @@ PathLike = Path | str | list[Path | str]
 # PyTorch configuration options.
 # This should go into a dedicated configuration module.
 # ==================================================
-os.environ["PYTORCH_CUDA_ALLOC_CONF"] = "expandable_segments:True"
+os.environ["PYTORCH_ALLOC_CONF"] = "expandable_segments:True"
 
 
 class ModelBase(ABC):
@@ -107,7 +107,7 @@ class ModelBase(ABC):
         model_name = self.name.lower()
 
         # The directory where the image is stored
-        image_path = segmentation["image_path"]
+        image_path = Path(segmentation["image_path"])
         image_dir = image_path.parent
 
         # Derive the mask and instance directories from the image directory
@@ -293,11 +293,8 @@ class ModelBase(ABC):
         pbar = tqdm(total=total, desc="Segmenting images...")
         for path_batch in itertools.batched(list(paths), batch_size):
             segmentations = self._segment_images(path_batch, labels)
-            [self._save_segmentation(seg) for seg in segmentations]
             pbar.update()
 
-
         pbar.set_description_str("Done")
-
 
         return segmentations
