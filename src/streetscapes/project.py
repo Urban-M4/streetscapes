@@ -203,7 +203,7 @@ class Project:
     def ensure_table(
         self,
         table: str,
-        schema: dict | ibis.Schema,
+        schema: dict | ibis.Schema | None = None,
         replace: bool = False,
     ) -> ibis.Table:
         """
@@ -219,6 +219,9 @@ class Project:
         """
         if table in self.con.tables:
             if not replace:
-                return
+                return self.con.table(table)
             self.con.drop_table(table)
-        self.con.create_table(table, schema=schema)
+        if schema is None:
+            raise ValueError(f"Please provide a valid schema for table '{table}'.")
+        return self.con.create_table(table, schema=schema)
+
