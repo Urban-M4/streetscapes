@@ -106,7 +106,7 @@ def test_fetch_and_export_integration(fake_mapillary_client, tmp_path):
     # Read back Parquet to verify content
     project = Project("test_streetscapes")
     df_out = pd.read_parquet(parquet_file)
-    table_expr = project.get_table("mapillary")
+    table_expr = project.ensure_table("mapillary")
     count = table_expr.count().execute()
     assert len(df_out) == count
     assert "geometry" in df_out.columns
