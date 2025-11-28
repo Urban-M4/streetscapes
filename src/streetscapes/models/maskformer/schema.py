@@ -9,6 +9,6 @@ class MaskFormerRequestSchema(BaseModel):
 
 
 class MaskFormerResponseSchema(BaseModel):
-    image_path: str | Path
+    image_path: str
     instances: dict[int, str]
     masks: dict[int, list]
