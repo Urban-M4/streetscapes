@@ -14,6 +14,7 @@ from uuid7gen import uuid7
 import orjson as oj
 
 from streetscapes import config
+from streetscapes.utils import ensure_dir
 from streetscapes.utils.bbox import Bbox
 
 
@@ -27,40 +28,71 @@ class Project:
 
         self.database_path = self.data_home / "projects" / f"{name}.duckdb"
         self.database_path.parent.mkdir(parents=True, exist_ok=True)
-        self.segmentation_path = self.data_home / "segmentations"
-        self.segmentation_path.mkdir(parents=True, exist_ok=True)
 
         self.con = ibis.duckdb.connect(self.database_path)
         self.con.raw_sql("INSTALL spatial; LOAD spatial;")
 
-    def image_dir(self, source: str | None = None):
-        if source is None:
-            return self.data_home / "images"
-        return self.data_home / "images" / source
+    def get_image_dir(
+        self,
+        source: str | None = None,
+        create: bool = False,
+    ) -> Path:
+        """
+        Get the path to the directory where downloaded images are stored,
+        optionally specifying a source.
 
-    def ensure_table(self, name: str):
-        """Return an ibis table reference."""
-        return self.con.table(name)
+        Args:
+            model: The source name (e.g., 'mapillary').
+            create: Optionally create the directory.
 
-    def ingest_mapillary(self, df: DataFrame, table_name="mapillary"):
+        Returns:
+            A Path object.
+        """
+        path = self.data_home / "images"
+        if source is not None:
+            path /= source
+        return ensure_dir(path) if create else path
+
+    def get_output_dir(
+        self,
+        model: str,
+        create: bool = False,
+    ) -> Path:
+        """
+        Get the path to the output directory,
+        optionally specifying a model.
+
+        Args:
+            model: The model name (e.g., 'maskformer').
+            create: Optionally create the directory.
+
+        Returns:
+            A Path object.
+        """
+        path = self.data_home / "models"
+        if model is not None:
+            path /= model
+        return ensure_dir(path) if create else path
+
+    def ingest_mapillary(self, df: DataFrame, table: str = "mapillary"):
         """Ingest a DataFrame of Mapillary metadata."""
         self.con.con.register("metadata_tile", df)
-        if table_name not in self.con.list_tables():
+        if table not in self.con.list_tables():
             self.con.raw_sql(
                 f"""
-                CREATE TABLE {table_name} AS
+                CREATE TABLE {table} AS
                 SELECT
                     * EXCLUDE (geometry),
                     ST_GeomFromText(geometry) AS geometry,
                 FROM metadata_tile;
-                ALTER TABLE {table_name} ADD PRIMARY KEY (id);
+                ALTER TABLE {table} ADD PRIMARY KEY (id);
             """
             )
         else:
             # TODO: consider configurable duplicate behaviour (REPLACE or IGNORE)
             self.con.raw_sql(
                 f"""
-                INSERT OR REPLACE INTO {table_name}
+                INSERT OR REPLACE INTO {table}
                 SELECT
                     * EXCLUDE (geometry),
                     ST_GeomFromText(geometry) AS geometry,
@@ -68,10 +100,10 @@ class Project:
             """
             )
 
-    def filter_bbox(self, table_name, bbox: Bbox):
+    def filter_bbox(self, table: str, bbox: Bbox):
         """Return an Ibis table expression filtered by a bounding box."""
 
-        table = self.ensure_table(table_name)
+        table = self.ensure_table(table)
         envelope_expr = ibis.literal(box(*bbox).wkt, type="geospatial:geometry")
         return table.filter(table.geometry.within(envelope_expr))
 
@@ -171,7 +203,7 @@ class Project:
     def ensure_table(
         self,
         table: str,
-        schema: ibis.Schema,
+        schema: dict | ibis.Schema,
         replace: bool = False,
     ) -> ibis.Table:
         """
