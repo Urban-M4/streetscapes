@@ -21,12 +21,12 @@ from streetscapes.utils.bbox import Bbox
 class Project:
     """Minimal project managing a DuckDB/Ibis connection."""
 
-    def __init__(self, name: str = "streetscapes"):
+    def __init__(self, name: str | None = None):
         # TODO: also read name from config? But keep option to overwrite?
-        self.name = name
+        self.name = name or "streetscapes"
         self.data_home = Path(config.get("data_home"))
 
-        self.database_path = self.data_home / "projects" / f"{name}.duckdb"
+        self.database_path = self.data_home / "projects" / f"{self.name}.duckdb"
         self.database_path.parent.mkdir(parents=True, exist_ok=True)
 
         self.con = ibis.duckdb.connect(self.database_path)
@@ -221,6 +221,4 @@ class Project:
             if not replace:
                 return
             self.con.drop_table(table)
-
-        tbl = self.con.create_table(table, schema=schema)
-        return tbl
+        self.con.create_table(table, schema=schema)
