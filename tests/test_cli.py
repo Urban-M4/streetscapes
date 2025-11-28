@@ -117,7 +117,7 @@ def test_fetch_and_export_integration(fake_mapillary_client, tmp_path):
     result_dl = run_cli("streetscapes download_images mapillary --skip-existing")
 
     # Verify filesystem
-    image_dir = project.image_dir("mapillary")
+    image_dir = project.get_image_dir("mapillary")
     all_files = list(image_dir.rglob("*.jpg"))
     assert len(all_files) > 0
     for f in all_files:
