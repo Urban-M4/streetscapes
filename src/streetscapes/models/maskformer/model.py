@@ -82,7 +82,7 @@ class MaskFormer(ModelBase):
         threshold: float = 0.5,
         mask_threshold: float = 0.5,
         overlap_mask_area_threshold: float = 0.8,
-        labels_to_fuse: set[str | int] = None,
+        labels_to_fuse: list[str | int] | None = None,
         *args,
         **kwargs,
     ):
@@ -110,7 +110,7 @@ class MaskFormer(ModelBase):
 
             overlap_mask_area_threshold:
                 The overlap mask area threshold to merge or discard small disconnected
-                parts within each binary instance mask.The overlap mask area threshold
+                parts within each binary instance mask. The overlap mask area threshold
                 to merge or discard small disconnected parts within each binary instance mask.
                 Defaults to 0.8.
 
@@ -128,11 +128,9 @@ class MaskFormer(ModelBase):
         # Initialise the base
         super().__init__(*args, **kwargs)
 
-        self.id_to_label = MaskFormer.id_to_label
-
         # Create the reverse mapping of label to label ID
         self.label_to_id = {
-            label: label_id for label_id, label in self.id_to_label.items()
+            label: label_id for label_id, label in MaskFormer.id_to_label.items()
         }
 
         # Arguments
@@ -140,10 +138,11 @@ class MaskFormer(ModelBase):
         # Convert any string labels into integers
         label_ids_to_fuse = set()
         if labels_to_fuse is not None:
+            labels_to_fuse = set(labels_to_fuse)
             for lbl in labels_to_fuse:
                 if isinstance(lbl, int):
                     label_ids_to_fuse.add(lbl)
-                elif isinstance(lbl, str):
+                elif isinstance(lbl, str) and lbl in self.label_to_id:
                     label_ids_to_fuse.add(self.label_to_id[lbl])
 
         self.model_id = model_id
@@ -203,7 +202,7 @@ class MaskFormer(ModelBase):
         labels = self._flatten_labels(labels)
 
         # Eliminate labels that are not recognised by the model
-        remove = set(labels).difference(self.id_to_label)
+        remove = set(labels).difference(MaskFormer.id_to_label)
         _labels = {}
         for k, v in labels.items():
             if k in remove:
@@ -235,11 +234,11 @@ class MaskFormer(ModelBase):
 
             for idx, item in enumerate(segmented):
                 # Dictionary that will hold all the information about the segmentation.
-                segmentation = {"image_path": image_paths[idx]}
+                segmentation = {"image_path": str(image_paths[idx])}
 
                 # Extract and store the instances.
                 segmentation["instances"] = {
-                    instance["id"]: self.id_to_label[instance["label_id"]]
+                    instance["id"]: MaskFormer.id_to_label[instance["label_id"]]
                     for instance in item["segments_info"]
                 }
 
@@ -262,7 +261,11 @@ class MaskFormer(ModelBase):
         schema = MaskFormerRequestSchema(**request)
 
         # Segment the images
-        segmentations = self.segment(schema.image_path, schema.labels, schema.batch_size)
+        segmentations = self.segment(
+            schema.image_path,
+            schema.labels,
+            schema.batch_size,
+        )
 
         # A list of results
         return [MaskFormerResponseSchema(**result) for result in segmentations]
