@@ -32,15 +32,17 @@ class ModelApp:
         )
     }
 
-    def __init__(self, model: str, *args, **kwargs):
+    def __init__(self, model: str, /, **kwargs):
 
         self.con = Console()
         self.con.print(f"Starting model: {model}")
 
+        model = model.lower()
+
         if model not in self.available_models:
             raise KeyError(f"Invalid model '{model}'")
 
-        self.model = self.available_models[model](*args, *kwargs)
+        self.model = self.available_models[model](**kwargs)
 
     async def __call__(self, request: Any):
 
@@ -48,11 +50,11 @@ class ModelApp:
         return await self.model.process(request)
 
 
-def get_model_app(model: str, *args, **kwargs) -> serve.Application:
-    return ModelApp.bind(model, *args, **kwargs)
+def get_model_app(model: str, /, **kwargs) -> serve.Application:
+    return ModelApp.bind(model, **kwargs)
 
 
-def serve_model(model: str, *args, **kwargs) -> DeploymentHandle:
+def serve_model(model: str, /, **kwargs) -> DeploymentHandle:
 
-    app = get_model_app(model, *args, **kwargs)
+    app = get_model_app(model, **kwargs)
     return serve.run(app)
