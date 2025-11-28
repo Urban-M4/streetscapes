@@ -24,4 +24,6 @@ def segment_images_maskformer(
         params: Model parameters.
         overwrite: Overwrite existing segmentations.
     '''
+
+
     maskformer.segment_images(image_path, labels, batch_size, params, overwrite)

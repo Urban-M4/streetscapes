@@ -8,7 +8,6 @@ import uuid
 from uuid7gen import uuid7
 import orjson as oj
 
-from hashlib import sha256
 import numpy as np
 import ibis
 
@@ -56,7 +55,7 @@ def save_segmentations(
 
     for segmentation in segmentations:
         seg_id = uuid.uuid4()
-        seg_fpath = project.segmentation_path / f"{seg_id}.npz"
+        seg_fpath = project.output_path / f"{seg_id}.npz"
 
         # Save the segmentations.
         np.savez(seg_fpath, segmentation=segmentation)
@@ -70,7 +69,6 @@ def save_segmentations(
     # Update the database
     project.con.insert("maskformer", rows)
 
-
 def segment_images(
     image_path: str | Path,
     labels: dict | None = None,
@@ -83,7 +81,6 @@ def segment_images(
     project.ensure_table("maskformer", get_db_schema())
 
     image_path = Path(image_path)
-    # imag_hash = sha256(image_path.read_bytes()).digest()
     model_params = {
         "model_id": "facebook/mask2former-swin-large-mapillary-vistas-panoptic",
         "threshold": 0.5,

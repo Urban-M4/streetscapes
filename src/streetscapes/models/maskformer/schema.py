@@ -3,7 +3,6 @@ from pathlib import Path
 
 
 class MaskFormerRequestSchema(BaseModel):
-
     image_path: str | Path
     labels: dict
     batch_size: int = 10
