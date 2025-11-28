@@ -31,14 +31,15 @@ def mapillary(
         Mapillary OAuth token (if not set via MAPILLARY_TOKEN).
     """
     project_name = config.get("active_project")
-    data_home = Path(config.get("data_home"))
+    project = Project(project_name)
+
+    data_home = project.data_home
 
     # TODO: perhaps move this to context in main cli?
     console.rule("Streetscapes")
     console.print(f"Active project: {project_name}")
     console.print(f"Data home: {data_home}")
 
-    project = Project(project_name)
     records = project.get_mapillary_download_records(skip_existing)
 
     if not records:
