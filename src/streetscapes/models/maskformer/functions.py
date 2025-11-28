@@ -13,6 +13,7 @@ import ibis
 
 from streetscapes.project import Project
 from streetscapes.serve import serve_model
+from streetscapes.models.maskformer import MaskFormer
 
 
 def get_db_schema() -> dict:
@@ -49,56 +50,50 @@ def save_segmentations(
     """
 
     # Rows to be inserted into the database
-    rows = dict.fromkeys(get_db_schema(), [])
+    rows = {k: [] for k in get_db_schema()}
 
     timestamp = ibis.now()
 
     for segmentation in segmentations:
         seg_id = uuid.uuid4()
-        seg_fpath = project.output_path / f"{seg_id}.npz"
+        seg_fpath = project.get_output_dir("maskformer", True) / f"{seg_id}.npz"
 
         # Save the segmentations.
         np.savez(seg_fpath, segmentation=segmentation)
 
+        params = oj.dumps(params)
+
         # Update the row dictionary
         rows["id"].append(ibis.uuid(uuid7(timestamp_ms=1e-3)).to_pyarrow())
-        rows["params"].append(oj.dumps(params))
-        rows["segmentation"].append(seg_fpath)
+        rows["params"].append(params)
+        rows["segmentation"].append(str(seg_fpath))
         rows["timestamp"].append(timestamp.to_pyarrow())
 
     # Update the database
     project.con.insert("maskformer", rows)
 
+
 def segment_images(
     image_path: str | Path,
     labels: dict | None = None,
     batch_size: int = 10,
-    params: dict = None,
+    model_params: dict | None = None,
     overwrite: bool = False,
+    project: str | None = None,
 ):
 
-    project = Project()
-    project.ensure_table("maskformer", get_db_schema())
+    project = Project(project)
+    project.ensure_table("maskformer", get_db_schema(), replace=True)
 
     image_path = Path(image_path)
-    model_params = {
-        "model_id": "facebook/mask2former-swin-large-mapillary-vistas-panoptic",
-        "threshold": 0.5,
-        "mask_threshold": 0.5,
-        "overlap_mask_area_threshold": 0.8,
-        "labels_to_fuse": [],
-    }
-    model_params.update(params or {})
+
+    if model_params is None:
+        model_params = {}
 
     if labels is None:
-        labels = {
-            "building": None,
-            "sky": None,
-        }
+        labels = {l: None for l in MaskFormer.id_to_label.values()}
 
     handle = serve_model("maskformer", **model_params)
-
-    print(f"==[ handle: {handle}")
 
     data = {
         "image_path": image_path,
@@ -107,7 +102,5 @@ def segment_images(
     }
     response = handle.remote(data).result()
 
-    print(f"==[ db: {project.database_path}")
-
     # Get the dedicated Maskformer table
-    save_segmentations(project, model_params, response.dump())
+    save_segmentations(project, model_params, response)
