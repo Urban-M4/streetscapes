@@ -45,8 +45,8 @@ class SVSegmentation:
 
         # Path to the image file
         # TODO: Handle different image types (resp. extensions).
-        image_name = self._get_value("image_name")
-        self.image_path = path.parent.parent.parent / image_name
+        image_name = self.path.with_suffix(".jpeg").name
+        self.image_path = self.path.parent.parent.parent / image_name
 
     def __repr__(self):
         return f"SVSegmentation(path={utils.hide_home(self.path)!r}"
@@ -63,7 +63,7 @@ class SVSegmentation:
         """
 
         if self._metadata is None:
-            self._metadata = np.load(self.path, allow_pickle=True)["arr_0"].item()
+            self._metadata = np.load(self.path, allow_pickle=True)
         return self._metadata[key]
 
     def _remove_overlaps(
@@ -114,7 +114,9 @@ class SVSegmentation:
         if cache and self._masks is not None:
             return self._masks
 
-        masks = {iid: arr.astype(bool) for iid, arr in self._get_value("masks")}
+        masks = self._get_value("masks")
+        ids = self._get_value("instance_ids")
+        masks = {id: masks[i].astype(bool) for i, id in enumerate(ids)}
 
         if cache:
             self._masks = masks
@@ -149,7 +151,9 @@ class SVSegmentation:
             instances = self._instances
 
         else:
-            instances = dict(self._get_value("instances"))
+            instance_ids = self._get_value("instance_ids")
+            labels = self._get_value("labels")
+            instances = {id: labels[i] for i, id in enumerate(instance_ids)}
 
         if cache:
             self._instances = instances
