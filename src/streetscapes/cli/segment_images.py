@@ -1,3 +1,6 @@
+from pathlib import Path
+import filetype as ft
+
 from cyclopts import App
 
 from streetscapes.models import maskformer
@@ -47,6 +50,12 @@ def segment_images_maskformer(
         "overlap_mask_area_threshold": overlap_threshold,
         "labels_to_fuse": fuse_labels,
     }
+
+    if image_path is not None:
+        image_path = Path(image_path)
+
+    if image_path.is_dir():
+        image_path = [im_path for im_path in image_path.glob("*.*") if ft.is_image(im_path)]
 
     maskformer.segment_images(
         image_path, labels, batch_size, model_params, overwrite, project
