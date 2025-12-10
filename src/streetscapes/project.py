@@ -32,6 +32,18 @@ class Project:
         self.con = ibis.duckdb.connect(self.database_path)
         self.con.raw_sql("INSTALL spatial; LOAD spatial;")
 
+        self.bootstrap()
+
+    @property
+    def schema(self) -> dict:
+
+        return {
+            "images": {
+                "sha256": ibis.dtype("!str"),
+                "geohash": ibis.dtype("!str"),
+            }
+        }
+
     def get_image_dir(
         self,
         source: str | None = None,
@@ -200,11 +212,31 @@ class Project:
         # Execute as batch
         self.con.con.executemany(sql, params)
 
+    def bootstrap(self):
+        """
+        Bootstrap the project with some core tables:
+
+        - images: Images processed by *any* model.
+            Serves as a reference table to check which images have been processed at all.
+            Columns:
+            - sha256 (can also serve as a unique ID)
+            - geohash (see download_images.py)
+
+        NOTE: In the schema definition, '!' in front of the type means 'non-nullable':
+        https://ibis-project.org/reference/datatypes#parameters
+        """
+
+        # Tables to create.
+        # Just update the set with table names
+        # and define the schema in the `schema` property.
+        for table in {"images"}:
+            self.ensure_table(table, self.schema[table])
+
     def ensure_table(
         self,
         table: str,
         schema: dict | ibis.Schema | None = None,
-        replace: bool = False,
+        recreate: bool = False,
     ) -> ibis.Table:
         """
         Ensure that a table exists with the given schema.
@@ -218,10 +250,9 @@ class Project:
             An Ibis table.
         """
         if table in self.con.tables:
-            if not replace:
+            if not recreate:
                 return self.con.table(table)
             self.con.drop_table(table)
         if schema is None:
             raise ValueError(f"Please provide a valid schema for table '{table}'.")
         return self.con.create_table(table, schema=schema)
-
