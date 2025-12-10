@@ -1,38 +1,15 @@
-# --------------------------------------
 from __future__ import annotations
-
-# --------------------------------------
 import os
-
-# --------------------------------------
 from abc import ABC, abstractmethod
-
-# --------------------------------------
 from pathlib import Path
-
-# --------------------------------------
 import PIL
 import PIL.ImageFile
 from PIL import Image
+import ibis
+import numpy as np
+from streetscapes import logger, utils
 
 PIL.ImageFile.LOAD_TRUNCATED_IMAGES = True
-
-# --------------------------------------
-import itertools
-
-# --------------------------------------
-import ibis
-
-# --------------------------------------
-import numpy as np
-
-# --------------------------------------
-from tqdm import tqdm
-
-# --------------------------------------
-# --------------------------------------
-from streetscapes import utils
-
 PathLike = Path | str | list[Path | str]
 
 # HACK
@@ -252,24 +229,18 @@ class ModelBase(ABC):
     def segment(
         self,
         paths: PathLike,
+        images: list[np.ndarray],
         labels: dict,
-        batch_size: int = 10,
     ) -> ibis.Table:
         """Retrieve the paths of local images from a dataset.
 
         Args:
-            paths:
-                Path(s) to image file(s).
-
-            labels:
-                A flattened set of labels to look for,
+            paths: Path(s) to image file(s).
+            images: The images to segment (as NumPy arrays).
+            labels: A flattened set of labels to look for,
                 with optional subsets of labels that should be
                 checked in order to eliminate overlaps.
                 Cf. `BaseSegmenter._flatten_labels()`
-
-            batch_size:
-                Process the images in batches of this size.
-                Defaults to 10.
 
         Returns:
             A table of information about the segmentations.
@@ -283,18 +254,9 @@ class ModelBase(ABC):
         single = isinstance(paths, (str, Path))
         if single:
             paths = [paths]
-
-        # Compute the number of batches
-        total = len(paths) // batch_size
-        if total * batch_size != len(paths):
-            total += 1
+            images = [images]
 
         # Segment the images and extract the metadata
-        pbar = tqdm(total=total, desc="Segmenting images...")
-        for path_batch in itertools.batched(list(paths), batch_size):
-            segmentations = self._segment_images(path_batch, labels)
-            pbar.update()
-
-        pbar.set_description_str("Done")
+        segmentations = self._segment_images(paths, images, labels)
 
         return segmentations
