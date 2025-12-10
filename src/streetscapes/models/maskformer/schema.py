@@ -1,14 +1,19 @@
 from pydantic import BaseModel
 from pathlib import Path
+import numpy as np
+
+
+class MaskFormerImageSchema(BaseModel):
+    hash: bytes
+    image: bytes
 
 
 class MaskFormerRequestSchema(BaseModel):
-    image_path: str | Path
+    images: list[MaskFormerImageSchema]
     labels: dict
-    batch_size: int = 10
 
 
 class MaskFormerResponseSchema(BaseModel):
-    image_path: str
+    image_hash: bytes
     instances: dict[int, str]
     masks: dict[int, list]

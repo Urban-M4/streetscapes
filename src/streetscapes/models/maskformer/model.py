@@ -1,5 +1,8 @@
-from streetscapes.models.base import ModelBase, PathLike
+import numpy as np
+import orjson as oj
 
+from streetscapes import logger
+from streetscapes.models.base import ModelBase, PathLike
 from streetscapes.models.maskformer.schema import (
     MaskFormerRequestSchema,
     MaskFormerResponseSchema,
@@ -174,17 +177,17 @@ class MaskFormer(ModelBase):
 
     def _segment_images(
         self,
-        paths: PathLike,
+        hashes: list[bytes],
+        images: list[np.ndarray],
         labels: dict,
     ) -> list[dict]:
         """Segment the provided sequence of images.
 
         Args:
-            paths:
-                A list of images to process.
-
-            labels:
-                A flattened set of labels to look for,
+            hashes: SHA-256 hash values of the images.
+                This is useful for keeping track of which images have been segmented.
+            images: A list (batch) of images as NumPy arrays.
+            labels: A flattened set of labels to look for,
                 with optional subsets of labels that should be
                 checked in order to eliminate overlaps.
                 Cf. `BaseSegmenter._flatten_labels()`
@@ -194,9 +197,6 @@ class MaskFormer(ModelBase):
 
         """
         import torch
-
-        # Load the images as NumPy arrays
-        image_paths, image_list = self.load_images(paths)
 
         # Flatten the label dictionary
         labels = self._flatten_labels(labels)
@@ -215,7 +215,7 @@ class MaskFormer(ModelBase):
 
         with torch.no_grad():
             # Process the image with the processor
-            inputs = self.processor(images=image_list, return_tensors="pt")
+            inputs = self.processor(images=images, return_tensors="pt")
             inputs.to(self.device)
             pixel_values = inputs["pixel_values"].to(self.device)
             pixel_mask = inputs["pixel_mask"].to(self.device)
@@ -229,12 +229,12 @@ class MaskFormer(ModelBase):
                 mask_threshold=self.mask_threshold,
                 overlap_mask_area_threshold=self.overlap_mask_area_threshold,
                 label_ids_to_fuse=self.label_ids_to_fuse,
-                target_sizes=[img.shape[:2] for img in image_list],
+                target_sizes=[img.shape[:2] for img in images],
             )
 
             for idx, item in enumerate(segmented):
                 # Dictionary that will hold all the information about the segmentation.
-                segmentation = {"image_path": str(image_paths[idx])}
+                segmentation = {"image_hash": hashes[idx]}
 
                 # Extract and store the instances.
                 segmentation["instances"] = {
@@ -260,12 +260,18 @@ class MaskFormer(ModelBase):
         # Convert the request into a schema to validate it.
         schema = MaskFormerRequestSchema(**request)
 
+        hashes = []
+        images = []
+        for entry in schema.images:
+            hashes.append(entry.hash)
+            images.append(np.array(oj.loads(entry.image)))
+
         # Segment the images
         segmentations = self.segment(
-            schema.image_path,
+            hashes,
+            images,
             schema.labels,
-            schema.batch_size,
         )
 
-        # A list of results
+        # A list of segmentations
         return [MaskFormerResponseSchema(**result) for result in segmentations]
