@@ -46,7 +46,7 @@ class ModelApp:
 
     async def __call__(self, request: Any):
 
-        self.con.print(f"{self.model.name} model received a segmentation request.")
+        self.con.print(f"Processing request for model '{self.model.name}'.")
         return await self.model.process(request)
 
 
