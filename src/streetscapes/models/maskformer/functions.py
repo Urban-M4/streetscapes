@@ -41,7 +41,7 @@ def save_segmentations(
     project: Project,
     params: dict,
     segmentations: list,
-    overwrite: bool = False,
+    overwrite: set[bytes],
 ):
     """
     Save a list of segmentations.
@@ -50,7 +50,7 @@ def save_segmentations(
         project: Current project.
         params: The model parameters.
         segmentations: The list of segmentations.
-        overwrite: Overwrite existing segmentations.
+        overwrite: Processed images whose segmentations should be overwritten.
     """
 
     # Rows to be inserted into the database
@@ -59,8 +59,18 @@ def save_segmentations(
     timestamp = ibis.now()
 
     for segmentation in segmentations:
-        seg_id = uuid.uuid4()
-        seg_fpath = project.get_output_dir("maskformer", True) / f"{seg_id}.npz"
+
+        if segmentation.image_hash in overwrite:
+            seg_uuid = (
+                project.con.table("maskformer")
+                .select("uuid")
+                .to_pyarrow()
+                .to_pydict()["uuid"][0]
+            )
+        else:
+            seg_uuid = uuid.uuid4()
+
+        seg_fpath = project.get_output_dir("maskformer", True) / f"{seg_uuid}.npz"
 
         # Save the segmentations.
         np.savez(seg_fpath, instances=segmentation.instances, masks=segmentation.masks)
@@ -96,17 +106,17 @@ def get_unprocessed_images(
         sha256(np.asarray(iio.imread(path))).digest(): path for path in image_paths
     }
 
-    processed = set()
+    t = project.con.table("maskformer")
+    processed = set(
+        t.filter(t.image_hash.isin(list(hashes.keys())))
+        .select("image_hash")
+        .to_pyarrow()
+        .to_pydict()["image_hash"]
+    )
+    unprocessed = [(k, v) for k, v in hashes.items() if k not in processed]
     if not overwrite:
-        t = project.con.table("maskformer")
-        processed = set(
-            t.filter(t.image_hash.isin(list(hashes.keys())))
-            .select("image_hash")
-            .to_pyarrow()
-            .to_pydict()["image_hash"]
-        )
-
-    return [(k, v) for k, v in hashes.items() if k not in processed]
+        processed = set()
+    return unprocessed, processed
 
 
 def segment_images(
@@ -139,11 +149,11 @@ def segment_images(
     if labels is None:
         labels = {l: None for l in MaskFormer.id_to_label.values()}
 
-    images_to_process = get_unprocessed_images(project, image_paths, overwrite)
+    to_process, to_overwrite = get_unprocessed_images(project, image_paths, overwrite)
 
     handle = serve_model("maskformer", **model_params)
 
-    for entries in batched(images_to_process, batch_size):
+    for entries in batched(to_process, batch_size):
 
         hashes = [e[0] for e in entries]
         images = [np.asarray(iio.imread(e[1])) for e in entries]
@@ -161,4 +171,4 @@ def segment_images(
         response = handle.remote(data).result()
 
         # Store the segmentations and their metadata
-        save_segmentations(project, model_params, response, overwrite)
+        save_segmentations(project, model_params, response, to_overwrite)
