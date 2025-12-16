@@ -1,4 +1,12 @@
+import numpy as np
+import orjson as oj
+
+from streetscapes import logger
 from streetscapes.models.base import ModelBase, PathLike
+from streetscapes.models.maskformer.schema import (
+    MaskFormerRequestSchema,
+    MaskFormerResponseSchema,
+)
 
 
 class MaskFormer(ModelBase):
@@ -77,7 +85,7 @@ class MaskFormer(ModelBase):
         threshold: float = 0.5,
         mask_threshold: float = 0.5,
         overlap_mask_area_threshold: float = 0.8,
-        labels_to_fuse: set[str | int] = None,
+        labels_to_fuse: list[str | int] | None = None,
         *args,
         **kwargs,
     ):
@@ -105,7 +113,7 @@ class MaskFormer(ModelBase):
 
             overlap_mask_area_threshold:
                 The overlap mask area threshold to merge or discard small disconnected
-                parts within each binary instance mask.The overlap mask area threshold
+                parts within each binary instance mask. The overlap mask area threshold
                 to merge or discard small disconnected parts within each binary instance mask.
                 Defaults to 0.8.
 
@@ -123,11 +131,9 @@ class MaskFormer(ModelBase):
         # Initialise the base
         super().__init__(*args, **kwargs)
 
-        self.id_to_label = MaskFormer.id_to_label
-
         # Create the reverse mapping of label to label ID
         self.label_to_id = {
-            label: label_id for label_id, label in self.id_to_label.items()
+            label: label_id for label_id, label in MaskFormer.id_to_label.items()
         }
 
         # Arguments
@@ -135,10 +141,11 @@ class MaskFormer(ModelBase):
         # Convert any string labels into integers
         label_ids_to_fuse = set()
         if labels_to_fuse is not None:
+            labels_to_fuse = set(labels_to_fuse)
             for lbl in labels_to_fuse:
                 if isinstance(lbl, int):
                     label_ids_to_fuse.add(lbl)
-                elif isinstance(lbl, str):
+                elif isinstance(lbl, str) and lbl in self.label_to_id:
                     label_ids_to_fuse.add(self.label_to_id[lbl])
 
         self.model_id = model_id
@@ -170,17 +177,17 @@ class MaskFormer(ModelBase):
 
     def _segment_images(
         self,
-        paths: PathLike,
+        hashes: list[bytes],
+        images: list[np.ndarray],
         labels: dict,
     ) -> list[dict]:
         """Segment the provided sequence of images.
 
         Args:
-            paths:
-                A list of images to process.
-
-            labels:
-                A flattened set of labels to look for,
+            hashes: SHA-256 hash values of the images.
+                This is useful for keeping track of which images have been segmented.
+            images: A list (batch) of images as NumPy arrays.
+            labels: A flattened set of labels to look for,
                 with optional subsets of labels that should be
                 checked in order to eliminate overlaps.
                 Cf. `BaseSegmenter._flatten_labels()`
@@ -191,14 +198,11 @@ class MaskFormer(ModelBase):
         """
         import torch
 
-        # Load the images as NumPy arrays
-        image_paths, image_list = self.load_images(paths)
-
         # Flatten the label dictionary
         labels = self._flatten_labels(labels)
 
         # Eliminate labels that are not recognised by the model
-        remove = set(labels).difference(self.id_to_label)
+        remove = set(labels).difference(MaskFormer.id_to_label)
         _labels = {}
         for k, v in labels.items():
             if k in remove:
@@ -211,7 +215,7 @@ class MaskFormer(ModelBase):
 
         with torch.no_grad():
             # Process the image with the processor
-            inputs = self.processor(images=image_list, return_tensors="pt")
+            inputs = self.processor(images=images, return_tensors="pt")
             inputs.to(self.device)
             pixel_values = inputs["pixel_values"].to(self.device)
             pixel_mask = inputs["pixel_mask"].to(self.device)
@@ -225,26 +229,49 @@ class MaskFormer(ModelBase):
                 mask_threshold=self.mask_threshold,
                 overlap_mask_area_threshold=self.overlap_mask_area_threshold,
                 label_ids_to_fuse=self.label_ids_to_fuse,
-                target_sizes=[img.shape[:2] for img in image_list],
+                target_sizes=[img.shape[:2] for img in images],
             )
 
             for idx, item in enumerate(segmented):
                 # Dictionary that will hold all the information about the segmentation.
-                segmentation = {"image_path": image_paths[idx]}
+                segmentation = {"image_hash": hashes[idx]}
 
                 # Extract and store the instances.
                 segmentation["instances"] = {
-                    instance["id"]: self.id_to_label[instance["label_id"]]
+                    instance["id"]: MaskFormer.id_to_label[instance["label_id"]]
                     for instance in item["segments_info"]
                 }
 
                 # Extract the masks.
                 masks = item["segmentation"].detach().clone().cpu().numpy()
                 segmentation["masks"] = {
-                    iid: masks.where(masks == iid) for iid in segmentation["instances"]
+                    iid: masks[masks == iid] for iid in segmentation["instances"]
                 }
 
                 # Extract and store the segmentations.
                 segmentations.append(segmentation)
 
         return segmentations
+
+    async def process(
+        self,
+        request: dict,
+    ):
+        # Convert the request into a schema to validate it.
+        schema = MaskFormerRequestSchema(**request)
+
+        hashes = []
+        images = []
+        for entry in schema.images:
+            hashes.append(entry.hash)
+            images.append(np.array(oj.loads(entry.image)))
+
+        # Segment the images
+        segmentations = self.segment(
+            hashes,
+            images,
+            schema.labels,
+        )
+
+        # A list of segmentations
+        return [MaskFormerResponseSchema(**result) for result in segmentations]

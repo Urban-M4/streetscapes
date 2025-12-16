@@ -1,45 +1,22 @@
-# --------------------------------------
 from __future__ import annotations
-
-# --------------------------------------
 import os
-
-# --------------------------------------
 from abc import ABC, abstractmethod
-
-# --------------------------------------
 from pathlib import Path
-
-# --------------------------------------
 import PIL
 import PIL.ImageFile
 from PIL import Image
+import ibis
+import numpy as np
+from streetscapes import logger, utils
 
 PIL.ImageFile.LOAD_TRUNCATED_IMAGES = True
-
-# --------------------------------------
-import itertools
-
-# --------------------------------------
-import ibis
-
-# --------------------------------------
-import numpy as np
-
-# --------------------------------------
-from tqdm import tqdm
-
-# --------------------------------------
-# --------------------------------------
-from streetscapes import utils
-
 PathLike = Path | str | list[Path | str]
 
 # HACK
 # PyTorch configuration options.
 # This should go into a dedicated configuration module.
 # ==================================================
-os.environ["PYTORCH_CUDA_ALLOC_CONF"] = "expandable_segments:True"
+os.environ["PYTORCH_ALLOC_CONF"] = "expandable_segments:True"
 
 
 class ModelBase(ABC):
@@ -64,7 +41,7 @@ class ModelBase(ABC):
         # Set up the device
         # ==================================================
         if device is None:
-            device = "cuda" if torch.cuda.is_available() else "cpu"
+            device = "cpu"  # if torch.cuda.is_available() else "cpu"
         self.device = torch.device(device)
 
         # Mapping of label ID to label
@@ -107,7 +84,7 @@ class ModelBase(ABC):
         model_name = self.name.lower()
 
         # The directory where the image is stored
-        image_path = segmentation["image_path"]
+        image_path = Path(segmentation["image_path"])
         image_dir = image_path.parent
 
         # Derive the mask and instance directories from the image directory
@@ -252,24 +229,18 @@ class ModelBase(ABC):
     def segment(
         self,
         paths: PathLike,
+        images: list[np.ndarray],
         labels: dict,
-        batch_size: int = 10,
     ) -> ibis.Table:
         """Retrieve the paths of local images from a dataset.
 
         Args:
-            paths:
-                Path(s) to image file(s).
-
-            labels:
-                A flattened set of labels to look for,
+            paths: Path(s) to image file(s).
+            images: The images to segment (as NumPy arrays).
+            labels: A flattened set of labels to look for,
                 with optional subsets of labels that should be
                 checked in order to eliminate overlaps.
                 Cf. `BaseSegmenter._flatten_labels()`
-
-            batch_size:
-                Process the images in batches of this size.
-                Defaults to 10.
 
         Returns:
             A table of information about the segmentations.
@@ -283,17 +254,9 @@ class ModelBase(ABC):
         single = isinstance(paths, (str, Path))
         if single:
             paths = [paths]
-
-        # Compute the number of batches
-        total = len(paths) // batch_size
-        if total * batch_size != len(paths):
-            total += 1
+            images = [images]
 
         # Segment the images and extract the metadata
-        pbar = tqdm(total=total, desc="Segmenting images...")
-        for path_batch in itertools.batched(list(paths), batch_size):
-            segmentations = self._segment_images(path_batch, labels)
-            [self._save_segmentation(seg) for seg in segmentations]
-            pbar.update()
+        segmentations = self._segment_images(paths, images, labels)
 
-        pbar.set_description_str("Done")
+        return segmentations

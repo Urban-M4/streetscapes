@@ -1,31 +1,39 @@
+import io
 import re
 import shlex
+from contextlib import redirect_stdout
 from pathlib import Path
 
 import pandas as pd
-from typer.testing import CliRunner
+import pytest
 
 from streetscapes.cli.main import app
 from streetscapes.project import Project
 
-runner = CliRunner()
 
-
-def run_cli(cmd: str):
-    """Run a CLI command string as if typed in the shell."""
-    args = shlex.split(cmd)[1:]  # skip the script name if included
-    return runner.invoke(app, args)
-
-
-def strip_ansi(text: str) -> str:
-    """Strip ansi color codes from string.
-
-    This helps to resolve some weird CI issues where e.g. --bbox was
-    interspersed with ANSI codes and therefore tests looking for the literal
-    text failed.
+def run_cli(cmd: str, exit_code=0):
     """
-    ansi_escape = re.compile(r"\x1b\[[0-9;]*m")
-    return ansi_escape.sub("", text)
+    Run a Cyclopts CLI command string as if typed in the shell.
+
+    Parameters
+    ----------
+    cmd : str
+        Command line string, e.g., "streetscapes config list --json"
+
+    Returns
+    -------
+    stdout : str
+        Captured standard output.
+    """
+    args = shlex.split(cmd)[1:]  # skip the script name if present
+
+    stdout = io.StringIO()
+
+    with redirect_stdout(stdout), pytest.raises(SystemExit) as sysexit:
+        app(args)
+
+    assert sysexit.value.code == exit_code
+    return stdout.getvalue()
 
 
 
@@ -34,37 +42,31 @@ class TestCLIHelp:
 
     def test_main_help(self):
         result = run_cli("streetscapes --help")
-        assert result.exit_code == 0
-        assert "fetch_metadata" in strip_ansi(result.output)
+        assert "fetch_metadata" in result
 
     def test_fetch_metadata_help(self):
         result = run_cli("streetscapes fetch_metadata --help")
-        assert result.exit_code == 0
-        assert "mapillary" in strip_ansi(result.output)
+        assert "mapillary" in result
 
     def test_fetch_metadata_mapillary_help(self):
         result = run_cli("streetscapes fetch_metadata mapillary --help")
-        assert result.exit_code == 0
-        assert "--bbox" in strip_ansi(result.output)
-        assert "--tile-size" in strip_ansi(result.output)
-        assert "--limit" in strip_ansi(result.output)
+        assert "--bbox" in result
+        assert "--tile-size" in result
+        assert "--limit" in result
 
     def test_download_images_mapillary_help(self):
         result = run_cli("streetscapes download_images mapillary --help")
-        assert result.exit_code == 0
-        assert "--skip-existing" in strip_ansi(result.output)
-        assert "--token" in strip_ansi(result.output)
+        assert "--skip-existing" in result
+        assert "--token" in result
 
     def test_export_help(self):
         result = run_cli("streetscapes export --help")
-        assert result.exit_code == 0
-        assert "table" in strip_ansi(result.output)
+        assert "table" in result
 
     def test_export_table_help(self):
         result = run_cli("streetscapes export table --help")
-        assert result.exit_code == 0
-        assert "table_name" in strip_ansi(result.output)
-        assert "output" in strip_ansi(result.output)
+        assert "table-name" in result
+        assert "output" in result
 
 
 def test_fetch_and_export_integration(fake_mapillary_client, tmp_path):
@@ -72,8 +74,7 @@ def test_fetch_and_export_integration(fake_mapillary_client, tmp_path):
     # Print test config
     # -----------------------
     result_cfg = run_cli("streetscapes config get active_project")
-    assert result_cfg.exit_code == 0
-    assert "test_streetscapes" in result_cfg.output
+    assert "test_streetscapes" in result_cfg
 
     # -----------------------
     # Fetch Mapillary metadata via CLI
@@ -85,15 +86,13 @@ def test_fetch_and_export_integration(fake_mapillary_client, tmp_path):
     --token fake_token
     """
     result = run_cli(fetch_cmd)
-    assert result.exit_code == 0
-    assert "Fetching tiles" in strip_ansi(result.output)
+    assert "Fetching tiles" in result
 
     # -----------------------
     # Test export to CSV
     # -----------------------
     csv_file = tmp_path / "mapillary.csv"
     result_csv = run_cli(f"streetscapes export table mapillary {csv_file}")
-    assert result_csv.exit_code == 0
     assert csv_file.exists()
     assert csv_file.stat().st_size > 0
 
@@ -102,13 +101,12 @@ def test_fetch_and_export_integration(fake_mapillary_client, tmp_path):
     # -----------------------
     parquet_file = tmp_path / "mapillary.parquet"
     result_parquet = run_cli(f"streetscapes export table mapillary {parquet_file}")
-    assert result_parquet.exit_code == 0
     assert parquet_file.exists()
 
     # Read back Parquet to verify content
     project = Project("test_streetscapes")
     df_out = pd.read_parquet(parquet_file)
-    table_expr = project.get_table("mapillary")
+    table_expr = project.ensure_table("mapillary")
     count = table_expr.count().execute()
     assert len(df_out) == count
     assert "geometry" in df_out.columns
@@ -117,10 +115,9 @@ def test_fetch_and_export_integration(fake_mapillary_client, tmp_path):
     # Test download CLI (mapillary)
     # -----------------------
     result_dl = run_cli("streetscapes download_images mapillary --skip-existing")
-    assert result_dl.exit_code == 0
 
     # Verify filesystem
-    image_dir = project.image_dir("mapillary")
+    image_dir = project.get_image_dir("mapillary")
     all_files = list(image_dir.rglob("*.jpg"))
     assert len(all_files) > 0
     for f in all_files:

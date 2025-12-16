@@ -4,58 +4,124 @@ import ibis
 from pandas import DataFrame
 from shapely.geometry import box
 
+import numpy as np
+import uuid
+
+# TODO: uuid7gen can be removed if we ever move
+# to Python >=3.14 as the default since the built-in
+# uuid module provides uuid7 support.
+from uuid7gen import uuid7
+import orjson as oj
+
 from streetscapes import config
+from streetscapes.utils import ensure_dir
 from streetscapes.utils.bbox import Bbox
 
 
 class Project:
     """Minimal project managing a DuckDB/Ibis connection."""
 
-    def __init__(self, name: str = "streetscapes"):
+    def __init__(self, name: str | None = None):
         # TODO: also read name from config? But keep option to overwrite?
-        self.name = name
+        self.name = name or "streetscapes"
         self.data_home = Path(config.get("data_home"))
 
-        database_path = self.data_home / "projects" / f"{name}.duckdb"
-        database_path.parent.mkdir(parents=True, exist_ok=True)
-        self.con = ibis.duckdb.connect(database_path)
+        self.database_path = self.data_home / "projects" / f"{self.name}.duckdb"
+        self.database_path.parent.mkdir(parents=True, exist_ok=True)
+
+        self.con = ibis.duckdb.connect(self.database_path)
         self.con.raw_sql("INSTALL spatial; LOAD spatial;")
 
-    def image_dir(self, source: str | None = None):
-        if source is None:
-            return self.data_home / "images"
-        return self.data_home / "images" / source
+        self.bootstrap()
 
-    def get_table(self, name: str):
-        """Return an ibis table reference."""
-        return self.con.table(name)
+    @property
+    def core_tables(self) -> dict:
+        '''
+        Core tables that need to be present in the project database.
 
-    def ingest_mapillary(self, df: DataFrame, table_name="mapillary"):
+        Returns:
+            A dictionary of table names mapped to their schema.
+        '''
+
+        return {
+            "image_model": {
+                "sha256": ibis.dtype("!str"),
+                "model": ibis.dtype("!str"),
+            }
+        }
+
+    def get_image_dir(
+        self,
+        source: str | None = None,
+        create: bool = False,
+    ) -> Path:
+        """
+        Get the path to the directory where downloaded images are stored,
+        optionally specifying a source.
+
+        Args:
+            model: The source name (e.g., 'mapillary').
+            create: Optionally create the directory.
+
+        Returns:
+            A Path object.
+        """
+        path = self.data_home / "images"
+        if source is not None:
+            path /= source
+        return ensure_dir(path) if create else path
+
+    def get_output_dir(
+        self,
+        model: str,
+        create: bool = False,
+    ) -> Path:
+        """
+        Get the path to the output directory,
+        optionally specifying a model.
+
+        Args:
+            model: The model name (e.g., 'maskformer').
+            create: Optionally create the directory.
+
+        Returns:
+            A Path object.
+        """
+        path = self.data_home / "models"
+        if model is not None:
+            path /= model
+        return ensure_dir(path) if create else path
+
+    def ingest_mapillary(self, df: DataFrame, table: str = "mapillary"):
         """Ingest a DataFrame of Mapillary metadata."""
         self.con.con.register("metadata_tile", df)
-        if table_name not in self.con.list_tables():
-            self.con.raw_sql(f"""
-                CREATE TABLE {table_name} AS
+        if table not in self.con.list_tables():
+            self.con.raw_sql(
+                f"""
+                CREATE TABLE {table} AS
                 SELECT
                     * EXCLUDE (geometry),
                     ST_GeomFromText(geometry) AS geometry,
                 FROM metadata_tile;
-                ALTER TABLE {table_name} ADD PRIMARY KEY (id);
-            """)
+                ALTER TABLE {table} ADD PRIMARY KEY (id);
+            """
+            )
         else:
             # TODO: consider configurable duplicate behaviour (REPLACE or IGNORE)
-            self.con.raw_sql(f"""
-                INSERT OR REPLACE INTO {table_name}
+            self.con.raw_sql(
+                f"""
+                INSERT OR REPLACE INTO {table}
                 SELECT
                     * EXCLUDE (geometry),
                     ST_GeomFromText(geometry) AS geometry,
                 FROM metadata_tile
-            """)
+            """
+            )
 
-    def filter_bbox(self, table_name, bbox: Bbox):
+    def filter_bbox(self, table: str, bbox: Bbox):
         """Return an Ibis table expression filtered by a bounding box."""
 
-        table = self.get_table(table_name)
+        table = self.ensure_table(table)
         envelope_expr = ibis.literal(box(*bbox).wkt, type="geospatial:geometry")
         return table.filter(table.geometry.within(envelope_expr))
 
@@ -127,18 +193,20 @@ class Project:
             UUID will be generated inside DuckDB.
 
         """
-        self.con.raw_sql("""
+        self.con.raw_sql(
+            """
             CREATE TABLE IF NOT EXISTS local_images (
-                uuid TEXT PRIMARY KEY,
+                image_hash TEXT PRIMARY KEY,
                 id TEXT NOT NULL,
                 source TEXT NOT NULL,
                 path TEXT NOT NULL,
                 geometry GEOMETRY,
             )
-        """)
+        """
+        )
 
         sql = """
-        INSERT INTO local_images (uuid, id, source, path, geometry)
+        INSERT INTO local_images (image_hash, id, source, path, geometry)
         VALUES (GEN_RANDOM_UUID(), ?, ?, ?, ST_GeomFromWKB(?))
         ON CONFLICT DO NOTHING
         """
@@ -149,3 +217,48 @@ class Project:
 
         # Execute as batch
         self.con.con.executemany(sql, params)
+
+    def bootstrap(self):
+        """
+        Bootstrap the project with some core tables:
+
+        - images: Images processed by *any* model.
+            Serves as a reference table to check which images have been processed at all.
+            Columns:
+            - sha256 (can also serve as a unique ID)
+            - geohash (see download_images.py)
+
+        NOTE: In the schema definition, '!' in front of the type means 'non-nullable':
+        https://ibis-project.org/reference/datatypes#parameters
+        """
+
+        # Tables that should exist in every project.
+        # Just update the set with table names
+        # and define the schema in the `schema` property.
+        for table, schema in self.core_tables.items():
+            self.ensure_table(table, schema)
+
+    def ensure_table(
+        self,
+        table: str,
+        schema: dict | ibis.Schema | None = None,
+        recreate: bool = False,
+    ) -> ibis.Table:
+        """
+        Ensure that a table exists with the given schema.
+
+        Args:
+            table: Table name.
+            schema: Schema to use for the table if it doesn't exist.
+            replace: Replace the table if it exists.
+
+        Returns:
+            An Ibis table.
+        """
+        if table in self.con.tables:
+            if not recreate:
+                return self.con.table(table)
+            self.con.drop_table(table)
+        if schema is None:
+            raise ValueError(f"Please provide a valid schema for table '{table}'.")
+        return self.con.create_table(table, schema=schema)

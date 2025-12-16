@@ -1,13 +1,16 @@
 import numpy as np
 from typing import Any
 from PIL import Image
+import torch
 
 import open_clip
 
+
 class OpenCLIP:
-class OpenCLIPWrapper:
     def __init__(self, model_name="ViT-B-32", pretrained="laion2b_s34b_b79k"):
-        self.model, _, self.preprocess = open_clip.create_model_and_transforms(model_name, pretrained=pretrained)
+        self.model, _, self.preprocess = open_clip.create_model_and_transforms(
+            model_name, pretrained=pretrained
+        )
         self.tokenizer = open_clip.get_tokenizer(model_name)
         self.model.eval()
 
