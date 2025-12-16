@@ -35,12 +35,18 @@ class Project:
         self.bootstrap()
 
     @property
-    def schema(self) -> dict:
+    def core_tables(self) -> dict:
+        '''
+        Core tables that need to be present in the project database.
+
+        Returns:
+            A dictionary of table names mapped to their schema.
+        '''
 
         return {
-            "images": {
+            "image_model": {
                 "sha256": ibis.dtype("!str"),
-                "geohash": ibis.dtype("!str"),
+                "model": ibis.dtype("!str"),
             }
         }
 
@@ -190,7 +196,7 @@ class Project:
         self.con.raw_sql(
             """
             CREATE TABLE IF NOT EXISTS local_images (
-                uuid TEXT PRIMARY KEY,
+                image_hash TEXT PRIMARY KEY,
                 id TEXT NOT NULL,
                 source TEXT NOT NULL,
                 path TEXT NOT NULL,
@@ -200,7 +206,7 @@ class Project:
         )
 
         sql = """
-        INSERT INTO local_images (uuid, id, source, path, geometry)
+        INSERT INTO local_images (image_hash, id, source, path, geometry)
         VALUES (GEN_RANDOM_UUID(), ?, ?, ?, ST_GeomFromWKB(?))
         ON CONFLICT DO NOTHING
         """
@@ -226,11 +232,11 @@ class Project:
         https://ibis-project.org/reference/datatypes#parameters
         """
 
-        # Tables to create.
+        # Tables that should exist in every project.
         # Just update the set with table names
         # and define the schema in the `schema` property.
-        for table in {"images"}:
-            self.ensure_table(table, self.schema[table])
+        for table, schema in self.core_tables.items():
+            self.ensure_table(table, schema)
 
     def ensure_table(
         self,
