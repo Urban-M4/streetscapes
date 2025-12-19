@@ -60,27 +60,29 @@ def save_segmentations(
 
     for segmentation in segmentations:
 
-        seg_uuid = ibis.uuid(processed.get(segmentation.image_hash, uuid7()))
-        logger.info(f"Saving segmentation {seg_uuid}.")
-
+        # Retrieve or create a UUID for this segmentation.
+        seg_uuid: uuid.UUID = processed.get(segmentation.image_hash, uuid7())
+        ibis_uuid = ibis.uuid(seg_uuid)
         seg_fpath = project.data_home / f"{seg_uuid}.npz"
 
         # Save the segmentations.
+        logger.info(f"Saving segmentation {seg_uuid}...")
+        instances = oj.loads(segmentation.instances)
         np.savez_compressed(
             seg_fpath,
             labels=segmentation.labels,
-            instances=oj.loads(segmentation.instances),
+            instances=instances,
         )
 
-        # Model table update
-        seg_rows["uuid"].append(seg_uuid.to_pyarrow())
+        # Model table update.
+        seg_rows["uuid"].append(ibis_uuid.to_pyarrow())
         seg_rows["params"].append(params)
         seg_rows["timestamp"].append(timestamp.to_pyarrow())
 
-        # M2M table update
+        # M2M table update.
         m2m_rows["image_hash"].append(segmentation.image_hash)
         m2m_rows["model"].append("maskformer")
-        m2m_rows["uuid"].append(seg_uuid.to_pyarrow())
+        m2m_rows["uuid"].append(ibis_uuid.to_pyarrow())
 
     # Update the model database
     project.con.insert("maskformer", seg_rows)

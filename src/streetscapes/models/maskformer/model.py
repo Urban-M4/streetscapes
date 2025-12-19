@@ -228,7 +228,7 @@ class MaskFormer:
                         MaskFormer.id_to_label[info["label_id"]]
                         for info in item["segments_info"]
                     ],
-                    "instances": np.zeros(
+                    "instances": np.ma.zeros(
                         (len(item["segments_info"]), *images[idx].shape[:2]),
                         dtype=np.bool_,
                     ),
@@ -269,7 +269,7 @@ class MaskFormer:
         response = []
         for result in segmentations:
             result["instances"] = oj.dumps(
-                result["instances"], option=oj.OPT_SERIALIZE_NUMPY
+                result["instances"].compressed(), option=oj.OPT_SERIALIZE_NUMPY
             )
             response.append(MaskFormerResponseSchema(**result))
 
