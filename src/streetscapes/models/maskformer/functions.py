@@ -14,6 +14,7 @@ import ibis
 
 import imageio as iio
 
+from streetscapes import utils
 from streetscapes.utils import logger
 from streetscapes.project import Project
 from streetscapes.serve import serve_model
@@ -60,15 +61,15 @@ def save_segmentations(
     for segmentation in segmentations:
 
         seg_uuid = ibis.uuid(processed.get(segmentation.image_hash, uuid7()))
-
         logger.info(f"Saving segmentation {seg_uuid}.")
+
         seg_fpath = project.data_home / f"{seg_uuid}.npz"
 
         # Save the segmentations.
-        np.savez(
+        np.savez_compressed(
             seg_fpath,
-            instances=segmentation.instances,
-            masks=segmentation.masks,
+            labels=segmentation.labels,
+            instances=oj.loads(segmentation.instances),
         )
 
         # Model table update
@@ -142,7 +143,7 @@ def segment_images(
         }
         response = handle.remote(data).result()
 
-        logger.info(f"Successfully segmented {len(images)}, saving to database.")
+        logger.info(f"Successfully segmented {len(images)} images, saving to database.")
 
         # Store the segmentations and their metadata
         save_segmentations(project, model_params, response, processed)

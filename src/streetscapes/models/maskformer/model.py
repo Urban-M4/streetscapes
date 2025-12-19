@@ -222,19 +222,23 @@ class MaskFormer:
 
             for idx, item in enumerate(segmented):
                 # Dictionary that will hold all the information about the segmentation.
-                segmentation = {"image_hash": hashes[idx]}
-
-                # Extract and store the instances.
-                segmentation["instances"] = {
-                    instance["id"]: MaskFormer.id_to_label[instance["label_id"]]
-                    for instance in item["segments_info"]
+                segmentation = {
+                    "image_hash": hashes[idx],
+                    "labels": [
+                        MaskFormer.id_to_label[info["label_id"]]
+                        for info in item["segments_info"]
+                    ],
+                    "instances": np.zeros(
+                        (len(item["segments_info"]), *images[idx].shape[:2]),
+                        dtype=np.bool_,
+                    ),
                 }
 
-                # Extract the masks.
-                masks = item["segmentation"].detach().clone().cpu().numpy()
-                segmentation["masks"] = {
-                    iid: masks[masks == iid] for iid in segmentation["instances"]
-                }
+                combined_mask = item["segmentation"].detach().clone().cpu().numpy()
+                for idx, info in enumerate(item["segments_info"]):
+                    segmentation["instances"][idx][
+                        combined_mask == info["label_id"]
+                    ] = True
 
                 # Extract and store the segmentations.
                 segmentations.append(segmentation)
@@ -261,5 +265,12 @@ class MaskFormer:
             schema.labels,
         )
 
-        # A list of segmentations
-        return [MaskFormerResponseSchema(**result) for result in segmentations]
+        # Construct the response schemata
+        response = []
+        for result in segmentations:
+            result["instances"] = oj.dumps(
+                result["instances"], option=oj.OPT_SERIALIZE_NUMPY
+            )
+            response.append(MaskFormerResponseSchema(**result))
+
+        return response

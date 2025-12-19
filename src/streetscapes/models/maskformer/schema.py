@@ -15,5 +15,5 @@ class MaskFormerRequestSchema(BaseModel):
 
 class MaskFormerResponseSchema(BaseModel):
     image_hash: bytes
-    instances: dict[int, str]
-    masks: dict[int, list]
+    labels: list[str]
+    instances: bytes
