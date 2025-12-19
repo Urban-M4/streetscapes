@@ -8,8 +8,6 @@ import torch
 from PIL import Image
 from platformdirs import user_data_dir
 
-from streetscapes.models.bfms.schema import BFMSRequestSchema, BFMSResponseSchema
-
 # Source: https://figshare.com/s/fd38d547fdb8708381f5
 MODEL_FILES = {
     "config.json": {
@@ -89,23 +87,6 @@ class BFMS:
         semantic_mask = torch.argmax(pixel_class_probs, dim=0).cpu().numpy()
 
         return semantic_mask
-
-    async def process(
-        self,
-        request: dict,
-    ):
-        """Segment an image in a server process."""
-        # Convert the request into a schema to validate it.
-        schema = BFMSRequestSchema(**request)
-
-        # Extract image from request
-        image = np.array(oj.loads(schema.image))
-
-        # Segment the image
-        masks = self.segment(image)
-
-        # Return response
-        return BFMSResponseSchema(oj.dumps(masks, option=oj.OPT_SERIALIZE_NUMPY))
 
 
 label_colors = np.array(

@@ -1,12 +1,7 @@
 import numpy as np
-import orjson as oj
 
 from streetscapes import logger
 from streetscapes import utils
-from streetscapes.models.maskformer.schema import (
-    MaskFormerRequestSchema,
-    MaskFormerResponseSchema,
-)
 
 
 class MaskFormer:
@@ -234,33 +229,3 @@ class MaskFormer:
             ]
 
         return segmentations
-
-    async def process(
-        self,
-        request: dict,
-    ):
-        # Convert the request into a schema to validate it.
-        schema = MaskFormerRequestSchema(**request)
-
-        hashes = []
-        images = []
-        for entry in schema.images:
-            hashes.append(entry.hash)
-            images.append(np.array(oj.loads(entry.image)))
-
-        # Segment the images
-        segmentations = self.segment_images(
-            hashes,
-            images,
-            schema.labels,
-        )
-
-        # Construct the response schemata
-        response = []
-        for result in segmentations:
-            result["instances"] = oj.dumps(
-                result["instances"], option=oj.OPT_SERIALIZE_NUMPY
-            )
-            response.append(MaskFormerResponseSchema(**result))
-
-        return response

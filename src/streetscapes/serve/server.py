@@ -3,14 +3,18 @@ from typing import Any
 
 from ray import serve
 from ray.serve.handle import DeploymentHandle
+from rich.console import Console  # TODO: import from cli.console, or just use logger?
 
-from rich.console import Console
-
-from streetscapes.models.bfms.model import BFMS
-from streetscapes.models.dinosam import DinoSAM
-from streetscapes.models.maskformer import MaskFormer
+from streetscapes.models.bfms.service import BFMSService
+from streetscapes.models.maskformer.service import MaskFormerService
 
 os.environ["RAY_ACCEL_ENV_VAR_OVERRIDE_ON_ZERO"] = "0"
+
+MODEL_REGISTRY = {
+    "bfms": BFMSService,
+    "maskformer": MaskFormerService,
+    # "dinosam": DinoSAMService,
+}
 
 
 @serve.deployment(
@@ -22,16 +26,6 @@ os.environ["RAY_ACCEL_ENV_VAR_OVERRIDE_ON_ZERO"] = "0"
     },
 )
 class ModelApp:
-
-    available_models = {
-        m.__name__.lower(): m
-        for m in (
-            MaskFormer,
-            DinoSAM,
-            BFMS,
-        )
-    }
-
     def __init__(self, model: str, /, **kwargs):
 
         self.con = Console()
@@ -39,15 +33,15 @@ class ModelApp:
 
         model = model.lower()
 
-        if model not in self.available_models:
+        if model not in MODEL_REGISTRY:
             raise KeyError(f"Invalid model '{model}'")
 
-        self.model = self.available_models[model](**kwargs)
+        self.model = model
+        self.service = MODEL_REGISTRY[model](**kwargs)
 
     async def __call__(self, request: Any):
-
-        self.con.print(f"Processing request for model '{self.model.name}'.")
-        return await self.model.process(request)
+        self.con.print(f"Processing request for model '{self.model}'.")
+        return self.service.handle(request)
 
 
 def get_model_app(model: str, /, **kwargs) -> serve.Application:

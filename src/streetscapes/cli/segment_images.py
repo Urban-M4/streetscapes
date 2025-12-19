@@ -3,9 +3,6 @@ import filetype as ft
 
 from cyclopts import App
 
-from streetscapes import config
-from streetscapes.project import Project
-
 
 segment_images_cli = App(help="Segment images")
 
@@ -38,7 +35,7 @@ def segment_images_maskformer(
         overwrite: Overwrite existing segmentations.
         project: The project to use for saving (meta)data.
     """
-    from streetscapes.models import maskformer
+    from streetscapes.models.maskformer.functions import segment_images
 
     if fuse_labels is None or len(fuse_labels) < 2:
         # Fusing a single label makes no sense...
@@ -60,9 +57,7 @@ def segment_images_maskformer(
             im_path for im_path in image_path.glob("*.*") if ft.is_image(im_path)
         ]
 
-    maskformer.segment_images(
-        image_path, labels, batch_size, model_params, overwrite, project
-    )
+    segment_images(image_path, labels, batch_size, model_params, overwrite, project)
 
 
 segment_images_cli.command("streetscapes.models.bfms.cli:cli", name="bfms")
