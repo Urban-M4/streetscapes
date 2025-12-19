@@ -30,7 +30,6 @@ def get_db_schema() -> dict:
     """
 
     return {
-        "image_hash": ibis.dtype("!binary"),
         "params": ibis.dtype("!json"),
         "uuid": ibis.dtype("!str"),
         "timestamp": ibis.dtype("!timestamp"),
@@ -39,47 +38,52 @@ def get_db_schema() -> dict:
 
 def save_segmentations(
     project: Project,
-    hashes: list[bytes],
     params: dict,
     segmentations: list,
-    uuids: set[bytes],
+    processed: dict[bytes, uuid.UUID],
 ):
     """
     Save a list of segmentations.
 
     Args:
         project: Current project.
-        hashes: SHA265 hashes of the processed images.
         params: The model parameters.
         segmentations: The list of segmentations.
-        uuids: UUIDs of the associated segmentations.
+        processed: Images that have already been processed.
     """
 
     # Rows to be inserted into the database
-    rows = {k: [] for k in get_db_schema()}
+    seg_rows = {k: [] for k in get_db_schema()}
+    lut_rows = {k: [] for k in project.core_tables['image_model']}
 
     timestamp = ibis.now()
 
     for segmentation in segmentations:
 
-        if segmentation.image_hash in uuids:
-            seg_uuid = uuids[segmentation.image_hash]
-        else:
-            seg_uuid = uuid.uuid4()
+        seg_uuid = ibis.uuid((
+            processed[segmentation.image_hash]
+            if segmentation.image_hash in processed
+            else uuid7()
+        )
 
-        seg_fpath = f"{seg_uuid}.npz"
+        seg_fpath = project.data_home / f"{seg_uuid}.npz"
 
         # Save the segmentations.
         np.savez(seg_fpath, instances=segmentation.instances, masks=segmentation.masks)
 
-        # Update the row dictionary
-        rows["image_hash"].append(ibis.uuid(uuid7()).to_pyarrow())
-        rows["params"].append(params)
-        rows["uuid"].append(ibis.uuid(seg_uuid))
-        rows["timestamp"].append(timestamp.to_pyarrow())
+        # Model table
+        seg_rows["uuid"].append(seg_uuid)
+        seg_rows["params"].append(params)
+        seg_rows["timestamp"].append(timestamp.to_pyarrow())
+
+        # Intermediate lookup table
+        lut_rows['image_hash'].append(segmentation.image_hash)
+        lut_rows['model'].append("maskformer")
+        lut_rows['uuid'].append(seg_uuid)
 
     # Update the model database
-    project.con.insert("maskformer", rows)
+    project.con.insert("maskformer", seg_rows)
+    project.con.insert("image_model", lut_rows)
 
 
 def segment_images(
@@ -115,6 +119,8 @@ def segment_images(
     (processed, unprocessed) = project.get_unprocessed_images(
         image_paths, "maskformer", overwrite
     )
+    if overwrite:
+        processed = {}
 
     handle = serve_model("maskformer", **model_params)
 
@@ -123,13 +129,6 @@ def segment_images(
         # Extract the hashes
         hashes = [e[0] for e in entries]
         images = [np.asarray(iio.imread(e[1])) for e in entries]
-        segmentations = (
-            project.con.table("maskformer")
-            .select("uuid", "segmentation")
-            .to_pyarrow()
-            .to_pydict()
-        )
-        existing = {u: s for u, s in zip(existing["uuid"], existing["segmentation"])}
 
         # Process the images
         data = {
@@ -145,4 +144,4 @@ def segment_images(
         response = handle.remote(data).result()
 
         # Store the segmentations and their metadata
-        save_segmentations(project, hashes, model_params, response, existing)
+        save_segmentations(project, model_params, response, processed)
