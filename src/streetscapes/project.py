@@ -312,7 +312,6 @@ class Project:
         Returns:
             A list of paths to unprocessed image.
         """
-
         hashes = {
             sha256(np.asarray(iio.imread(path))).digest(): path for path in image_paths
         }

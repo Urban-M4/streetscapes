@@ -6,7 +6,7 @@ from ray.serve.handle import DeploymentHandle
 
 from rich.console import Console
 
-from streetscapes.models.bfms import BFMS
+from streetscapes.models.bfms.model import BFMS
 from streetscapes.models.dinosam import DinoSAM
 from streetscapes.models.maskformer import MaskFormer
 
@@ -18,7 +18,7 @@ os.environ["RAY_ACCEL_ENV_VAR_OVERRIDE_ON_ZERO"] = "0"
     ray_actor_options={
         # TODO: These should be taken from the configuration.
         "num_cpus": 0.2,
-        "num_gpus": 0,
+        "num_gpus": 1,
     },
 )
 class ModelApp:
