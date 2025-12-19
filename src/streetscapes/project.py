@@ -294,7 +294,7 @@ class Project:
         # We assume that the images already exist in the local_images table:
         self.con.insert("image_model", data=data)
 
-    def get_unprocessed_images(
+    def get_image_status(
         self,
         image_paths: list[Path],
         model: str,
