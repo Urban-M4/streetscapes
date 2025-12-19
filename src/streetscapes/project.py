@@ -314,8 +314,8 @@ class Project:
             sha256(np.asarray(iio.imread(path))).digest(): path for path in image_paths
         }
 
-        t = self.con.table(model)
-        processed = set(
+        t = self.con.table("image_model")
+        processed = (
             t.filter(t.image_hash.isin(list(hashes.keys())), t.model == model)
             .select("image_hash", "uuid")
             .to_pyarrow()

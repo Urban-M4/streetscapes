@@ -16,6 +16,7 @@ import ibis
 
 import imageio as iio
 
+from streetscapes.utils import logger
 from streetscapes.project import Project
 from streetscapes.serve import serve_model
 from streetscapes.models.maskformer import MaskFormer
@@ -30,8 +31,8 @@ def get_db_schema() -> dict:
     """
 
     return {
+        "uuid": ibis.dtype("!uuid"),
         "params": ibis.dtype("!json"),
-        "uuid": ibis.dtype("!str"),
         "timestamp": ibis.dtype("!timestamp"),
     }
 
@@ -54,36 +55,32 @@ def save_segmentations(
 
     # Rows to be inserted into the database
     seg_rows = {k: [] for k in get_db_schema()}
-    lut_rows = {k: [] for k in project.core_tables['image_model']}
+    m2m_rows = {k: [] for k in project.core_tables["image_model"]}
 
     timestamp = ibis.now()
 
     for segmentation in segmentations:
 
-        seg_uuid = ibis.uuid((
-            processed[segmentation.image_hash]
-            if segmentation.image_hash in processed
-            else uuid7()
-        )
-
+        seg_uuid = ibis.uuid(processed.get(segmentation.image_hash, uuid7()))
+        logger.info(f"seg_uuid: {seg_uuid} | hash: {segmentation.image_hash}")
         seg_fpath = project.data_home / f"{seg_uuid}.npz"
 
         # Save the segmentations.
         np.savez(seg_fpath, instances=segmentation.instances, masks=segmentation.masks)
 
-        # Model table
-        seg_rows["uuid"].append(seg_uuid)
+        # Model table update
+        seg_rows["uuid"].append(seg_uuid.to_pyarrow())
         seg_rows["params"].append(params)
         seg_rows["timestamp"].append(timestamp.to_pyarrow())
 
-        # Intermediate lookup table
-        lut_rows['image_hash'].append(segmentation.image_hash)
-        lut_rows['model'].append("maskformer")
-        lut_rows['uuid'].append(seg_uuid)
+        # M2M table update
+        m2m_rows["image_hash"].append(segmentation.image_hash)
+        m2m_rows["model"].append("maskformer")
+        m2m_rows["uuid"].append(seg_uuid.to_pyarrow())
 
     # Update the model database
     project.con.insert("maskformer", seg_rows)
-    project.con.insert("image_model", lut_rows)
+    project.con.insert("image_model", m2m_rows)
 
 
 def segment_images(
@@ -116,9 +113,7 @@ def segment_images(
     if labels is None:
         labels = {l: None for l in MaskFormer.id_to_label.values()}
 
-    (processed, unprocessed) = project.get_unprocessed_images(
-        image_paths, "maskformer", overwrite
-    )
+    (processed, unprocessed) = project.get_image_status(image_paths, "maskformer")
     if overwrite:
         processed = {}
 

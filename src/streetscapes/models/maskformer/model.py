@@ -2,14 +2,14 @@ import numpy as np
 import orjson as oj
 
 from streetscapes import logger
-from streetscapes.models.base import ModelBase, PathLike
+from streetscapes import utils
 from streetscapes.models.maskformer.schema import (
     MaskFormerRequestSchema,
     MaskFormerResponseSchema,
 )
 
 
-class MaskFormer(ModelBase):
+class MaskFormer:
     # All the labels recognised by Mask2Former.
     id_to_label = {
         0: "bird",
@@ -86,8 +86,7 @@ class MaskFormer(ModelBase):
         mask_threshold: float = 0.5,
         overlap_mask_area_threshold: float = 0.8,
         labels_to_fuse: list[str | int] | None = None,
-        *args,
-        **kwargs,
+        device: str | None = None,
     ):
         """A wrapper for the [Mask2Former model](https://huggingface.co/docs/transformers/en/model_doc/mask2former).
 
@@ -99,37 +98,30 @@ class MaskFormer(ModelBase):
         post_process_panoptic_segmentation() method of the image processor.
 
         Args:
-            model_id:
-                Mask2Former model to load.
-                Defaults to "facebook/mask2former-swin-large-mapillary-vistas-panoptic".
-
-            threshold:
-                The probability score threshold to keep predicted instance masks.
-                Defaults to 0.5.
-
-            mask_threshold:
-                Threshold to use when turning the predicted masks into binary values.
-                Defaults to 0.5.
-
-            overlap_mask_area_threshold:
-                The overlap mask area threshold to merge or discard small disconnected
+            model_id: Mask2Former model to load.
+            threshold: The probability score threshold to keep predicted instance masks.
+            mask_threshold: Threshold to use when turning the predicted masks into binary values.
+            overlap_mask_area_threshold: The overlap mask area threshold to merge or discard small disconnected
                 parts within each binary instance mask. The overlap mask area threshold
                 to merge or discard small disconnected parts within each binary instance mask.
-                Defaults to 0.8.
-
-            labels_to_fuse:
-                The labels in this state will have all their instances be fused together.
+            labels_to_fuse: The labels in this state will have all their instances be fused together.
                 For instance, we could say there can only be one sky in an image, but several
                 persons, so the label ID for sky would be in that set, but not the one for person.
                 This differs slightly from the original parameter because it can also accept
                 strings instead of integers (the strings are converted to their IDs).
-                Defaults to None.
-
+            device: Specify a device to run the model on.
         """
+
+        import torch
         import transformers as tform
 
-        # Initialise the base
-        super().__init__(*args, **kwargs)
+        if device is None:
+            device = (
+                "cuda"
+                if torch.cuda.is_available()
+                else ("mps" if torch.mps.is_available() else "cpu")
+            )
+        self.device = torch.device(device)
 
         # Create the reverse mapping of label to label ID
         self.label_to_id = {
@@ -156,16 +148,6 @@ class MaskFormer(ModelBase):
 
         # Processors and models
         # ==================================================
-        self.processor: tform.Mask2FormerImageProcessor = None
-        self.model: tform.Mask2FormerForUniversalSegmentation = None
-        self._from_pretrained()
-
-    def _from_pretrained(self):
-        """Convenience method for loading processors and models."""
-        import transformers as tform
-
-        # Mask2Former model
-        # ==================================================
         self.processor = tform.Mask2FormerImageProcessor.from_pretrained(
             self.model_id,
             use_fast=True,
@@ -175,7 +157,11 @@ class MaskFormer(ModelBase):
         ).to(self.device)
         self.model.eval()
 
-    def _segment_images(
+    @property
+    def name(self) -> str:
+        return self.__class__.__name__.lower()
+
+    def segment_images(
         self,
         hashes: list[bytes],
         images: list[np.ndarray],
@@ -185,7 +171,8 @@ class MaskFormer(ModelBase):
 
         Args:
             hashes: SHA-256 hash values of the images.
-                This is useful for keeping track of which images have been segmented.
+                This is used for keeping track of which images have been segmented,
+                regardless of the file name and where they are stored.
             images: A list (batch) of images as NumPy arrays.
             labels: A flattened set of labels to look for,
                 with optional subsets of labels that should be
@@ -199,7 +186,7 @@ class MaskFormer(ModelBase):
         import torch
 
         # Flatten the label dictionary
-        labels = self._flatten_labels(labels)
+        labels = utils.flatten_labels(labels)
 
         # Eliminate labels that are not recognised by the model
         remove = set(labels).difference(MaskFormer.id_to_label)
@@ -267,7 +254,7 @@ class MaskFormer(ModelBase):
             images.append(np.array(oj.loads(entry.image)))
 
         # Segment the images
-        segmentations = self.segment(
+        segmentations = self.segment_images(
             hashes,
             images,
             schema.labels,
