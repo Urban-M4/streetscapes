@@ -36,7 +36,7 @@ def segment_images_maskformer(
             disconnected parts within each binary instance mask.
         fuse_labels: The labels in this state will have all their instances be fused together.
         overwrite: Overwrite existing segmentations.
-        project: Project to save to
+        project: The project to use for saving (meta)data.
     """
 
     if fuse_labels is None or len(fuse_labels) < 2:
