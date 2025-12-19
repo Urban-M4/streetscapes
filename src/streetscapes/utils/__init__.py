@@ -13,5 +13,6 @@ from streetscapes.utils.functions import (
     plot_metadata,
     show_dir_tree,
     show_image,
+    flatten_labels,
 )
 from streetscapes.utils.logging import logger

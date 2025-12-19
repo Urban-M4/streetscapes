@@ -340,3 +340,78 @@ def show_image(id: str, source: str):
     plt.axis("off")
     plt.title(f"{source}/{id}.jpeg")
     plt.show()
+
+
+def flatten_labels(labels: dict) -> dict:
+    """Flatten a nested dictionary of labels.
+
+    Useful for defining masks in terms of more general labels
+    that can be subtracted.
+    For instance, building facades can include windows and doors,
+    which means that we can define a category dictionary as follows:
+
+    labels = {
+        "sky": None,
+        "building": {
+            "window": None,
+            "door": None
+        },
+        "tree": None,
+        "car": None,
+        "road": None,
+    }
+
+    The model will subtract the masks for `window` and `door` from
+    that for `building`, so when the statistics are computed, only
+    the portion of the building without windows and doors will be
+    taken into acount.
+
+    Args:
+        labels: The labels as a tree (dictionary of dictionaries).
+
+    Returns:
+        A flattened category tree where each key is a
+        category and the corresponding value is a list of
+        masks that should be subtracted from it.
+
+    """
+
+    def _flatten(
+        tree: dict,
+        _subtree: dict = None,
+    ) -> dict:
+        """An internal function that performs the actual flattening.
+
+        Args:
+            tree:
+                The tree to flatten.
+
+            _subtree:
+                A tree used for flattening the category tree recursively.
+                Internal parameter only.
+                Defaults to None.
+
+
+        Returns:
+            The flattened dictionary.
+
+        """
+        if _subtree is None:
+            _subtree = {}
+
+        for k, v in tree.items():
+            if isinstance(v, dict):
+                # Dictionary
+                _subtree[k] = list(v.keys())
+                _flatten(v, _subtree)
+
+            else:
+                # String or None
+                _subtree[k] = []
+                if v is not None:
+                    _subtree[v] = []
+                    _subtree[k].append(v)
+
+        return _subtree
+
+    return _flatten(labels)
