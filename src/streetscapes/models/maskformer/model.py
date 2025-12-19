@@ -220,28 +220,18 @@ class MaskFormer:
                 target_sizes=[img.shape[:2] for img in images],
             )
 
-            for idx, item in enumerate(segmented):
-                # Dictionary that will hold all the information about the segmentation.
-                segmentation = {
+            # List of segmentation results.
+            segmentations = [
+                {
                     "image_hash": hashes[idx],
                     "labels": [
                         MaskFormer.id_to_label[info["label_id"]]
                         for info in item["segments_info"]
                     ],
-                    "instances": np.ma.zeros(
-                        (len(item["segments_info"]), *images[idx].shape[:2]),
-                        dtype=np.bool_,
-                    ),
+                    "instances": item["segmentation"].detach().clone().cpu().numpy(),
                 }
-
-                combined_mask = item["segmentation"].detach().clone().cpu().numpy()
-                for idx, info in enumerate(item["segments_info"]):
-                    segmentation["instances"][idx][
-                        combined_mask == info["label_id"]
-                    ] = True
-
-                # Extract and store the segmentations.
-                segmentations.append(segmentation)
+                for idx, item in enumerate(segmented)
+            ]
 
         return segmentations
 
@@ -269,7 +259,7 @@ class MaskFormer:
         response = []
         for result in segmentations:
             result["instances"] = oj.dumps(
-                result["instances"].compressed(), option=oj.OPT_SERIALIZE_NUMPY
+                result["instances"], option=oj.OPT_SERIALIZE_NUMPY
             )
             response.append(MaskFormerResponseSchema(**result))
 
