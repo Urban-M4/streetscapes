@@ -257,8 +257,9 @@ class Project:
         if name in self.con.tables and not overwrite:
             return self.con.table(name)
         if schema is None:
-            if schema := self.core_tables.get(name) is None:
+            if (schema := self.core_tables.get(name)) is None:
                 raise ValueError(f"Please provide a valid schema for table '{name}'.")
+
         return self.con.create_table(name, schema=schema, overwrite=overwrite)
 
     def add_model_entries(
@@ -298,6 +299,7 @@ class Project:
         self,
         image_paths: list[Path],
         model: str,
+        overwrite: bool = False,
     ) -> tuple[dict[bytes, UUID], list[tuple[bytes, UUID]]]:
         """
         Filter out processed images. Using the sha256 hash as the unique image ID.
@@ -305,6 +307,7 @@ class Project:
         Args:
             image_paths: Image paths to process.
             model: The model to target.
+            overwrite: Switch to force overwriting results.
 
         Returns:
             A list of paths to unprocessed image.
@@ -323,6 +326,8 @@ class Project:
         )
 
         processed = {h: u for h, u in zip(processed["image_hash"], processed["uuid"])}
-        unprocessed = [(h, u) for h, u in hashes.items() if h not in processed]
+        unprocessed = [
+            (h, u) for h, u in hashes.items() if overwrite or h not in processed
+        ]
 
         return processed, unprocessed

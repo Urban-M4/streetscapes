@@ -122,6 +122,7 @@ class MaskFormer:
                 else ("mps" if torch.mps.is_available() else "cpu")
             )
         self.device = torch.device(device)
+        logger.info(f"Model '{self.name}' using device '{self.device}'")
 
         # Create the reverse mapping of label to label ID
         self.label_to_id = {

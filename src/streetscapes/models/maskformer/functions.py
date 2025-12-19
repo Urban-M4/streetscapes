@@ -9,8 +9,6 @@ import uuid
 from uuid7gen import uuid7
 import orjson as oj
 
-from hashlib import sha256
-
 import numpy as np
 import ibis
 
@@ -62,11 +60,16 @@ def save_segmentations(
     for segmentation in segmentations:
 
         seg_uuid = ibis.uuid(processed.get(segmentation.image_hash, uuid7()))
-        logger.info(f"seg_uuid: {seg_uuid} | hash: {segmentation.image_hash}")
+
+        logger.info(f"Saving segmentation {seg_uuid}.")
         seg_fpath = project.data_home / f"{seg_uuid}.npz"
 
         # Save the segmentations.
-        np.savez(seg_fpath, instances=segmentation.instances, masks=segmentation.masks)
+        np.savez(
+            seg_fpath,
+            instances=segmentation.instances,
+            masks=segmentation.masks,
+        )
 
         # Model table update
         seg_rows["uuid"].append(seg_uuid.to_pyarrow())
@@ -113,9 +116,9 @@ def segment_images(
     if labels is None:
         labels = {l: None for l in MaskFormer.id_to_label.values()}
 
-    (processed, unprocessed) = project.get_image_status(image_paths, "maskformer")
-    if overwrite:
-        processed = {}
+    (processed, unprocessed) = project.get_image_status(
+        image_paths, "maskformer", overwrite
+    )
 
     handle = serve_model("maskformer", **model_params)
 
@@ -125,6 +128,7 @@ def segment_images(
         hashes = [e[0] for e in entries]
         images = [np.asarray(iio.imread(e[1])) for e in entries]
 
+        logger.info(f"Segmenting {len(images)} images.")
         # Process the images
         data = {
             "images": [
@@ -137,6 +141,8 @@ def segment_images(
             "labels": labels,
         }
         response = handle.remote(data).result()
+
+        logger.info(f"Successfully segmented {len(images)}, saving to database.")
 
         # Store the segmentations and their metadata
         save_segmentations(project, model_params, response, processed)
