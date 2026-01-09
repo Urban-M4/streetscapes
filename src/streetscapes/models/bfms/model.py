@@ -20,7 +20,7 @@ MODEL_FILES = {
     },
 }
 
-MODEL_PATH = Path(user_data_dir("streetscapes"), "models", "bfms")
+MODEL_PATH = user_data_path("streetscapes") / "models/bfms"
 
 
 class BFMS:
