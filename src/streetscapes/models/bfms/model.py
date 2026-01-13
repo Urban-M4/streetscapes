@@ -6,7 +6,7 @@ import numpy as np
 import orjson as oj
 import torch
 from PIL import Image
-from platformdirs import user_data_dir
+from platformdirs import user_data_path
 
 # Source: https://figshare.com/s/fd38d547fdb8708381f5
 MODEL_FILES = {

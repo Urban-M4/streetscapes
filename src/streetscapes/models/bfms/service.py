@@ -13,6 +13,7 @@ class BFMSRequest(BaseModel):
 
 class BFMSResponse(BaseModel):
     mask: str  # JSON-encoded numpy array
+    hash: bytes | None = None
 
 
 class BFMSService:

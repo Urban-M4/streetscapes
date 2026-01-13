@@ -12,51 +12,60 @@ from streetscapes import config
 from streetscapes.models.bfms.db import SCHEMA
 from streetscapes.project import Project
 from streetscapes.serve.server import serve_model
+from streetscapes.models.bfms.db import save_segmentation
 
 logger = logging.getLogger(__name__)
 
+
 def cli(
     image_path: str,
-    overwrite: bool = False,
     model_params: dict | None = None,
+    overwrite: bool = False,
+    bootstrap: bool = False,
 ):
     """CLI entry point to segment images with BFMS via Ray Serve.
 
     Args:
         image_path: Path to an image or a directory of images.
-        overwrite: Whether to overwrite existing segmentations.
         model_params: Optional parameters to pass to the Ray Serve deployment.
+        overwrite: Whether to overwrite existing segmentations.
+        bootstrap: (Re)create the model table.
     """
     # Resolve paths
     image_path = Path(image_path)
     if image_path.is_dir():
         image_paths = [p for p in image_path.glob("*.*") if ft.is_image(p)]
     else:
-        image_paths = [image_path]
+        image_paths = [image_path] if ft.is_image(image_path) else []
 
     if not image_paths:
         return
 
+    model_name = "bfms"
+
     # Setup project
     project = Project(config.get("active_project"))
-    project.ensure_table("bfms", SCHEMA)
+    project.ensure_table(model_name, SCHEMA, bootstrap)
 
     # Determine which images need processing
-    # processed, unprocessed = project.get_image_status(image_paths, "bfms", overwrite)
-    unprocessed = image_paths
+    # unprocessed = image_paths
+    processed, unprocessed = project.get_image_status(image_paths, model_name, overwrite)
 
     # Initialize Ray Serve handle
-    handle = serve_model("bfms", **(model_params or {}))
+    handle = serve_model(model_name, **(model_params or {}))
     logger.info(f"Segmenting {len(unprocessed)} images using BFMS...")
 
     # Process images one by one
-    for img_path in unprocessed:
+    for img_hash, img_path in unprocessed:
+
+        # Extract the hashes
         image = np.asarray(iio.imread(img_path))
 
         # Create request for the service
         request = {"image": oj.dumps(image, option=oj.OPT_SERIALIZE_NUMPY)}
         response = handle.remote(request).result()
-        mask = np.array(oj.loads(response.mask))
+        response.hash = img_hash
+        # mask = np.array(oj.loads(response.mask))
 
         # Save segmentation immediately
-        # project.save_segmentation("bfms", img_path, mask)
+        save_segmentation(project, model_params, response, processed)
