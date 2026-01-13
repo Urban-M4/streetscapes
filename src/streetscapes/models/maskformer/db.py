@@ -47,10 +47,11 @@ def save_segmentations(
 
         # Retrieve or create a UUID for this segmentation.
         seg_uuid = ibis.uuid(processed.get(response.hash, uuid7()))
-        seg_fpath = project.data_home / f"{seg_uuid}.npz"
+        seg_fname = f"{seg_uuid.to_pyarrow().as_py()}.npz"
+        seg_fpath = project.data_home / seg_fname
 
         # Save the segmentations.
-        logger.info(f"Saving segmentation {seg_uuid}...")
+        logger.debug(f"Saving segmentation {seg_fname}...")
         instances = oj.loads(response.instances)
         np.savez_compressed(
             seg_fpath,

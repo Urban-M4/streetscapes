@@ -46,11 +46,12 @@ def save_segmentation(
     # ATTENTION: using UUID7 from the built-in uuid module requires Python >= 3.14.
     # seg_uuid = ibis.uuid(processed.get(segmentation.hash, uuid.uuid7()))
     seg_uuid = ibis.uuid(processed.get(response.hash, uuid7()))
-    logger.info(f"seg_uuid: {seg_uuid} | hash: {response.hash.hex}")
-    seg_fpath = project.data_home / f"{seg_uuid}.npz"
+    seg_fname = f"{seg_uuid.to_pyarrow().as_py()}.npz"
+    seg_fpath = project.data_home / seg_fname
 
     # Save the segmentations.
-    np.savez(seg_fpath, mask=response.mask)
+    logger.debug(f"Saving segmentation {seg_fname}...")
+    np.savez_compressed(seg_fpath, mask=response.mask)
 
     # Model table update.
     seg_rows["uuid"].append(seg_uuid.to_pyarrow())
