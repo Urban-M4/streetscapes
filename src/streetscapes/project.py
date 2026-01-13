@@ -241,7 +241,7 @@ class Project:
         self,
         name: str,
         schema: dict | ibis.Schema | None = None,
-        overwrite: bool = False,
+        bootstrap: bool = False,
     ) -> ibis.Table:
         """
         Ensure that a table exists with the given schema.
@@ -249,18 +249,18 @@ class Project:
         Args:
             name: Table name.
             schema: Schema to use for the table if it doesn't exist.
-            overwrite: Overwrite the table if it exists.
+            bootstrap: Overwrite the table if it exists.
 
         Returns:
             An Ibis table.
         """
-        if name in self.con.tables and not overwrite:
+        if name in self.con.tables and not bootstrap:
             return self.con.table(name)
         if schema is None:
             if (schema := self.core_tables.get(name)) is None:
                 raise ValueError(f"Please provide a valid schema for table '{name}'.")
 
-        return self.con.create_table(name, schema=schema, overwrite=overwrite)
+        return self.con.create_table(name, schema=schema, overwrite=bootstrap)
 
     def add_model_entries(
         self,
