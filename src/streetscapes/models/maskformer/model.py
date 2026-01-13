@@ -144,9 +144,8 @@ class MaskFormer:
 
         # Processors and models
         # ==================================================
-        self.processor = tform.Mask2FormerImageProcessor.from_pretrained(
-            self.model_id,
-            use_fast=True,
+        self.processor = tform.Mask2FormerImageProcessorFast.from_pretrained(
+            self.model_id
         )
         self.model = tform.Mask2FormerForUniversalSegmentation.from_pretrained(
             self.model_id
@@ -218,7 +217,7 @@ class MaskFormer:
             # List of segmentation results.
             segmentations = [
                 {
-                    "image_hash": hashes[idx],
+                    "hash": hashes[idx],
                     "labels": [
                         MaskFormer.id_to_label[info["label_id"]]
                         for info in item["segments_info"]
