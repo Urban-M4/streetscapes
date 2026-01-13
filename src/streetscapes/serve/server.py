@@ -19,11 +19,6 @@ MODEL_REGISTRY = {
 
 @serve.deployment(
     num_replicas=1,
-    ray_actor_options={
-        # TODO: These should be taken from the configuration.
-        "num_cpus": 0.2,
-        "num_gpus": 1,
-    },
 )
 class ModelApp:
     def __init__(self, model: str, /, **kwargs):
