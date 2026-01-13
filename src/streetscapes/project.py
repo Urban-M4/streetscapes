@@ -14,6 +14,7 @@ from hashlib import sha256
 from streetscapes import config
 from streetscapes.utils import ensure_dir
 from streetscapes.utils.bbox import Bbox
+from streetscapes.sources.mapillary import MapillaryClient
 
 
 class Project:
@@ -46,7 +47,9 @@ class Project:
                 "image_hash": ibis.dtype("!binary"),
                 "model": ibis.dtype("!str"),
                 "uuid": ibis.dtype("!uuid"),
-            }
+            },
+            # TODO: This is just a workaround for now - every field should have its own type.
+            "mapillary": {k: ibis.dtype('polygon' if k == "geometry" else "str") for k in MapillaryClient.DEFAULT_FIELDS}
         }
 
     def get_image_dir(
@@ -169,6 +172,8 @@ class Project:
         self, skip_existing: bool = True
     ) -> list[tuple[str, str]]:
         """Return list of (id, url) for Mapillary images to download."""
+
+        self.ensure_table('mapillary')
         base_query = "SELECT id, thumb_2048_url, ST_AsWKB(geometry) FROM mapillary"
         if skip_existing and "local_images" in self.con.list_tables():
             query = f"""
