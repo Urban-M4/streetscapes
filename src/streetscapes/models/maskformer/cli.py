@@ -36,7 +36,7 @@ def cli(
         mask_threshold: Threshold to use when turning the predicted masks into binary values.
         overlap_threshold: The overlap mask area threshold to merge or discard small
             disconnected parts within each binary instance mask.
-        fuse_labels: The labels in this state will have all their instances be fused together.
+        fuse_labels: The labels in this state will have all their instances fused together.
         overwrite: Overwrite existing segmentations.
         bootstrap: (Re)create the model table.
         project: The project to use for saving (meta)data.
