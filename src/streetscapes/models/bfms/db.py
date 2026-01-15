@@ -6,7 +6,7 @@ import numpy as np
 from uuid7gen import uuid7
 
 from streetscapes.project import Project
-from streetscapes.utils import logger
+from streetscapes.utils import logger, ensure_dir
 from streetscapes.models.bfms.service import BFMSResponse
 
 SCHEMA = {
@@ -34,6 +34,8 @@ def save_segmentation(
         processed: Images that have already been processed.
     """
 
+    model_name = "bfms"
+
     # Ensure that params is a dictionary.
     params = params or {}
 
@@ -44,14 +46,16 @@ def save_segmentation(
     timestamp = ibis.now()
 
     # ATTENTION: using UUID7 from the built-in uuid module requires Python >= 3.14.
-    # seg_uuid = ibis.uuid(processed.get(segmentation.hash, uuid.uuid7()))
     seg_uuid = ibis.uuid(processed.get(response.hash, uuid7()))
     seg_fname = f"{seg_uuid.to_pyarrow().as_py()}.npz"
-    seg_fpath = project.data_home / seg_fname
+    seg_fpath = ensure_dir(project.data_home / f"models/{model_name}/segmentations")
 
     # Save the segmentations.
     logger.debug(f"Saving segmentation {seg_fname}...")
-    np.savez_compressed(seg_fpath, mask=response.mask)
+    np.savez_compressed(
+        seg_fpath / seg_fname,
+        mask=response.mask,
+    )
 
     # Model table update.
     seg_rows["uuid"].append(seg_uuid.to_pyarrow())
@@ -60,9 +64,9 @@ def save_segmentation(
 
     # M2M table update
     m2m_rows["image_hash"].append(response.hash)
-    m2m_rows["model"].append("bfms")
+    m2m_rows["model"].append(model_name)
     m2m_rows["uuid"].append(seg_uuid.to_pyarrow())
 
     # Update the model database
-    project.con.insert("bfms", seg_rows)
+    project.con.insert(model_name, seg_rows)
     project.con.insert("image_model", m2m_rows)
