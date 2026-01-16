@@ -51,7 +51,7 @@ def save_segmentation(
     seg_fpath = ensure_dir(project.data_home / f"models/{model_name}/segmentations")
 
     # Save the segmentations.
-    logger.debug(f"Saving segmentation {seg_fname}...")
+    logger.info(f"Saving segmentation {seg_fname}...")
     np.savez_compressed(
         seg_fpath / seg_fname,
         mask=response.mask,

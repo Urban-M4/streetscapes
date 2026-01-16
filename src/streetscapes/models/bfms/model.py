@@ -1,12 +1,11 @@
 import hashlib
-from pathlib import Path
 from typing import Any
 
 import numpy as np
-import orjson as oj
 import torch
 from PIL import Image
 from platformdirs import user_data_path
+from streetscapes import utils
 
 # Source: https://figshare.com/s/fd38d547fdb8708381f5
 MODEL_FILES = {
@@ -26,18 +25,20 @@ MODEL_PATH = user_data_path("streetscapes") / "models/bfms"
 class BFMS:
     """Building/Facade Material Segmentation model based on Mask2Former."""
 
-    def __init__(self):
-        """Load model."""
+    def __init__(
+        self,
+        device: str | None = None,
+    ):
+        """Load the BFMS model.
+
+        Args:
+            device: Specify a device to run the model on.
+        """
         import transformers as tform
 
         _ensure_model()
 
-        device = (
-            "cuda"
-            if torch.cuda.is_available()
-            else ("mps" if torch.mps.is_available() else "cpu")
-        )
-        self.device = torch.device(device)
+        self.device = utils.get_device(device)
 
         config = tform.Mask2FormerConfig.from_pretrained(MODEL_PATH / "config.json")
 

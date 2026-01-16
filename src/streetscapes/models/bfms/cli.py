@@ -23,7 +23,7 @@ def cli(
     overwrite: bool = False,
     bootstrap: bool = False,
 ):
-    """CLI entry point to segment images with BFMS via Ray Serve.
+    """Segment images with BFMS.
 
     Args:
         image_path: Path to an image or a directory of images.
@@ -43,12 +43,11 @@ def cli(
 
     model_name = "bfms"
 
-    # Setup project
+    # Open the project
     project = Project(config.get("active_project"))
     project.ensure_table(model_name, SCHEMA, bootstrap)
 
     # Determine which images need processing
-    # unprocessed = image_paths
     processed, unprocessed = project.get_image_status(image_paths, model_name, overwrite)
 
     # Initialize Ray Serve handle
@@ -65,7 +64,6 @@ def cli(
         request = {"image": oj.dumps(image, option=oj.OPT_SERIALIZE_NUMPY)}
         response = handle.remote(request).result()
         response.hash = img_hash
-        # mask = np.array(oj.loads(response.mask))
 
         # Save segmentation immediately
         save_segmentation(project, model_params, response, processed)
