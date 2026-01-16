@@ -6,7 +6,7 @@ from uuid7gen import uuid7
 
 from streetscapes.project import Project
 from streetscapes.utils import logger, ensure_dir
-from streetscapes.models.maskformer.service import MaskFormerResponseSchema
+from streetscapes.models.maskformer.service import MaskFormerResponse
 
 
 SCHEMA = {
@@ -21,7 +21,7 @@ SCHEMA = {
 def save_segmentations(
     project: Project,
     params: dict | None,
-    responses: list[MaskFormerResponseSchema],
+    responses: list[MaskFormerResponse],
     processed: dict[bytes, uuid.UUID],
 ):
     """
@@ -34,7 +34,7 @@ def save_segmentations(
         processed: Images that have already been processed.
     """
 
-    model_name = "maskformer"
+    model_name = "dinosam"
 
     # Ensure that params is a dictionary.
     params = params or {}

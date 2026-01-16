@@ -2,21 +2,21 @@ import numpy as np
 import orjson as oj
 from pydantic import BaseModel
 
-from streetscapes.utils.logging import logger
+from streetscapes.utils import logger
 from streetscapes.models.maskformer.model import MaskFormer
 
 
-class MaskFormerImageSchema(BaseModel):
+class MaskFormerImage(BaseModel):
     hash: bytes
     image: bytes
 
 
-class MaskFormerRequestSchema(BaseModel):
-    images: list[MaskFormerImageSchema]
+class MaskFormerRequest(BaseModel):
+    images: list[MaskFormerImage]
     labels: dict
 
 
-class MaskFormerResponseSchema(BaseModel):
+class MaskFormerResponse(BaseModel):
     hash: bytes
     labels: list[str]
     instances: bytes
@@ -49,7 +49,7 @@ class MaskFormerService:
 
     def handle(self, request: dict) -> dict:
         # Convert the request into a schema to validate it.
-        schema = MaskFormerRequestSchema(**request)
+        schema = MaskFormerRequest(**request)
 
         hashes = []
         images = []
@@ -64,12 +64,12 @@ class MaskFormerService:
             schema.labels,
         )
 
-        # Construct the response schemata
+        # Construct the response
         response = []
         for result in segmentations:
             result["instances"] = oj.dumps(
                 result["instances"], option=oj.OPT_SERIALIZE_NUMPY
             )
-            response.append(MaskFormerResponseSchema(**result))
+            response.append(MaskFormerResponse(**result))
 
         return response

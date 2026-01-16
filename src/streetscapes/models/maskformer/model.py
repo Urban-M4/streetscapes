@@ -106,17 +106,9 @@ class MaskFormer:
                 strings instead of integers (the strings are converted to their IDs).
             device: Specify a device to run the model on.
         """
-
-        import torch
         import transformers as tform
 
-        if device is None:
-            device = (
-                "cuda"
-                if torch.cuda.is_available()
-                else ("mps" if torch.mps.is_available() else "cpu")
-            )
-        self.device = torch.device(device)
+        self.device = utils.get_device(device)
         logger.info(f"Model '{self.name}' using device '{self.device}'")
 
         # Create the reverse mapping of label to label ID
@@ -160,7 +152,7 @@ class MaskFormer:
         self,
         hashes: list[bytes],
         images: list[np.ndarray],
-        labels: dict,
+        labels: str | list[str],
     ) -> list[dict]:
         """Segment the provided sequence of images.
 
@@ -169,10 +161,7 @@ class MaskFormer:
                 This is used for keeping track of which images have been segmented,
                 regardless of the file name and where they are stored.
             images: A list (batch) of images as NumPy arrays.
-            labels: A flattened set of labels to look for,
-                with optional subsets of labels that should be
-                checked in order to eliminate overlaps.
-                Cf. `BaseSegmenter._flatten_labels()`
+            labels: A list of labels (object categories).
 
         Returns:
             A list of dictionaries containing instance-level segmentation information.
@@ -181,7 +170,7 @@ class MaskFormer:
         import torch
 
         # Flatten the label dictionary
-        labels = utils.flatten_labels(labels)
+        labels = utils.extract_categories(labels)
 
         # Eliminate labels that are not recognised by the model
         remove = set(labels).difference(MaskFormer.id_to_label)

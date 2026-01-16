@@ -25,7 +25,7 @@ def cli(
     bootstrap: bool = False,
     project: str = "streetscapes",
 ):
-    """Segment images with the MaskFormer model.
+    """Segment images with MaskFormer.
 
     Args:
         image_path: Path to the images to be segmented.
@@ -64,6 +64,7 @@ def cli(
             im_path for im_path in image_path.glob("*.*") if ft.is_image(im_path)
         ]
 
+    # Open the project
     project = Project(project)
     project.ensure_table(model_name, SCHEMA, bootstrap)
 
@@ -78,6 +79,7 @@ def cli(
     )
 
     handle = serve_model(model_name, **model_params)
+    logger.info(f"Segmenting {len(unprocessed)} images using {model_name}...")
 
     for entries in batched(unprocessed, batch_size):
 
