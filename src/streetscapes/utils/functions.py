@@ -1,13 +1,14 @@
 import os
 import re
 from pathlib import Path
-
+import torch
 import geopandas as gpd
 import numpy as np
 import seedir as sd
 import skimage as ski
 from dotenv import load_dotenv
 from IPython import get_ipython
+from collections.abc import Iterable
 
 
 def is_notebook() -> bool:
@@ -342,76 +343,60 @@ def show_image(id: str, source: str):
     plt.show()
 
 
-def flatten_labels(labels: dict) -> dict:
-    """Flatten a nested dictionary of labels.
-
-    Useful for defining masks in terms of more general labels
-    that can be subtracted.
-    For instance, building facades can include windows and doors,
-    which means that we can define a category dictionary as follows:
-
-    labels = {
-        "sky": None,
-        "building": {
-            "window": None,
-            "door": None
-        },
-        "tree": None,
-        "car": None,
-        "road": None,
-    }
-
-    The model will subtract the masks for `window` and `door` from
-    that for `building`, so when the statistics are computed, only
-    the portion of the building without windows and doors will be
-    taken into acount.
+def extract_categories(prompt: str | list[str]) -> dict:
+    """Extract labels (object categories) to look for from a free-form prompt.
 
     Args:
-        labels: The labels as a tree (dictionary of dictionaries).
+        prompt: The labels as a string or a list of strings.
+            If a string is provided, the categories should be
+            separated by commas or full stops.
 
     Returns:
-        A flattened category tree where each key is a
-        category and the corresponding value is a list of
-        masks that should be subtracted from it.
-
+        A list of labels (object categories).
     """
 
-    def _flatten(
-        tree: dict,
-        _subtree: dict = None,
-    ) -> dict:
-        """An internal function that performs the actual flattening.
-
-        Args:
-            tree:
-                The tree to flatten.
-
-            _subtree:
-                A tree used for flattening the category tree recursively.
-                Internal parameter only.
-                Defaults to None.
-
-
-        Returns:
-            The flattened dictionary.
-
-        """
-        if _subtree is None:
-            _subtree = {}
-
-        for k, v in tree.items():
-            if isinstance(v, dict):
-                # Dictionary
-                _subtree[k] = list(v.keys())
-                _flatten(v, _subtree)
-
+    def flatten(xs: list):
+        for x in xs:
+            if isinstance(x, Iterable) and not isinstance(x, (str, bytes)):
+                yield from flatten(x)
             else:
-                # String or None
-                _subtree[k] = []
-                if v is not None:
-                    _subtree[v] = []
-                    _subtree[k].append(v)
+                yield x
 
-        return _subtree
+    if not isinstance(prompt, str):
+        prompt = ".".join(flatten(prompt))
 
-    return _flatten(labels)
+    prompt = prompt.strip().lower()
+
+    prompt = ".".join(
+        [cat.strip() for cat in prompt.split(" ") if len(cat.strip()) > 0]
+    )
+    prompt = ".".join(
+        [cat.strip() for cat in prompt.split(",") if len(cat.strip()) > 0]
+    )
+    prompt = ". ".join(
+        [cat.strip() for cat in prompt.split(".") if len(cat.strip()) > 0]
+    )
+
+    return f"{prompt.strip()}."
+
+
+def get_device(device: torch.device | str | None) -> torch.device:
+    """Get a Torch device.
+
+    Args:
+        device: A string / torch.device specification or None for a sane default.
+
+    Returns:
+        A torch.device object.
+    """
+
+    if isinstance(device, torch.device):
+        return device
+
+    if device is None:
+        device = (
+            "cuda"
+            if torch.cuda.is_available()
+            else ("mps" if torch.mps.is_available() else "cpu")
+        )
+    return torch.device(device)
