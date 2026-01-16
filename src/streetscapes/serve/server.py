@@ -7,13 +7,14 @@ from rich.console import Console  # TODO: import from cli.console, or just use l
 
 from streetscapes.models.bfms.service import BFMSService
 from streetscapes.models.maskformer.service import MaskFormerService
+from streetscapes.models.dinosam.service import DinoSAMService
 
 os.environ["RAY_ACCEL_ENV_VAR_OVERRIDE_ON_ZERO"] = "0"
 
 MODEL_REGISTRY = {
     "bfms": BFMSService,
     "maskformer": MaskFormerService,
-    # "dinosam": DinoSAMService,
+    "dinosam": DinoSAMService,
 }
 
 
