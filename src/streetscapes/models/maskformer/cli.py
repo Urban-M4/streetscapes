@@ -42,10 +42,6 @@ def cli(
         project: The project to use for saving (meta)data.
     """
 
-    if fuse_labels is None or len(fuse_labels) < 2:
-        # Fusing a single label makes no sense...
-        fuse_labels = []
-
     model_name = "maskformer"
 
     model_params = {
@@ -72,7 +68,7 @@ def cli(
         model_params = {}
 
     if labels is None:
-        labels = {l: None for l in MaskFormer.id_to_label.values()}
+        labels = list(MaskFormer.id_to_label.values())
 
     (processed, unprocessed) = project.get_image_status(
         image_path, model_name, overwrite

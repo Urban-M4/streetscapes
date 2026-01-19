@@ -152,7 +152,7 @@ class MaskFormer:
         self,
         hashes: list[bytes],
         images: list[np.ndarray],
-        labels: str | list[str],
+        labels: str | list[str] | None = None,
     ) -> list[dict]:
         """Segment the provided sequence of images.
 
@@ -169,19 +169,14 @@ class MaskFormer:
         """
         import torch
 
+        if labels is None:
+            labels = list(MaskFormer.id_to_label.values())
+
         # Flatten the label dictionary
         labels = utils.extract_categories(labels)
 
         # Eliminate labels that are not recognised by the model
-        remove = set(labels).difference(MaskFormer.id_to_label)
-        _labels = {}
-        for k, v in labels.items():
-            if k in remove:
-                continue
-            vdiff = set(v) - remove
-            _labels[k] = list(vdiff) if len(vdiff) > 0 else None
-        labels = _labels
-
+        labels = set(labels).intersection(MaskFormer.id_to_label)
         segmentations = []
 
         with torch.no_grad():
