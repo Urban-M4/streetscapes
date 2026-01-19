@@ -1,3 +1,4 @@
+-e . --no-deps
 mike
 mkdocs
 mkdocstrings[python]
