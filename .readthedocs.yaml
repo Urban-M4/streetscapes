@@ -9,7 +9,6 @@ build:
   os: ubuntu-24.04
   tools:
     python: "3.12"
-    rust: "1.91"
 
 # Build documentation with Mkdocs
 mkdocs:
@@ -17,7 +16,4 @@ mkdocs:
 
 python:
   install:
-    - method: pip
-      path: .
-      extra_requirements:
-        - dev
+    - requirements: docs/requirements.txt
