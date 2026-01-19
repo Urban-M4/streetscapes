@@ -1,5 +1,5 @@
-"mike",
-"mkdocs",
-"mkdocstrings[python]",
-"mkdocs-material",
-"mkdocs-jupyter",
+mike
+mkdocs
+mkdocstrings[python]
+mkdocs-material
+mkdocs-jupyter
