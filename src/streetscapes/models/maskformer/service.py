@@ -13,7 +13,7 @@ class MaskFormerImage(BaseModel):
 
 class MaskFormerRequest(BaseModel):
     images: list[MaskFormerImage]
-    labels: dict
+    labels: list[str]
 
 
 class MaskFormerResponse(BaseModel):
