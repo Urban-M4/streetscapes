@@ -1,53 +1,70 @@
-from pathlib import Path
+import hashlib
 from typing import Any
 
 import numpy as np
 import torch
 from PIL import Image
-from transformers import (
-    AutoImageProcessor,
-    Mask2FormerConfig,
-    Mask2FormerForUniversalSegmentation,
-)
+from platformdirs import user_data_path
+from streetscapes import utils
+
+# Source: https://figshare.com/s/fd38d547fdb8708381f5
+MODEL_FILES = {
+    "config.json": {
+        "url": "https://figshare.com/ndownloader/files/50246925?private_link=fd38d547fdb8708381f5",
+        "md5": "1b32428cfb4f6cfff8800779364289d4",
+    },
+    "model.safetensors": {
+        "url": "https://figshare.com/ndownloader/files/50246928?private_link=fd38d547fdb8708381f5",
+        "md5": "30c3999e43d1ee20c0685e92256c5d11",
+    },
+}
+
+MODEL_PATH = user_data_path("streetscapes") / "models/bfms"
 
 
 class BFMS:
     """Building/Facade Material Segmentation model based on Mask2Former."""
 
-    def __init__(self, model_path: Path = Path("./trained_model"), device: str = None):
-        self.model_path = Path(model_path)
-        self.device = device or ("cuda" if torch.cuda.is_available() else "cpu")
+    def __init__(
+        self,
+        device: str | None = None,
+    ):
+        """Load the BFMS model.
 
-        # Load model + processor
-        self._load_model()
+        Args:
+            device: Specify a device to run the model on.
+        """
+        import transformers as tform
 
-    def _load_model(self):
-        config = Mask2FormerConfig.from_pretrained(self.model_path / "config.json")
-        self.model = Mask2FormerForUniversalSegmentation.from_pretrained(
-            self.model_path / "model.safetensors", config=config
+        _ensure_model()
+
+        self.device = utils.get_device(device)
+
+        config = tform.Mask2FormerConfig.from_pretrained(MODEL_PATH / "config.json")
+
+        self.model = tform.Mask2FormerForUniversalSegmentation.from_pretrained(
+            MODEL_PATH / "model.safetensors",
+            config=config,
         ).to(self.device)
-        self.model.eval()
 
-        self.processor = AutoImageProcessor.from_pretrained(
-            self.model_path / "config.json", use_fast=True
+        self.processor = tform.AutoImageProcessor.from_pretrained(
+            MODEL_PATH / "config.json",
+            use_fast=True,
         )
 
-    def segment(self, image: np.ndarray | Image.Image) -> dict[str, Any]:
+        self.model.eval()
+
+    def segment(self, image: np.ndarray) -> dict[str, Any]:
         """Run BFMS segmentation.
 
         Args:
-            image: Input image as numpy array or PIL Image.
+            image: Input image as numpy array.
 
         Returns:
-            dict with:
-                - mask: np.ndarray [H, W], semantic labels
-                - labels: list[str], predicted class names
-
+            semantic_mask: np.ndarray [H, W], predicted class ids
         """
-        if isinstance(image, np.ndarray):
-            image = Image.fromarray(image).convert("RGB")
-        else:
-            image = image.convert("RGB")
+        # Convert to RGB
+        image = Image.fromarray(image).convert("RGB")
 
         # Preprocess
         inputs = self.processor(images=image, return_tensors="pt").to(self.device)
@@ -70,11 +87,7 @@ class BFMS:
         # Argmax → semantic mask
         semantic_mask = torch.argmax(pixel_class_probs, dim=0).cpu().numpy()
 
-        # Convert to dict
-        return {
-            "mask": semantic_mask,
-            "labels": [f"class_{i}" for i in np.unique(semantic_mask)],
-        }
+        return semantic_mask
 
 
 label_colors = np.array(
@@ -172,3 +185,42 @@ id2label = {
     41: "Soil/Mud",
     42: "Natural Stone",
 }
+
+
+def md5(path, chunk_size=8192):
+    h = hashlib.md5()
+    with open(path, "rb") as f:
+        for chunk in iter(lambda: f.read(chunk_size), b""):
+            h.update(chunk)
+    return h.hexdigest()
+
+
+def _ensure_model():
+    """Ensure that model weights and config are available.
+
+    Download from figshare if not already present.
+    """
+    import requests
+
+    MODEL_PATH.mkdir(parents=True, exist_ok=True)
+
+    for name, meta in MODEL_FILES.items():
+        path = MODEL_PATH / name
+
+        if path.exists() and md5(path) == meta["md5"]:
+            continue
+
+        tmp = path.with_suffix(path.suffix + ".tmp")
+        print(f"Downloading {name}")
+
+        with requests.get(meta["url"], stream=True, timeout=30) as r:
+            r.raise_for_status()
+            with open(tmp, "wb") as f:
+                for chunk in r.iter_content(8192):
+                    f.write(chunk)
+
+        tmp.replace(path)
+
+        if md5(path) != meta["md5"]:
+            path.unlink(missing_ok=True)
+            raise RuntimeError(f"Checksum mismatch for {name}")

@@ -1,15 +1,10 @@
 import numpy as np
-import orjson as oj
 
 from streetscapes import logger
-from streetscapes.models.base import ModelBase, PathLike
-from streetscapes.models.maskformer.schema import (
-    MaskFormerRequestSchema,
-    MaskFormerResponseSchema,
-)
+from streetscapes import utils
 
 
-class MaskFormer(ModelBase):
+class MaskFormer:
     # All the labels recognised by Mask2Former.
     id_to_label = {
         0: "bird",
@@ -86,8 +81,7 @@ class MaskFormer(ModelBase):
         mask_threshold: float = 0.5,
         overlap_mask_area_threshold: float = 0.8,
         labels_to_fuse: list[str | int] | None = None,
-        *args,
-        **kwargs,
+        device: str | None = None,
     ):
         """A wrapper for the [Mask2Former model](https://huggingface.co/docs/transformers/en/model_doc/mask2former).
 
@@ -99,37 +93,23 @@ class MaskFormer(ModelBase):
         post_process_panoptic_segmentation() method of the image processor.
 
         Args:
-            model_id:
-                Mask2Former model to load.
-                Defaults to "facebook/mask2former-swin-large-mapillary-vistas-panoptic".
-
-            threshold:
-                The probability score threshold to keep predicted instance masks.
-                Defaults to 0.5.
-
-            mask_threshold:
-                Threshold to use when turning the predicted masks into binary values.
-                Defaults to 0.5.
-
-            overlap_mask_area_threshold:
-                The overlap mask area threshold to merge or discard small disconnected
+            model_id: Mask2Former model to load.
+            threshold: The probability score threshold to keep predicted instance masks.
+            mask_threshold: Threshold to use when turning the predicted masks into binary values.
+            overlap_mask_area_threshold: The overlap mask area threshold to merge or discard small disconnected
                 parts within each binary instance mask. The overlap mask area threshold
                 to merge or discard small disconnected parts within each binary instance mask.
-                Defaults to 0.8.
-
-            labels_to_fuse:
-                The labels in this state will have all their instances be fused together.
+            labels_to_fuse: The labels in this state will have all their instances be fused together.
                 For instance, we could say there can only be one sky in an image, but several
                 persons, so the label ID for sky would be in that set, but not the one for person.
                 This differs slightly from the original parameter because it can also accept
                 strings instead of integers (the strings are converted to their IDs).
-                Defaults to None.
-
+            device: Specify a device to run the model on.
         """
         import transformers as tform
 
-        # Initialise the base
-        super().__init__(*args, **kwargs)
+        self.device = utils.get_device(device)
+        logger.info(f"Model '{self.name}' using device '{self.device}'")
 
         # Create the reverse mapping of label to label ID
         self.label_to_id = {
@@ -156,41 +136,32 @@ class MaskFormer(ModelBase):
 
         # Processors and models
         # ==================================================
-        self.processor: tform.Mask2FormerImageProcessor = None
-        self.model: tform.Mask2FormerForUniversalSegmentation = None
-        self._from_pretrained()
-
-    def _from_pretrained(self):
-        """Convenience method for loading processors and models."""
-        import transformers as tform
-
-        # Mask2Former model
-        # ==================================================
-        self.processor = tform.Mask2FormerImageProcessor.from_pretrained(
-            self.model_id,
-            use_fast=True,
+        self.processor = tform.Mask2FormerImageProcessorFast.from_pretrained(
+            self.model_id
         )
         self.model = tform.Mask2FormerForUniversalSegmentation.from_pretrained(
             self.model_id
         ).to(self.device)
         self.model.eval()
 
-    def _segment_images(
+    @property
+    def name(self) -> str:
+        return self.__class__.__name__.lower()
+
+    def segment_images(
         self,
         hashes: list[bytes],
         images: list[np.ndarray],
-        labels: dict,
+        labels: str | list[str] | None = None,
     ) -> list[dict]:
         """Segment the provided sequence of images.
 
         Args:
             hashes: SHA-256 hash values of the images.
-                This is useful for keeping track of which images have been segmented.
+                This is used for keeping track of which images have been segmented,
+                regardless of the file name and where they are stored.
             images: A list (batch) of images as NumPy arrays.
-            labels: A flattened set of labels to look for,
-                with optional subsets of labels that should be
-                checked in order to eliminate overlaps.
-                Cf. `BaseSegmenter._flatten_labels()`
+            labels: A list of labels (object categories).
 
         Returns:
             A list of dictionaries containing instance-level segmentation information.
@@ -198,19 +169,14 @@ class MaskFormer(ModelBase):
         """
         import torch
 
+        if labels is None:
+            labels = list(MaskFormer.id_to_label.values())
+
         # Flatten the label dictionary
-        labels = self._flatten_labels(labels)
+        labels = utils.extract_categories(labels)
 
         # Eliminate labels that are not recognised by the model
-        remove = set(labels).difference(MaskFormer.id_to_label)
-        _labels = {}
-        for k, v in labels.items():
-            if k in remove:
-                continue
-            vdiff = set(v) - remove
-            _labels[k] = list(vdiff) if len(vdiff) > 0 else None
-        labels = _labels
-
+        labels = set(labels).intersection(MaskFormer.id_to_label)
         segmentations = []
 
         with torch.no_grad():
@@ -232,46 +198,17 @@ class MaskFormer(ModelBase):
                 target_sizes=[img.shape[:2] for img in images],
             )
 
-            for idx, item in enumerate(segmented):
-                # Dictionary that will hold all the information about the segmentation.
-                segmentation = {"image_hash": hashes[idx]}
-
-                # Extract and store the instances.
-                segmentation["instances"] = {
-                    instance["id"]: MaskFormer.id_to_label[instance["label_id"]]
-                    for instance in item["segments_info"]
+            # List of segmentation results.
+            segmentations = [
+                {
+                    "hash": hashes[idx],
+                    "labels": [
+                        MaskFormer.id_to_label[info["label_id"]]
+                        for info in item["segments_info"]
+                    ],
+                    "instances": item["segmentation"].detach().clone().cpu().numpy(),
                 }
-
-                # Extract the masks.
-                masks = item["segmentation"].detach().clone().cpu().numpy()
-                segmentation["masks"] = {
-                    iid: masks[masks == iid] for iid in segmentation["instances"]
-                }
-
-                # Extract and store the segmentations.
-                segmentations.append(segmentation)
+                for idx, item in enumerate(segmented)
+            ]
 
         return segmentations
-
-    async def process(
-        self,
-        request: dict,
-    ):
-        # Convert the request into a schema to validate it.
-        schema = MaskFormerRequestSchema(**request)
-
-        hashes = []
-        images = []
-        for entry in schema.images:
-            hashes.append(entry.hash)
-            images.append(np.array(oj.loads(entry.image)))
-
-        # Segment the images
-        segmentations = self.segment(
-            hashes,
-            images,
-            schema.labels,
-        )
-
-        # A list of segmentations
-        return [MaskFormerResponseSchema(**result) for result in segmentations]

@@ -4,18 +4,17 @@ import ibis
 from pandas import DataFrame
 from shapely.geometry import box
 
-import numpy as np
-import uuid
+from uuid import UUID
 
-# TODO: uuid7gen can be removed if we ever move
-# to Python >=3.14 as the default since the built-in
-# uuid module provides uuid7 support.
-from uuid7gen import uuid7
-import orjson as oj
+import numpy as np
+import imageio as iio
+
+from hashlib import sha256
 
 from streetscapes import config
 from streetscapes.utils import ensure_dir
 from streetscapes.utils.bbox import Bbox
+from streetscapes.sources.mapillary import MapillaryClient
 
 
 class Project:
@@ -36,18 +35,21 @@ class Project:
 
     @property
     def core_tables(self) -> dict:
-        '''
+        """
         Core tables that need to be present in the project database.
 
         Returns:
             A dictionary of table names mapped to their schema.
-        '''
+        """
 
         return {
             "image_model": {
-                "sha256": ibis.dtype("!str"),
+                "image_hash": ibis.dtype("!binary"),
                 "model": ibis.dtype("!str"),
-            }
+                "uuid": ibis.dtype("!uuid"),
+            },
+            # TODO: This is just a workaround for now - every field should have its own type.
+            "mapillary": {k: ibis.dtype('polygon' if k == "geometry" else "str") for k in MapillaryClient.DEFAULT_FIELDS}
         }
 
     def get_image_dir(
@@ -170,6 +172,8 @@ class Project:
         self, skip_existing: bool = True
     ) -> list[tuple[str, str]]:
         """Return list of (id, url) for Mapillary images to download."""
+
+        self.ensure_table('mapillary')
         base_query = "SELECT id, thumb_2048_url, ST_AsWKB(geometry) FROM mapillary"
         if skip_existing and "local_images" in self.con.list_tables():
             query = f"""
@@ -235,30 +239,99 @@ class Project:
         # Tables that should exist in every project.
         # Just update the set with table names
         # and define the schema in the `schema` property.
-        for table, schema in self.core_tables.items():
-            self.ensure_table(table, schema)
+        for name, schema in self.core_tables.items():
+            self.ensure_table(name, schema)
 
     def ensure_table(
         self,
-        table: str,
+        name: str,
         schema: dict | ibis.Schema | None = None,
-        recreate: bool = False,
+        bootstrap: bool = False,
     ) -> ibis.Table:
         """
         Ensure that a table exists with the given schema.
 
         Args:
-            table: Table name.
+            name: Table name.
             schema: Schema to use for the table if it doesn't exist.
-            replace: Replace the table if it exists.
+            bootstrap: Overwrite the table if it exists.
 
         Returns:
             An Ibis table.
         """
-        if table in self.con.tables:
-            if not recreate:
-                return self.con.table(table)
-            self.con.drop_table(table)
+        if name in self.con.tables and not bootstrap:
+            return self.con.table(name)
         if schema is None:
-            raise ValueError(f"Please provide a valid schema for table '{table}'.")
-        return self.con.create_table(table, schema=schema)
+            if (schema := self.core_tables.get(name)) is None:
+                raise ValueError(f"Please provide a valid schema for table '{name}'.")
+
+        return self.con.create_table(name, schema=schema, overwrite=bootstrap)
+
+    def add_model_entries(
+        self,
+        image_hashes: bytes | list[bytes],
+        models: str | list[str],
+        uuids: UUID | list[UUID],
+    ):
+        """
+        Add an entry to the intermediate lookup table.
+
+        Args:
+            image_hashes: SHA265 hashes of the processed images.
+            models: Models used for processing the images.
+            uuids: UUIDs of the entries in the model tables.
+        """
+
+        if isinstance(image_hashes, bytes):
+            image_hashes = [image_hashes]
+
+        if isinstance(models, str):
+            models = [models]
+
+        if isinstance(uuids, str):
+            uuids = [uuids]
+
+        data = {
+            "image_hash": image_hashes,
+            "model": models,
+            "uuid": uuids,
+        }
+
+        # We assume that the images already exist in the local_images table:
+        self.con.insert("image_model", data=data)
+
+    def get_image_status(
+        self,
+        image_paths: list[Path],
+        model: str,
+        overwrite: bool = False,
+    ) -> tuple[dict[bytes, UUID], list[tuple[bytes, UUID]]]:
+        """
+        Filter out processed images. Using the sha256 hash as the unique image ID.
+
+        Args:
+            image_paths: Image paths to process.
+            model: The model to target.
+            overwrite: Switch to force overwriting results.
+
+        Returns:
+            A list of paths to unprocessed image.
+        """
+        hashes = {
+            sha256(np.asarray(iio.imread(path))).digest(): path for path in image_paths
+        }
+
+        t = self.con.table("image_model")
+        processed = (
+            t.filter(t.image_hash.isin(list(hashes.keys())), t.model == model)
+            .select("image_hash", "uuid")
+            .to_pyarrow()
+            .to_pydict()
+        )
+
+        processed = {h: u for h, u in zip(processed["image_hash"], processed["uuid"])}
+        unprocessed = [
+            (h, u) for h, u in hashes.items() if overwrite or h not in processed
+        ]
+
+        return processed, unprocessed
