@@ -13,6 +13,7 @@ dependencies = [
     "duckdb",
     "environs",
     "ephem",
+    "fastapi",
     "fiona",
     "filetype",
     "geodatasets",
@@ -49,7 +50,8 @@ dependencies = [
     "torchvision",
     "tqdm",
     "transformers",
-    "uuid7gen"
+    "uuid7gen",
+    "uvicorn"
 ]
 authors = [
     { name = "Claire Donnelly", email = "c.donnelly@esciencecenter.nl" },
@@ -62,6 +64,7 @@ license = { file = "LICENCE.md" }
 
 [project.scripts]
 streetscapes = "streetscapes.cli.main:app"
+streetscapes-explorer = "streetscapes.fastapi.server:serve"
 
 [tool.ruff]
 lint.select = ["F", "E", "TYP", "B", "D", "C", "Q", "I"]
