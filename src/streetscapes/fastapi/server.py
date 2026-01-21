@@ -1,4 +1,5 @@
 """FastAPI server implementation."""
+
 from dataclasses import dataclass
 from datetime import datetime
 from typing import Any, Optional
@@ -54,6 +55,23 @@ class ImageMetadata(Image):
     segmentation: tuple[Segmentation] = ()
 
 
+_instance = Instance(
+    label="triangles",
+    polygon="""[
+  [[0,0],[155,235],[0,300],[0,0]],
+  [[50,800],[155,235],[0,900],[50,800]]
+]""",
+)
+
+
+_segmentation = Segmentation(
+    "dummy-model",
+    "no-args",
+    (_instance),
+    notes="",
+)
+
+
 _images = [
     ImageMetadata(
         id=0,
@@ -75,10 +93,13 @@ _images = [
         altitude=0.0,
         creation_date=datetime(2026, 1, 19),
         source="wikimedia-commons",
-        tags=["birb",],
+        tags=[
+            "birb",
+        ],
         width=3092,
         height=4000,
         notes="is cute",
+        segmentation=(_segmentation,),
     ),
 ]
 
@@ -121,14 +142,18 @@ async def projects():
 @app.post("/stats")
 async def fetch_stats(bbox: Bbox) -> AggregateStats:
     return AggregateStats(
-        ["birb"], [], ["wikimedia-commons",], (datetime(2026, 1, 19), datetime(2026, 1, 20))
+        ["birb"],
+        [],
+        [
+            "wikimedia-commons",
+        ],
+        (datetime(2026, 1, 19), datetime(2026, 1, 20)),
     )
 
 
 @app.post("/images")
 async def fetch_images(
-    bbox: Bbox,
-    filters: Optional[dict[str, Any]] = None
+    bbox: Bbox, filters: Optional[dict[str, Any]] = None
 ) -> list[Image]:
     """Fetch streetscape images corresponding to a bounding box and optionally filters."""
     return _fetch_images(bbox)
