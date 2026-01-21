@@ -77,6 +77,7 @@ convention = "google"
 
 [dependency-groups]
 dev = [
+    "fastapi[standard]",
     "pytest>=8.4.2",
     "ruff",
     "py-spy",
