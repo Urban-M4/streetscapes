@@ -4,7 +4,7 @@ from datetime import datetime
 from typing import Any, Optional
 
 import uvicorn
-from fastapi import FastAPI
+from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 
 from streetscapes.explorer.data import AggregateStats, Bbox, Image, ImageMetadata
@@ -14,6 +14,7 @@ app = FastAPI()
 
 origins = [
     "http://localhost",
+    "http://localhost:5173",
     "https://urban-m4.github.io/",
 ]
 
@@ -57,7 +58,7 @@ async def project():
     return "placeholder-project-name"
 
 
-@app.post("/stats")
+@app.get("/stats")
 async def fetch_stats(bbox: Optional[Bbox] = None) -> AggregateStats:
     """Get the aggregate stats of the images."""
     return AggregateStats(
@@ -80,13 +81,13 @@ async def fetch_images(
     return _fetch_images(bbox)
 
 
-@app.post("/images/{image_id}")
-async def fetch_image_metadata(image_id: int):
+@app.get("/images/{image_id}")
+async def fetch_image_metadata(image_id: str) -> ImageMetadata :
     """Get all metadata associated with a certain image, including segmentations."""
     for img in _images:
         if img.id == image_id:
             return img
-    _unknown_image(image_id)
+    raise HTTPException(status_code=404, detail="Image not found")
 
 
 @app.post("/images/{image_id}/rating")

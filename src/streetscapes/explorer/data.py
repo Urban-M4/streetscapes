@@ -1,4 +1,4 @@
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from datetime import datetime
 from typing import Optional
 
@@ -13,7 +13,7 @@ class Bbox:
 
 @dataclass
 class Image:
-    id: int
+    id: str
     url: str
     lat: float
     lon: float
@@ -22,7 +22,7 @@ class Image:
 @dataclass
 class Instance:
     label: str
-    polygon: list[list[tuple[float, float]]]
+    polygon: list[list[tuple[float, float]]] = field(default_factory=list)
 
 
 @dataclass
@@ -30,7 +30,7 @@ class Segmentation:
     model_name: str
     id: str  # archive
     run_args: str
-    instances: tuple[Instance]
+    instances: list[Instance] = field(default_factory=list)
     notes: str = ""
 
 
@@ -42,12 +42,11 @@ class ImageMetadata(Image):
     captured_at: Optional[datetime] = None
     panoramic: Optional[int] = None
     source: Optional[str] = None
-    tags: tuple[str] = ()
+    tags: list[str] = field(default_factory=list)
     rating: Optional[int] = None
     compass_angle: Optional[float] = None
     notes: str = ""
-    segmentation: tuple[Segmentation] = ()
-
+    segmentation: list[Segmentation] = field(default_factory=list)
 
 @dataclass
 class AggregateStats:

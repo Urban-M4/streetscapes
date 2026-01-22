@@ -15,14 +15,14 @@ _segmentation = Segmentation(
     model_name="dummy-model",
     id="",
     run_args="no-args",
-    instances=(_instance),
+    instances=[_instance],
     notes="",
 )
 
 
 _images = [
     ImageMetadata(
-        id=0,
+        id="4938291029384",
         url=r"https://upload.wikimedia.org/wikipedia/commons/0/00/Zaden_van_een_Gele_lis_%28Iris_pseudacorus%29._06-03-2024._%28d.j.b.%29.jpg",
         lat=52.3751914,
         lon=4.8954506,
@@ -34,7 +34,7 @@ _images = [
         notes="Gele Iris",
     ),
     ImageMetadata(
-        id=1,
+        id="4938291029385",
         url=r"https://upload.wikimedia.org/wikipedia/commons/b/b8/Chestnut-naped_antpitta_%28Grallaria_nuchalis_ruficeps%29_Las_Tangaras.jpg",
         lat=52.3727217,
         lon=4.9003963,
