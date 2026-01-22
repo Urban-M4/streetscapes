@@ -2,6 +2,7 @@ import numpy as np
 import orjson as oj
 from pydantic import BaseModel
 
+from streetscapes import utils
 from streetscapes.models.dinosam.model import DinoSAM
 
 
@@ -14,12 +15,10 @@ class DinoSAMRequest(BaseModel):
     images: list[DinoSAMImage]
     prompt: str | list[str]
 
-
 class DinoSAMResponse(BaseModel):
     hash: bytes
     labels: list[str]
     instances: bytes
-
 
 class DinoSAMService:
     """Inference service for the DinoSAM model.
@@ -51,11 +50,7 @@ class DinoSAMService:
             images.append(np.array(oj.loads(entry.image)))
 
         # Segment the images
-        segmentations = self.model.segment_images(
-            hashes,
-            images,
-            req.prompt,
-        )
+        segmentations = self.model.segment_images(hashes, images, req.prompt)
 
         # Construct the response
         response = []
