@@ -9,12 +9,17 @@ _instance = Instance(
         [(50,800),(155,235),(0,900),(50,800)],
     ],
 )
+
+
 _segmentation = Segmentation(
-    "dummy-model",
-    "no-args",
-    (_instance),
+    model_name="dummy-model",
+    id="",
+    run_args="no-args",
+    instances=(_instance),
     notes="",
 )
+
+
 _images = [
     ImageMetadata(
         id=0,
