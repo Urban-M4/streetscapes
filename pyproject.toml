@@ -13,7 +13,6 @@ dependencies = [
     "duckdb",
     "environs",
     "ephem",
-    "fastapi",
     "fiona",
     "filetype",
     "geodatasets",
@@ -51,7 +50,6 @@ dependencies = [
     "tqdm",
     "transformers",
     "uuid7gen",
-    "uvicorn"
 ]
 authors = [
     { name = "Claire Donnelly", email = "c.donnelly@esciencecenter.nl" },
@@ -64,7 +62,7 @@ license = { file = "LICENCE.md" }
 
 [project.scripts]
 streetscapes = "streetscapes.cli.main:app"
-streetscapes-explorer = "streetscapes.fastapi.server:serve"
+streetscapes-explorer = "streetscapes.explorer.server:serve"
 
 [tool.ruff]
 lint.select = ["F", "E", "TYP", "B", "D", "C", "Q", "I"]
@@ -75,7 +73,11 @@ lint.select = ["F", "E", "TYP", "B", "D", "C", "Q", "I"]
 [tool.ruff.lint.pydocstyle]
 convention = "google"
 
-[dependency-groups]
+[project.optional-dependencies]
+explorer = [
+    "fastapi",
+    "uvicorn",
+]
 dev = [
     "fastapi[standard]",
     "pytest>=8.4.2",
