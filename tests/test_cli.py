@@ -124,7 +124,7 @@ def test_fetch_and_export_integration(fake_mapillary_client, tmp_path):
         assert f.read_text() == "FAKE IMAGE DATA"
 
     # Verify local_images table
-    rows = project.con.raw_sql("SELECT * FROM local_images").fetchall()
+    rows = project._con.raw_sql("SELECT * FROM local_images").fetchall()
     assert len(rows) == len(all_files)
     for row in rows:
         assert Path(row[3]).exists()  # path column points to actual file

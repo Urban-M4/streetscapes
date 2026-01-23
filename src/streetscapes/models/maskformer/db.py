@@ -72,5 +72,5 @@ def save_segmentations(
         m2m_rows["uuid"].append(seg_uuid.to_pyarrow())
 
     # Update the model database
-    project.con.insert(model_name, seg_rows)
-    project.con.insert("image_model", m2m_rows)
+    project._con.insert(model_name, seg_rows)
+    project._con.insert("image_model", m2m_rows)

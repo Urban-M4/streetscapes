@@ -7,11 +7,12 @@ import filetype as ft
 import imageio.v3 as iio
 import numpy as np
 import orjson as oj
+import ibis
 
+from streetscapes import utils
 from streetscapes import config
 from streetscapes.project import Project
 from streetscapes.serve.server import serve_model
-from streetscapes.models.dinosam.db import SCHEMA
 from streetscapes.models.dinosam.db import save_segmentations
 
 logger = logging.getLogger(__name__)
@@ -20,11 +21,13 @@ logger = logging.getLogger(__name__)
 def cli(
     image_path: str,
     prompt: str,
+    collection: str,
+    run: str = str(utils.iso_timestamp()),
+    batch_size: int = 10,
     sam_model_id: str = "facebook/sam2.1-hiera-large",
     dino_model_id: str = "IDEA-Research/grounding-dino-base",
     box_threshold: float = 0.3,
     text_threshold: float = 0.3,
-    batch_size: int = 10,
     overwrite: bool = False,
     bootstrap: bool = False,
 ):
@@ -33,7 +36,13 @@ def cli(
     Args:
         image_path: Path to an image or a directory of images.
         prompt: The prompt to use for this model.
-        model_params: Optional parameters to pass to the Ray Serve deployment.
+        collection: A named image subset.
+        run: A run identifier.
+        batch_size: Batch size for the segmenter.
+        sam_model_id: SAM model ID (Huggingface format).
+        dino_model_id: Dino model ID (Huggingface format).
+        box_threshold: Box threshold for Dino.
+        text_threshold: Text threshold for Dino.
         overwrite: Whether to overwrite existing segmentations.
         bootstrap: (Re)create the model table.
     """
@@ -58,16 +67,32 @@ def cli(
 
     # Open the project
     project = Project(config.get("active_project"))
-    project.ensure_table(model_name, SCHEMA, bootstrap)
 
     # Determine which images need processing
-    processed, unprocessed = project.get_image_status(
-        image_paths, model_name, overwrite
+    processed, unprocessed = project.get_segmentation_status(
+        image_paths,
+        model_name,
+        overwrite,
     )
 
     # Initialize Ray Serve handle
     handle = serve_model(model_name, **model_params)
     logger.info(f"Segmenting {len(unprocessed)} images using DinoSAM...")
+
+    # Rows to be inserted into the database
+    seg_rows = {k: [] for k in Project.core_tables["segmentations"]["schema"]}
+    seg_uuid = project.get_archive_uuid(collection, model_name, run, create=True)
+
+    # Segmentation table update.
+    seg_rows["collection"].append(collection)
+    seg_rows["model"].append(model_name)
+    seg_rows["run"].append(run)
+    seg_rows["archive"].append(ibis.uuid(seg_uuid).to_pyarrow())
+    seg_rows["params"].append(oj.dumps(model_params))
+
+    # Update the segmentation database
+    project._con.insert("segmentations", seg_rows)
+    archive_path = utils.ensure_dir(project.get_archive_path(model_name, create=True) / seg_uuid)
 
     for entries in batched(unprocessed, batch_size):
 
@@ -86,9 +111,9 @@ def cli(
             ],
             "prompt": prompt,
         }
-        responses = handle.remote(data).result()
+        responses = handle.remote(data).result().model_dump()
 
-        logger.info(f"Successfully segmented {len(images)} images, saving to database.")
+        logger.info(f"Successfully segmented {len(images)} images, saving instances.")
 
         # Store the segmentations and their metadata
-        save_segmentations(project, model_params, responses, processed)
+        save_segmentations(project, model_params, responses, processed, archive_path)

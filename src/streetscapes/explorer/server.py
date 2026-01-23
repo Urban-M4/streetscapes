@@ -64,12 +64,13 @@ async def fetch_stats(bbox: Annotated[Bbox, Query()]) -> AggregateStats:
     """Get the aggregate stats of the images."""
     return AggregateStats(
         tags=["birb",],
-        labels=["triangles,"],
+        labels=["tree", "car", "building", "bike", "person"],
         model_run_names=[],
         image_sources=[
             "wikimedia-commons",
         ],
         date_range=(datetime(2026, 1, 19), datetime(2026, 1, 20)),
+        models=["DinoSAM", "maskformer", "bfms", "manual"]
     )
 
 
@@ -91,7 +92,7 @@ async def fetch_image_metadata(image_id: str) -> ImageMetadata :
 
 
 @app.post("/images/{image_id}/rating")
-async def set_rating(image_id: int, rating: int | None):
+async def set_rating(image_id: str, rating: int | None):
     """Set an image's rating."""
     for img in _images:
         if img.id == image_id:
@@ -101,7 +102,7 @@ async def set_rating(image_id: int, rating: int | None):
 
 
 @app.post("/images/{image_id}/tags")
-async def set_tags(image_id: int, tags: tuple[str]):
+async def set_tags(image_id: str, tags: list[str]):
     """Set an image's tags."""
     for img in _images:
         if img.id == image_id:
@@ -111,7 +112,7 @@ async def set_tags(image_id: int, tags: tuple[str]):
 
 
 @app.post("/images/{image_id}/notes")
-async def set_notes(image_id: int, notes: str):
+async def set_notes(image_id: str, notes: str):
     """Set an image's notes."""
     for img in _images:
         if img.id == image_id:
@@ -120,9 +121,9 @@ async def set_notes(image_id: int, notes: str):
     _unknown_image(image_id)
 
 
-@app.post("/images/{image_id}/{model_name}/{instance_idx}/{label}")
+@app.post("/images/{image_id}/{segmentation_id}/{instance_idx}/{label}")
 async def set_instance_label(
-    image_id: str, model_name: str, instance_idx: int, label: str
+    image_id: str, segmentation_id: str, instance_idx: int, label: str
 ):
     """Set the label of a specific instance within a segmentation."""
     pass

@@ -48,7 +48,7 @@ def cli(
     project.ensure_table(model_name, SCHEMA, bootstrap)
 
     # Determine which images need processing
-    processed, unprocessed = project.get_image_status(image_paths, model_name, overwrite)
+    processed, unprocessed = project.get_segmentation_status(image_paths, model_name, overwrite)
 
     # Initialize Ray Serve handle
     handle = serve_model(model_name, **(model_params or {}))
