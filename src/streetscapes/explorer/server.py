@@ -72,12 +72,11 @@ async def project():
 async def fetch_stats(bbox: Annotated[Bbox, Query()]) -> AggregateStats:
     """Get the aggregate stats of the images."""
     return AggregateStats(
-        tags=["birb",],
+        tags=["sunny", "shops", "crowded"],
         labels=["tree", "car", "building", "bike", "person"],
         model_run_names=["manual"],
         image_sources=[
-            "wikimedia-commons",
-            "mappilary",
+            "mapillary",
         ],
         date_range=(datetime(2026, 1, 19), datetime(2026, 1, 20)),
         models=["DinoSAM", "maskformer", "bfms", "manual"]
@@ -152,6 +151,7 @@ async def _start_uvicorn():
 
 async def _serve():
     server = _start_uvicorn()
+    print("Waiting for the streetscapes-explorer to start...")
     await asyncio.sleep(5)
     webbrowser.open(
         "https://urban-m4.github.io/Urban-M5/?s=http://localhost:5000"
