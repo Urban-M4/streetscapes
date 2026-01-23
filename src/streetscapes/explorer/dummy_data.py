@@ -47,6 +47,22 @@ _images = [
         width=3092,
         height=4000,
         notes="is cute",
-        segmentation=(_segmentation,),
+        segmentation=[_segmentation,],
+    ),
+    ImageMetadata(
+        id="813431763582202",
+        url="https://scontent-ams2-1.xx.fbcdn.net/m1/v/t6/An9faJ8rGWxrgJo0LQuSSFfwjCIQs68cdV5sT6Q6JhyekKEMCCeyYIpNE9yfzCvr-Y2-GcsOUvZ-bN2a08b8an9_GgpfqLTbzvyOAQi6A3xIfeedNSKT9qIjz_noK5U417zyn_V1iUvQ9tOsTotfhQ?edm=AOnQwmMEAAAA&_nc_gid=I5IKYZGHOrMc5-0IONvYfA&_nc_oc=AdkagW3_wNIJmGy3-gp_7dpuw-9vpJNXrfGlKxldRLLD3qSPRmh9Oe2sUu_OOwgZxCY&ccb=10-5&oh=00_AfpR8kWxxWvr7eJvNwUTFBW3mBbMAgIaAbbLv8hMZ9QXYQ&oe=699A6D80&_nc_sid=201bca",
+        lat=52.3709772,
+        lon=4.8902233,
+        altitude=57.984,
+        captured_at=datetime.fromtimestamp(1694259141),
+        source="mapillary",
+        panoramic=1,
+        compass_angle=194.525,
+        width=5760,
+        height=2880,
+        notes="GoPro Max panorama",
     ),
 ]
+
+
