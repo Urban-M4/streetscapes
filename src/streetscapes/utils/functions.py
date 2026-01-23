@@ -14,8 +14,12 @@ import filetype as ft
 import imageio.v3 as iio
 from hashlib import sha256
 import uuid
-
 import sys
+from PIL import Image
+import shapely
+import pygeohash
+
+from streetscapes.utils.metadata import ImageMeta
 
 if sys.version_info >= (3, 14):
     from uuid import uuid7
@@ -432,24 +436,27 @@ def get_device(device: torch.device | str | None) -> torch.device:
     return torch.device(device)
 
 
-def get_image_hash(path: Path) -> bytes:
+def get_image_hash(image: Path | bytes) -> bytes:
     """Get the SHA-256 hash of an image file.
 
     Args:
-        path: The path to the file.
+        image: The path to the file or raw bytes.
 
     Returns:
         SHA-265 digest.
     """
 
-    if not ft.is_image(path):
+    if isinstance(image, str | Path):
+        image = Path(image).read_bytes()
+
+    if not ft.is_image(image):
         return
 
-    return sha256(np.asarray(iio.imread(path))).digest()
+    return sha256(image).digest()
 
 
 def hash2uuid(ihash: bytes) -> uuid.UUID:
-    """Create a UUID from a SHA-256 hash of an image file.
+    """Create a UUID (128 bits) from a SHA-256 hash of an image file.
 
     Args:
         ihash: The hash.
@@ -459,3 +466,53 @@ def hash2uuid(ihash: bytes) -> uuid.UUID:
     """
 
     return uuid.UUID(ihash.hex()[::2])
+
+
+def get_image_metadata(image: bytes | str | Path) -> ImageMeta:
+    """
+    Get some reproducible image metadata.
+
+    Args:
+        image: Binary content or a path to an existing image.
+
+    Returns:
+        A tuple contiaining the image metadata.
+    """
+
+    if isinstance(image, str | Path):
+        image = Path(image).read_bytes()
+
+    ihash = get_image_hash(image)
+    iuuid = hash2uuid(ihash)
+    ext = ft.guess_extension(image).lower()
+
+    return ImageMeta(image, ihash, iuuid, ext)
+
+
+def get_geohash_shard_path(location: shapely.Point):
+    """Get nested geo-hash path for given location given as a WKB point.
+
+    Geo-hash precision from
+    https://python-bloggers.com/2024/02/geohashing-from-scratch-in-python/
+    Precision          Dimension
+            1: 5,000km x 5,000km
+            2:   1,250km x 625km
+            3:     156km x 156km
+            4:   31.9km x 19.5km
+            5:   4.89km x 4.89km
+            6:   1.22km x 0.61km
+            7:       153m x 153m
+            8:     38.2m x 19.1m
+            9:     4.77m x 4.77m
+           10:    1.19m x 0.596m
+           11:     149mm x 149mm
+           12:   37.2mm x 18.6mm
+        Each level of precision subdivides the previous level into 32 subtiles.
+    Shard path of precision 7, split in three parts abc/de/fg
+    abc/ --> region level
+    de/ --> neighbourhood scale (max 32x32 = 1024 per region)
+    fg/ --> block level  (max 32x32 = 1024 per neighbourhood)
+    """
+    geom = shapely.from_wkb(location)
+    geohash = pygeohash.encode(geom.y, geom.x, precision=7)  # 153m x 153m
+    return Path(geohash[:2]) / geohash[2:4] / geohash[4:6]
