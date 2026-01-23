@@ -1,11 +1,11 @@
 import logging
 from pathlib import Path
 
-import pygeohash
 from cyclopts import App
 from rich.progress import track
-from shapely import from_wkb
 
+import ibis
+from streetscapes import utils
 from streetscapes import config
 from streetscapes.cli.console import console
 from streetscapes.project import Project
@@ -20,92 +20,76 @@ download_images_cli = App(help="Download images from various sources.")
 def mapillary(
     skip_existing: bool = True,
     token: str | None = None,
+    project: str | None = None,
 ):
     """Download Mapillary images to a local directory.
 
-    Parameters
-    ----------
-    skip_existing:
-        If true, only download missing images; otherwise overwrite.
-    token:
-        Mapillary OAuth token (if not set via MAPILLARY_TOKEN).
+    Args:
+        skip_existing: If true, only download missing images; otherwise overwrite.
+        token: Mapillary OAuth token (if not set via MAPILLARY_TOKEN).
+        project: An optional project to attach to.
     """
-    project_name = config.get("active_project")
-    project = Project(project_name)
 
-    data_home = project.data_home
+    proj = Project(project or config.get("active_project"))
 
     # TODO: perhaps move this to context in main cli?
     console.rule("Streetscapes")
-    console.print(f"Active project: {project_name}")
-    console.print(f"Data home: {data_home}")
+    console.print(f"Active project: {proj.name}")
+    console.print(f"Data home: {proj.data_home}")
 
-    records = project.get_mapillary_download_records(skip_existing)
+    records = proj.get_mapillary_download_records()
 
     if not records:
-        print("No new images to download.")
-        raise SystemExit(0)
+        logger.info("No new images to download.")
+        return
 
     mapillary = MapillaryClient(token)
-    base_path = data_home / "images" / "mapillary"
 
     total = len(records)
-    console.print(f"Downloading {total} image(s) to {base_path}.")
+    image_dir = proj.get_image_path("mapillary")
+    console.print(f"Downloading {total} image(s) to {image_dir}.")
 
-    batch = []
+    # Add metadata to batch
+    image_data = {
+        k: [None for _ in range(len(records))]
+        for k in proj.core_tables["images"]["schema"]
+    }
+
     downloaded = 0
-    for image_id, url, geometry in track(records, "Downloading images..."):
-        # Determine path
-        shard = _get_geohash_shard_path(geometry)
-        path = base_path / shard / f"{image_id}.jpg"
+
+    for idx, (uid, image_id, url, shard, location) in track(
+        enumerate(records), "Downloading images..."
+    ):
+
+        # Determine the shard
+        output_dir = Path(image_dir)
+        shard = None
+        if location is not None:
+            shard = utils.get_geohash_shard_path(location)
+            if output_dir is not None:
+                output_dir /= shard
 
         # Download image
-        mapillary.download_image(url, path)
-        downloaded += 1
+        meta = mapillary.download_image(url, output_dir, uid, skip_existing)
 
-        # Add metadata to batch
-        batch.append(
-            {"id": image_id, "source": "mapillary", "path": path, "geometry": geometry}
+        meta.shard = str(shard)
+
+        # Image registration
+        image_data["uuid"][idx] = ibis.uuid(meta.iuuid).to_pyarrow()
+        image_data["source"][idx] = meta.source
+        image_data["shard"][idx] = meta.shard
+
+        # Update the Mapillary table
+        proj._con.raw_sql(
+            f"UPDATE mapillary SET uuid='{meta.iuuid}' WHERE id={image_id};"
         )
 
-        # Insert batch into database
-        if len(batch) >= 5:
-            project.ingest_local_images(batch)
-            batch.clear()
+        downloaded += 1
 
-    # Insert remaining records into database
-    if batch:
-        project.ingest_local_images(batch)
+    console.print(f"Registering {len(image_data['uuid'])} images...")
+    df = ibis.memtable(image_data)
+    proj.register_images(df)
 
     console.print(
-        f"Download complete: {downloaded}/{total} images saved under {base_path}."
+        f"Download complete: {downloaded}/{total} images saved under {proj.get_image_path('mapillary')}."
     )
-
-
-def _get_geohash_shard_path(geometry):
-    """Get nested geo-hash path for given location.
-
-    Geo-hash precision from
-    https://python-bloggers.com/2024/02/geohashing-from-scratch-in-python/
-    Precision          Dimension
-            1: 5,000km x 5,000km
-            2:   1,250km x 625km
-            3:     156km x 156km
-            4:   31.9km x 19.5km
-            5:   4.89km x 4.89km
-            6:   1.22km x 0.61km
-            7:       153m x 153m
-            8:     38.2m x 19.1m
-            9:     4.77m x 4.77m
-           10:    1.19m x 0.596m
-           11:     149mm x 149mm
-           12:   37.2mm x 18.6mm
-        Each level of precision subdivides the previous level into 32 subtiles.
-    Shard path of precision 7, split in three parts abc/de/fg
-    abc/ --> region level
-    de/ --> neighbourhood scale (max 32x32 = 1024 per region)
-    fg/ --> block level  (max 32x32 = 1024 per neighbourhood)
-    """
-    geom = from_wkb(geometry)
-    geohash = pygeohash.encode(geom.y, geom.x, precision=7)  # 153m x 153m
-    return Path(geohash[:2]) / geohash[2:4] / geohash[4:6]
