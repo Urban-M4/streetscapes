@@ -55,6 +55,7 @@ authors = [
     { name = "Claire Donnelly", email = "c.donnelly@esciencecenter.nl" },
     { name = "Alexander Hadjiivanov", email = "a.hadjiivanov@esciencecenter.nl" },
     { name = "Peter Kalverla", email = "p.kalverla@esciencecenter.nl" },
+    { name = "Bart Schilperoort", email = "b.schilperoort@esciencecenter.nl" }
 ]
 description = "Code for downloading, segmenting and analysing images from Mapillary and KartaView, with the aim of extracting the emissivity and albedo of buildings."
 readme = "README.md"
