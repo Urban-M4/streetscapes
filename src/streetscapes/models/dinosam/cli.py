@@ -69,11 +69,12 @@ def cli(
     project = Project(config.get("active_project"))
 
     # Determine which images need processing
-    processed, unprocessed = project.get_segmentation_status(
-        image_paths,
-        model_name,
-        overwrite,
-    )
+    status = project.get_segmentation_status(collection, model_name, run)
+
+    if status is None:
+        return
+
+    processed, unprocessed = status
 
     # Initialize Ray Serve handle
     handle = serve_model(model_name, **model_params)
@@ -92,13 +93,15 @@ def cli(
 
     # Update the segmentation database
     project._con.insert("segmentations", seg_rows)
-    archive_path = utils.ensure_dir(project.get_archive_path(model_name, create=True) / seg_uuid)
+    archive_path = utils.ensure_dir(
+        project.get_archive_path(model_name, create=True) / str(seg_uuid)
+    )
 
-    for entries in batched(unprocessed, batch_size):
+    for batch in batched(unprocessed.items(), batch_size):
 
         # Extract the hashes
-        hashes = [e[0] for e in entries]
-        images = [np.asarray(iio.imread(e[1])) for e in entries]
+        hashes = [b[0] for b in batch]
+        images = [np.asarray(iio.imread(b[1])) for b in batch]
 
         # Process the images
         data = {
@@ -111,9 +114,11 @@ def cli(
             ],
             "prompt": prompt,
         }
-        responses = handle.remote(data).result().model_dump()
+        responses = handle.remote(data).result()
 
         logger.info(f"Successfully segmented {len(images)} images, saving instances.")
 
         # Store the segmentations and their metadata
-        save_segmentations(project, model_params, responses, processed, archive_path)
+        save_segmentations(
+            project, model_name, run, model_params, responses, archive_path
+        )

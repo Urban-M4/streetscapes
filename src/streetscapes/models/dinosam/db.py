@@ -13,9 +13,10 @@ from streetscapes.models.dinosam.service import DinoSAMResponse
 
 def save_segmentations(
     project: Project,
+    model: str,
+    run: str,
     params: dict | None,
     responses: DinoSAMResponse,
-    processed: dict[bytes, uuid.UUID],
     archive_path: Path,
 ):
     """
@@ -33,18 +34,26 @@ def save_segmentations(
     # Ensure that params is a dictionary.
     params = params or {}
 
+    labels = {
+        "hash": [],
+        "model": [],
+        "run": [],
+        "labels": [],
+    }
     for response in responses:
 
-        # Retrieve or create a UUID for this segmentation.
-        seg_uuid = ibis.uuid(processed.get(response.hash, utils.uuid7()))
-        seg_fname = f"{seg_uuid.to_pyarrow().as_py()}.npz"
-        seg_fpath = project.get_archive_path("dinosam")
+        # The file name is constructed from the hash.
+        seg_fname = f"{response.hash.hex()}.npz"
+
 
         # Save the segmentations.
         logger.info(f"[ Saving segmentation '{seg_fname}'...")
         instances = oj.loads(response.instances)
-        np.savez_compressed(
-            seg_fpath / seg_fname,
-            labels=response.labels,
-            instances=instances,
-        )
+        np.savez_compressed(archive_path / seg_fname, instances)
+
+        labels["hash"].append(response.hash)
+        labels["model"].append(model)
+        labels["run"].append(run)
+        labels["labels"].append(response.labels)
+
+    project._con.insert("labels", labels, overwrite=True)
