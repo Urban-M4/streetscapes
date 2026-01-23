@@ -67,14 +67,15 @@ async def project():
 
 
 @app.get("/stats")
-async def fetch_stats(bbox: Annotated[Bbox, Query()]) -> AggregateStats:
+async def fetch_stats() -> AggregateStats:
     """Get the aggregate stats of the images."""
     return AggregateStats(
         tags=["birb",],
         labels=["tree", "car", "building", "bike", "person"],
-        model_run_names=[],
+        model_run_names=["manual"],
         image_sources=[
             "wikimedia-commons",
+            "mappilary",
         ],
         date_range=(datetime(2026, 1, 19), datetime(2026, 1, 20)),
         models=["DinoSAM", "maskformer", "bfms", "manual"]
