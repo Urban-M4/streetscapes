@@ -55,3 +55,4 @@ class AggregateStats:
     model_run_names: list[str]
     image_sources: list[str]
     date_range: tuple[datetime, datetime]
+    models: list[str]

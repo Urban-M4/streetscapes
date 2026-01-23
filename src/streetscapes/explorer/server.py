@@ -69,6 +69,7 @@ async def fetch_stats(bbox: Optional[Bbox] = None) -> AggregateStats:
             "wikimedia-commons",
         ],
         date_range=(datetime(2026, 1, 19), datetime(2026, 1, 20)),
+        models=["DinoSAM", "maskformer", "bfms", "manual"]
     )
 
 
