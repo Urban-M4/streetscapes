@@ -25,7 +25,7 @@ app = FastAPI()
 origins = [
     "http://localhost",
     "http://localhost:5173",
-    "https://urban-m4.github.io/",
+    "https://urban-m4.github.io",
 ]
 
 app.add_middleware(
@@ -74,9 +74,10 @@ async def fetch_stats(bbox: Annotated[Bbox, Query()]) -> AggregateStats:
     return AggregateStats(
         tags=["birb",],
         labels=["tree", "car", "building", "bike", "person"],
-        model_run_names=[],
+        model_run_names=["manual"],
         image_sources=[
             "wikimedia-commons",
+            "mappilary",
         ],
         date_range=(datetime(2026, 1, 19), datetime(2026, 1, 20)),
         models=["DinoSAM", "maskformer", "bfms", "manual"]
