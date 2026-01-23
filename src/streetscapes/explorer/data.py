@@ -1,14 +1,14 @@
 from dataclasses import dataclass, field
 from datetime import datetime
 from typing import Optional
+from pydantic import BaseModel, Field
 
 
-@dataclass
-class Bbox:
-    n: float
-    e: float
-    s: float
-    w: float
+class Bbox(BaseModel):
+    n: float = Field(default=90, ge=-90, le=90)
+    e: float = Field(default=180, ge=-180, le=180)
+    s: float = Field(default=-90, ge=-90, le=90)
+    w: float = Field(default=-180, ge=-180, le=180)
 
 
 @dataclass

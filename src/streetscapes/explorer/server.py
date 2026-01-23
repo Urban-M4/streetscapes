@@ -1,8 +1,9 @@
 """FastAPI server implementation."""
 
 from datetime import datetime
-from typing import Any, Optional
+from typing import Annotated, Any, Optional
 
+from fastapi.params import Query
 import uvicorn
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
@@ -59,7 +60,7 @@ async def project():
 
 
 @app.get("/stats")
-async def fetch_stats(bbox: Optional[Bbox] = None) -> AggregateStats:
+async def fetch_stats(bbox: Annotated[Bbox, Query()]) -> AggregateStats:
     """Get the aggregate stats of the images."""
     return AggregateStats(
         tags=["birb",],
