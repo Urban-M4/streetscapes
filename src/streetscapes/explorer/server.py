@@ -158,8 +158,10 @@ async def _serve():
     )
     print(
         "The streetscapes-explorer should have launched automatically.\n"
-        "To start it manually, go to https://urban-m4.github.io/Urban-M5/ and " \
-        "paste in https://0.0.0.0:5000 as web service."
+        "To start it manually, go to https://urban-m4.github.io/Urban-M5/ and "
+        "paste in https://0.0.0.0:5000 as web service.\n"
+        "You will need to disable your ad blocker (like uBlock Origin Lite)"
+        " and allow your web browser to load localhost resources."
     )
     await server
 
