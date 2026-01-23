@@ -2,15 +2,17 @@
 import logging
 from pathlib import Path
 from time import sleep
-import numpy as np
 import geopandas as gpd
 import pandas as pd
 import requests
 from shapely.geometry import Point
-
+from PIL import Image
+import uuid
 from streetscapes import utils
 from streetscapes.utils.bbox import Bbox
+from streetscapes.utils.metadata import ImageMeta
 from streetscapes.project import Project
+from streetscapes.cli.console import console
 
 logger = logging.getLogger(__name__)
 
@@ -80,20 +82,56 @@ class MapillaryClient:
     def download_image(
         self,
         url: str,
-        output_path: Path,
-        project: Project | None = None,
-    ) -> Path:
-        """Download image from a URL to output_path."""
-        output_path.parent.mkdir(parents=True, exist_ok=True)
+        output_dir: str | Path,
+        uid: uuid.UUID | None = None,
+        skip_existing: bool = True,
+    ) -> ImageMeta:
+        """
+        Download image from a URL to output_path.
 
-        response = self.session.get(url)
-        response.raise_for_status()
+        Args:
+            url: The download URL.
+            output_dir: Destination directory.
+            uid: Image UUID (from the SHA-256 hash).
+            skip_existing: Don't re-download existing images.
+        Returns:
+            Image metadata.
+        """
 
-        with open(output_path, "wb") as f:
-            f.write(response.content)
+        output_path = output_dir
+        if output_dir is not None:
+            output_dir = Path(output_dir)
 
-        if project is not None:
-            project.register_image(output_path, "mapillary")
+        content = None
+
+        if uid is not None:
+            if output_dir is not None:
+                image_path = list(output_dir.glob(f"*{uid}*"))
+                if len(image_path) > 0:
+                    content = image_path[0].read_bytes()
+            if content is None:
+                # The image is missing, download it again.
+                skip_existing = False
+
+        if uid is None or not skip_existing:
+            response = self.session.get(url)
+            response.raise_for_status()
+            content = response.content
+
+        if content is None:
+            raise ValueError(f"Failed to download image with UUID '{uid}': empty content")
+
+        meta = utils.get_image_metadata(content)
+
+        if uid is None and output_dir is not None:
+            utils.ensure_dir(output_dir)
+            output_path = output_dir / f"{meta.iuuid}.{meta.ext}"
+            output_path.write_bytes(meta.content)
+
+        meta.path = output_path
+        meta.source = "mapillary"
+
+        return meta
 
     def _fetch_bbox(self, bbox: Bbox, limit: int = 1000) -> list[dict]:
         """Perform the raw API request to Mapillary for a single bounding box tile."""
