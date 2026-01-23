@@ -3,10 +3,10 @@
 from datetime import datetime
 from typing import Annotated, Any, Optional
 
-from fastapi.params import Query
 import uvicorn
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.params import Query
 
 from streetscapes.explorer.data import AggregateStats, Bbox, Image, ImageMetadata
 from streetscapes.explorer.dummy_data import _images
@@ -44,7 +44,7 @@ def _fetch_images(bbox: Optional[Bbox]) -> list[Image]:
 
 def _unknown_image(image_id):
     msg = f"No image found with id '{image_id}'"
-    raise ValueError(msg)
+    raise HTTPException(status_code=404, detail=msg)
 
 
 @app.get("/")
@@ -88,7 +88,7 @@ async def fetch_image_metadata(image_id: str) -> ImageMetadata :
     for img in _images:
         if img.id == image_id:
             return img
-    raise HTTPException(status_code=404, detail="Image not found")
+    _unknown_image(image_id)
 
 
 @app.post("/images/{image_id}/rating")
