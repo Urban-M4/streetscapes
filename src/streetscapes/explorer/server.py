@@ -120,9 +120,9 @@ async def set_notes(image_id: str, notes: str):
     _unknown_image(image_id)
 
 
-@app.post("/images/{image_id}/{model_name}/{instance_idx}/{label}")
+@app.post("/images/{image_id}/{segmentation_id}/{instance_idx}/{label}")
 async def set_instance_label(
-    image_id: str, model_name: str, instance_idx: int, label: str
+    image_id: str, segmentation_id: str, instance_idx: int, label: str
 ):
     """Set the label of a specific instance within a segmentation."""
     pass
