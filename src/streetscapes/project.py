@@ -7,13 +7,12 @@ from shapely.geometry import box
 from uuid import UUID
 import duckdb
 import platformdirs as pdirs
-import shutil
 
 from streetscapes import utils
 from streetscapes import config
 from streetscapes import logger
-from streetscapes.utils import ensure_dir
 from streetscapes.utils.bbox import Bbox
+from streetscapes.utils.metadata import ImageMeta
 
 
 class Project:
@@ -23,26 +22,37 @@ class Project:
     core_tables = {
         "images": {
             "schema": {
-                "hash": "BINARY PRIMARY KEY",
-                "source": "STRING NOT NULL",
-                "path": "STRING NOT NULL",
+                "uuid": "UUID PRIMARY KEY",
+                "source": "STRING",
+                "shard": "STRING",  # An optional path relative to the main image directory
+                "notes": "STRING",
                 "tags": "STRING[]",
+                "rating": "INTEGER",  # 0-5
             },
             "init": [],
         },
         "collections": {
             "schema": {
                 "name": "STRING NOT NULL",
-                "hash": "BINARY NOT NULL",
+                "image": "UUID NOT NULL",
             },
-            "init": ["ALTER TABLE collections ADD PRIMARY KEY (name, hash);"],
+            "init": ["ALTER TABLE collections ADD PRIMARY KEY (name, image);"],
+        },
+        "labels": {
+            "schema": {
+                "image": "UUID NOT NULL",
+                "model": "STRING NOT NULL",
+                "run": "STRING NOT NULL",
+                "labels": "STRING[] NOT NULL",
+            },
+            "init": ["ALTER TABLE labels ADD PRIMARY KEY (image, model, run);"],
         },
         "segmentations": {
             "schema": {
                 "collection": "STRING NOT NULL",
                 "model": "STRING NOT NULL",
                 "run": "STRING NOT NULL",
-                "archive": "STRING NOT NULL",
+                "archive": "UUID NOT NULL",  # UUID7
                 "params": "BINARY",
             },
             "init": [
@@ -51,6 +61,7 @@ class Project:
         },
         "mapillary": {
             "schema": {
+                "uuid": "UUID",
                 "altitude": "FLOAT8",
                 "atomic_scale": "FLOAT8",
                 "camera_type": "STRING",
@@ -93,21 +104,21 @@ class Project:
         self.name = name or "streetscapes"
 
         # Ensure that the root directory exists
-        self.root_dir = ensure_dir(
+        self.root_dir = utils.ensure_dir(
             config.get(
                 "root_dir",
                 root_dir or pdirs.user_data_path("streetscapes"),
             )
         )
         self.project_home = Path(
-            config.get("project_home", ensure_dir(self.root_dir / "projects"))
+            config.get("project_home", utils.ensure_dir(self.root_dir / "projects"))
         )
 
         # Directory for cached data (images)
         self.data_home = Path(
             config.get(
                 "data_home",
-                ensure_dir(
+                utils.ensure_dir(
                     data_dir or pdirs.user_cache_path("streetscapes"),
                 ),
             )
@@ -132,7 +143,7 @@ class Project:
 
     @property
     def archive_path(self) -> Path:
-        return self.project_home / "archives"
+        return self.root_dir / "archives"
 
     @property
     def image_path(self) -> Path:
@@ -229,7 +240,7 @@ class Project:
         path = self.image_path
         if source is not None:
             path /= source
-        return ensure_dir(path) if create else path
+        return utils.ensure_dir(path) if create else path
 
     def get_archive_path(
         self,
@@ -250,7 +261,7 @@ class Project:
         path = self.archive_path
         if model is not None:
             path /= model
-        return ensure_dir(path) if create else path
+        return utils.ensure_dir(path) if create else path
 
     def get_archive_uuid(
         self,
@@ -296,25 +307,12 @@ class Project:
 
     def ingest_mapillary(self, df: DataFrame, table: str = "mapillary"):
         """Ingest a DataFrame of Mapillary metadata."""
-        self._con.con.register("metadata_tile", df)
-        # if table not in self._con.list_tables():
-        #     self._con.raw_sql(
-        #         f"""
-        #         CREATE TABLE {table} AS
-        #         SELECT
-        #             * EXCLUDE (geometry),
-        #             ST_GeomFromText(geometry) AS geometry,
-        #         FROM metadata_tile;
-        #         ALTER TABLE {table} ADD PRIMARY KEY (id);
-        #     """
-        #     )
-        # else:
-        # TODO: consider configurable duplicate behaviour (REPLACE or IGNORE)
-        self._con.raw_sql(f"INSERT OR REPLACE INTO {table} FROM metadata_tile")
 
-        # SELECT
-        #     * EXCLUDE (geometry),
-        #     ST_GeomFromText(geometry) AS geometry,
+        df.insert(loc=0, column="uuid", value=None)
+        self._con.con.register("metadata_tile", df)
+
+        # TODO: consider configurable duplicate behaviour (REPLACE or IGNORE)
+        self._con.raw_sql(f"INSERT OR IGNORE INTO {table} FROM metadata_tile")
 
     def filter_bbox(self, table: str, bbox: Bbox):
         """Return an Ibis table expression filtered by a bounding box."""
@@ -364,24 +362,24 @@ class Project:
         )
 
     # TODO: could generalize to "get_records(table, columns, include='missing')"
-    def get_mapillary_download_records(
-        self, skip_existing: bool = True
-    ) -> list[tuple[str, str]]:
-        """Return list of (id, url) for Mapillary images to download."""
+    def get_mapillary_download_records(self) -> list[tuple[str, str]]:
+        """Return list of (id, url, location) for Mapillary images to download."""
 
-        self.ensure_table("mapillary")
-        base_query = "SELECT id, thumb_2048_url, ST_AsWKB(geometry) FROM mapillary"
-        if skip_existing and "images" in self._con.list_tables():
-            query = f"""
-                {base_query}
-                WHERE id NOT IN (
-                    SELECT id FROM images WHERE source = 'mapillary'
-                )
-            """
-        else:
-            query = base_query
-
-        return self._con.raw_sql(query).fetchall()
+        keys = {
+            "uid": "uuid",
+            "id": "id",
+            "url": "thumb_2048_url",
+            "shard": "shard",
+            "location": "geometry",
+        }
+        t_map = self._con.table("mapillary")
+        t_img = self._con.table("images")
+        t = t_map.outer_join(t_img, t_map.uuid == t_img.uuid)
+        t = t.select(**keys)
+        data = t.to_pyarrow().to_pydict()
+        if len(data) == 0:
+            return [() * len(keys)]
+        return list(zip(*[data[k] for k in keys]))
 
     def ingest_images(self, records: list[dict]):
         """Batch insert local images into `images`.
@@ -405,7 +403,7 @@ class Project:
         # )
 
         sql = """
-        INSERT INTO images (id, source, path, geometry)
+        INSERT INTO images (id, source, geometry)
         VALUES (GEN_RANDOM_UUID(), ?, ?, ?, ST_GeomFromWKB(?))
         ON CONFLICT DO NOTHING
         """
@@ -447,9 +445,9 @@ class Project:
             archives = [archives]
 
         data = {
-            "collection": [collections],
-            "model": [models],
-            "run": [runs],
+            "collection": collections,
+            "model": models,
+            "run": runs,
             "archive": [ibis.uuid(a).to_pyarrow() for a in archives],
         }
 
@@ -474,15 +472,27 @@ class Project:
             A list of paths to unprocessed image.
         """
 
-        im = self._con.table("images")
-        col = self._con.table("collections")
-        seg = self._con.table("segmentations")
-        seg_filtered = seg.filter(
-            [
-                seg.collection == collection,
-                seg.model == model,
-                seg.run == run,
-            ]
+        t_im = self._con.table("images")
+        t_col = self._con.table("collections")
+        t_seg = self._con.table("segmentations")
+
+        col_filtered = t_col.filter([t_col.name == collection])
+        image_count = int(col_filtered.select("name").count().to_pyarrow())
+        if image_count == 0:
+            logger.error(
+                f"Collection '{collection}' does not exist in the current project."
+            )
+            return
+
+        seg_filtered = col_filtered.outer_join(
+            t_seg.filter(
+                [
+                    t_seg.collection == collection,
+                    t_seg.model == model,
+                    t_seg.run == run,
+                ]
+            ),
+            t_col.name == t_seg.collection,
         )
 
         archive = seg_filtered.select("archive").to_pyarrow().to_pydict()["archive"]
@@ -492,75 +502,47 @@ class Project:
             archive = utils.uuid7()
             self.add_segmentations(collection, model, run, archive)
 
-        print(f"==[ archive: {archive}")
-        archive_path = ensure_dir(self.get_archive_path(model) / str(archive))
-        print(f"==[ archive path: {archive_path} | exists: {archive_path.exists()}")
+        archive_path = utils.ensure_dir(self.get_archive_path(model) / str(archive))
+        existing = set([p.stem for p in archive_path.iterdir()])
 
-        t_im = seg_filtered.inner_join(im, seg_filtered.hash == im.hash)
-        t = t_im.outer_join(seg, t_im.name == seg.collection)
-
-        print(t)
-        print(t.columns)
-
-        keys = ("hash", "path", "archive")
-        entries = t.filter([]).select(*keys).to_pyarrow().to_pydict()
-
-        # First half of each hash
-        u2h = {
-            str(utils.hash2uuid(h)): h
-            for h in t.select("hash").to_pyarrow().to_pydict()["hash"]
-        }
+        keys = ("hash", "path", "source")
+        t_seg_flt = seg_filtered.inner_join(t_im, seg_filtered.hash == t_im.hash)
+        t_all = t_seg_flt.outer_join(t_seg, t_seg_flt.name == t_seg.collection)
+        entries = t_all.select(*keys).to_pyarrow().to_pydict()
 
         processed = {}
+        unprocessed = {}
+        for h, p, s in zip(entries["hash"], entries["path"], entries["source"]):
+            if h is not None and h.hex() in existing:
+                processed.add(h)
+            else:
+                unprocessed[h] = self.get_image_path(s) / p
 
-        processed.update({u2h[p.stem]: p.stem for p in archive_path.iterdir()})
-
-        unprocessed = {
-            h: p for h, p in zip(entries["hash"], entries["path"]) if h not in processed
-        }
         return processed, unprocessed
 
-    def register_image(
+    def register_images(
         self,
-        path: Path,
-        source: str,
-        remove: bool = False,
+        data: ibis.Table,
     ):
         """
-        Register a downloaded (local) image into the database.
+        Register downloaded (local) images with the database.
 
         Args:
-            path: Path to the image file.
-            source: The source of the image (e.g., 'mapillary').
-            remove: Remove if the image is a duplicate.
+            data: A temporary Ibis table.
         """
 
-        ihash = utils.get_image_hash(path)
-
-        if ihash is None:
-            return
-
         if "images" not in self._con.tables:
-            logger.warning(
+            logger.error(
                 f"Project database seems to be corrupted: missing table 'images'."
             )
             return
 
-        data = {
-            "hash": [ihash],
-            "source": [source],
-            "path": [path.name],
-        }
-
         try:
-            self._con.insert("images", data)
+            self._con.con.register("new_images", data.to_pandas())
+            self._con.raw_sql(f"INSERT OR REPLACE INTO images FROM new_images;")
 
-        except duckdb.ConstraintException:
-            logger.warning(
-                f"Error registering {path.name}: duplicate key, moving on..."
-            )
-            if remove:
-                path.unlink()
+        except duckdb.ConstraintException as e:
+            logger.debug(f"Error updating table 'images'")
 
     def register_collection(
         self,
