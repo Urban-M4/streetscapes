@@ -101,7 +101,7 @@ async def set_rating(image_id: str, rating: int | None):
 
 
 @app.post("/images/{image_id}/tags")
-async def set_tags(image_id: str, tags: tuple[str]):
+async def set_tags(image_id: str, tags: list[str]):
     """Set an image's tags."""
     for img in _images:
         if img.id == image_id:
