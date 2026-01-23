@@ -1,14 +1,21 @@
 """FastAPI server implementation."""
 
 from datetime import datetime
-from typing import Annotated, Any, Optional, Union
+from typing import Annotated, Optional
 
 import uvicorn
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.params import Query
 
-from streetscapes.explorer.data import AggregateStats, Bbox, FilterParams, Image, ImageMetadata
+from streetscapes import config
+from streetscapes.explorer.data import (
+    AggregateStats,
+    Bbox,
+    FilterParams,
+    Image,
+    ImageMetadata,
+)
 from streetscapes.explorer.dummy_data import _images
 
 app = FastAPI()
@@ -56,7 +63,7 @@ async def root():
 @app.get("/project")
 async def project():
     """Get the active project name."""
-    return "placeholder-project-name"
+    return config.get("active_project")
 
 
 @app.get("/stats")
