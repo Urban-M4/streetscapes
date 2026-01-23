@@ -106,7 +106,7 @@ class MapillaryClient:
         }
         for attempt in range(self.retries):
             try:
-                res = self.session.get(self.BASE_URL, params=params, timeout=10)
+                res = self.session.get(self.BASE_URL, params=params, timeout=None)
                 res.raise_for_status()
                 return res.json().get("data", [])
             except (requests.RequestException, ValueError):
