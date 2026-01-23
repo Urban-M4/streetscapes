@@ -1,5 +1,7 @@
 """FastAPI server implementation."""
 
+import asyncio
+import webbrowser
 from datetime import datetime
 from typing import Annotated, Optional
 
@@ -142,9 +144,28 @@ async def segment_image(image_id, model, run_args):
     pass
 
 
+async def _start_uvicorn():
+    config = uvicorn.Config(app, host="0.0.0.0", port=5000, log_level="info")
+    server = uvicorn.Server(config)
+    await server.serve()
+
+
+async def _serve():
+    server = _start_uvicorn()
+    print("Waiting for the streetscapes-explorer to start...")
+    await asyncio.sleep(5)
+    webbrowser.open(
+        "https://urban-m4.github.io/Urban-M5/?s=http://localhost:5000"
+    )
+    print(
+        "The streetscapes-explorer should have launched automatically.\n"
+        "To start it manually, go to https://urban-m4.github.io/Urban-M5?s=http://localhost:5000")
+    print(
+        "You will need to disable your ad blocker (like uBlock Origin Lite) " \
+        "and allow your web browser to load localhost resources.")
+    await server
+
+
 def serve():
     """Start the Streetscapes Explorer server."""
-    print("Go to https://urban-m4.github.io/Urban-M5/?s=http://localhost:5000 to explore in your web browser.")
-    print("You will need to disable your ad blocker (like uBlock Origin Lite) and allow your web browser to load localhost resources.")
-    uvicorn.run(app, host="localhost", port=5000, log_level="info")
-    # TODO: automatically launch browser. docs.python.org/3/library/webbrowser.html
+    asyncio.run(_serve())
