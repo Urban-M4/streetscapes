@@ -23,7 +23,7 @@ app = FastAPI()
 origins = [
     "http://localhost",
     "http://localhost:5173",
-    "https://urban-m4.github.io/",
+    "https://urban-m4.github.io",
 ]
 
 app.add_middleware(
@@ -144,6 +144,7 @@ async def segment_image(image_id, model, run_args):
 
 def serve():
     """Start the Streetscapes Explorer server."""
-    print("Go to https://urban-m4.github.io/Urban-M5/ and paste in https://0.0.0.0:5000 as web service.")
-    uvicorn.run(app, host="0.0.0.0", port=5000, log_level="info")
+    print("Go to https://urban-m4.github.io/Urban-M5/?s=http://localhost:5000 to explore in your web browser.")
+    print("You will need to disable your ad blocker (like uBlock Origin Lite) and allow your web browser to load localhost resources.")
+    uvicorn.run(app, host="localhost", port=5000, log_level="info")
     # TODO: automatically launch browser. docs.python.org/3/library/webbrowser.html
