@@ -63,7 +63,7 @@ async def fetch_stats(bbox: Optional[Bbox] = None) -> AggregateStats:
     """Get the aggregate stats of the images."""
     return AggregateStats(
         tags=["birb",],
-        labels=["triangles,"],
+        labels=["tree", "car", "building", "bike", "person"],
         model_run_names=[],
         image_sources=[
             "wikimedia-commons",

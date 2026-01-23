@@ -3,7 +3,7 @@ from streetscapes.explorer.data import ImageMetadata, Instance, Segmentation
 
 
 _instance = Instance(
-    label="triangles",
+    label="person",
     polygon=[
         [(0,0),(155,235),(0,300),(0,0)],
         [(50,800),(155,235),(0,900),(50,800)],
