@@ -1,14 +1,14 @@
 """FastAPI server implementation."""
 
 from datetime import datetime
-from typing import Annotated, Any, Optional
+from typing import Annotated, Any, Optional, Union
 
 import uvicorn
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.params import Query
 
-from streetscapes.explorer.data import AggregateStats, Bbox, Image, ImageMetadata
+from streetscapes.explorer.data import AggregateStats, Bbox, FilterParams, Image, ImageMetadata
 from streetscapes.explorer.dummy_data import _images
 
 app = FastAPI()
@@ -73,13 +73,12 @@ async def fetch_stats(bbox: Annotated[Bbox, Query()]) -> AggregateStats:
     )
 
 
-@app.post("/images")
-async def fetch_images(
-    bbox: Optional[Bbox] = None, 
-    filters: Optional[dict[str, Any]] = None  # TODO: https://fastapi.tiangolo.com/tutorial/query-param-models/
+@app.get("/images")
+async def fetch_images(filter: Annotated[FilterParams, Query()]
 ) -> list[Image]:
     """Fetch streetscape images corresponding to a bounding box and optionally filters."""
-    return _fetch_images(bbox)
+    # bbox = Bbox(**filter.model_dump())
+    return _fetch_images(None)
 
 
 @app.get("/images/{image_id}")

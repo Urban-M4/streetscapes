@@ -1,6 +1,7 @@
 from dataclasses import dataclass, field
 from datetime import datetime
 from typing import Optional
+
 from pydantic import BaseModel, Field
 
 
@@ -9,6 +10,16 @@ class Bbox(BaseModel):
     e: float = Field(default=180, ge=-180, le=180)
     s: float = Field(default=-90, ge=-90, le=90)
     w: float = Field(default=-180, ge=-180, le=180)
+
+
+class FilterParams(Bbox):
+    ratings: list[int] = Field(default=[])
+    model_runs: list[str] = Field(default=[])
+    sources: list[str] = Field(default=[])
+    tags: list[str] = Field(default=[])
+    compass_angle: list[float] = Field(default=[0, 360])
+    date_range: tuple[datetime, datetime] = Field(default=(datetime(1826,1,1),datetime.now()))
+    panoramic: list[int] = Field(default=[])
 
 
 @dataclass
