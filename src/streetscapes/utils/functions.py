@@ -9,6 +9,36 @@ import skimage as ski
 from dotenv import load_dotenv
 from IPython import get_ipython
 from collections.abc import Iterable
+from datetime import datetime, timezone
+import filetype as ft
+import imageio.v3 as iio
+from hashlib import sha256
+import uuid
+
+import sys
+
+if sys.version_info >= (3, 14):
+    from uuid import uuid7
+else:
+    from uuid7gen import uuid7
+
+
+def iso_timestamp() -> str:
+    """Create a date-timestamp as a simplified ISO-formatted string.
+
+    Useful for adding a unique but meaningful string to the
+    name of a directory or a file that might be created
+    repeatedly with the same name (for instance, when
+    running the same experiment multiple times).
+
+    NOTE: UTC time is used to avoid ambiguity.
+
+    Returns:
+        The formatted timestamp.
+    """
+
+    # Simplified ISO format (no timezone, etc.).
+    return datetime.strftime(datetime.now(timezone.utc), "%Y-%m-%d_%H-%M-%S")
 
 
 def is_notebook() -> bool:
@@ -400,3 +430,32 @@ def get_device(device: torch.device | str | None) -> torch.device:
             else ("mps" if torch.mps.is_available() else "cpu")
         )
     return torch.device(device)
+
+
+def get_image_hash(path: Path) -> bytes:
+    """Get the SHA-256 hash of an image file.
+
+    Args:
+        path: The path to the file.
+
+    Returns:
+        SHA-265 digest.
+    """
+
+    if not ft.is_image(path):
+        return
+
+    return sha256(np.asarray(iio.imread(path))).digest()
+
+
+def hash2uuid(ihash: bytes) -> uuid.UUID:
+    """Create a UUID from a SHA-256 hash of an image file.
+
+    Args:
+        ihash: The hash.
+
+    Returns:
+        A UUID.
+    """
+
+    return uuid.UUID(ihash.hex()[::2])

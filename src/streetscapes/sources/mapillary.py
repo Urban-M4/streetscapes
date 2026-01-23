@@ -2,16 +2,17 @@
 import logging
 from pathlib import Path
 from time import sleep
-
+import numpy as np
 import geopandas as gpd
 import pandas as pd
 import requests
 from shapely.geometry import Point
 
+from streetscapes import utils
 from streetscapes.utils.bbox import Bbox
+from streetscapes.project import Project
 
 logger = logging.getLogger(__name__)
-
 
 
 class MapillaryClient:
@@ -44,42 +45,10 @@ class MapillaryClient:
         Fetch metadata for a bounding box and return as a pandas DataFrame.
     fetch_metadata_bbox_gpd(bbox: tuple[float, float, float, float], limit: int = 1000) -> gpd.GeoDataFrame
         Fetch metadata for a bounding box and return as a GeoDataFrame with CRS EPSG:4326.
-
     """
 
     BASE_URL = "https://graph.mapillary.com/images"
     # https://www.mapillary.com/developer/api-documentation#image
-    DEFAULT_FIELDS = [
-        "altitude",
-        "atomic_scale",
-        "camera_type",
-        "captured_at",
-        "compass_angle",
-        "computed_altitude",
-        "computed_compass_angle",
-        "computed_geometry",
-        "computed_rotation",
-        "creator",
-        "exif_orientation",
-        "geometry",
-        "height",
-        "id",
-        "is_pano",
-        "make",
-        "model",
-        "sequence",
-        "sequence",
-        "thumb_1024_url",
-        "thumb_2048_url",
-        "thumb_256_url",
-        "thumb_original_url",
-        "width",
-        "camera_parameters",
-        # "detections",
-        # "merge_cc",
-        # "mesh",
-        # "sfm_cluster",
-    ]
 
     def __init__(self, token: str, retries: int = 3):
         """Instantiate the client.
@@ -96,6 +65,10 @@ class MapillaryClient:
         self.session.headers.update({"Authorization": f"OAuth {token}"})
         self.retries = retries
 
+    @property
+    def db_fields(self) -> dict:
+        return Project.core_tables["mapillary"]["schema"]
+
     # NOTE: could make this "fetch_metadata_id" to be similar to bbox retrieval
     def fetch_image_url(self, image_id: str) -> str:
         """Fetch image URL from the Mapillary API by image ID."""
@@ -104,14 +77,23 @@ class MapillaryClient:
         response.raise_for_status()
         return response.json().get("thumb_2048_url")
 
-    def download_image(self, url: str, output_path: Path) -> Path:
+    def download_image(
+        self,
+        url: str,
+        output_path: Path,
+        project: Project | None = None,
+    ) -> Path:
         """Download image from a URL to output_path."""
         output_path.parent.mkdir(parents=True, exist_ok=True)
 
         response = self.session.get(url)
         response.raise_for_status()
+
         with open(output_path, "wb") as f:
             f.write(response.content)
+
+        if project is not None:
+            project.register_image(output_path, "mapillary")
 
     def _fetch_bbox(self, bbox: Bbox, limit: int = 1000) -> list[dict]:
         """Perform the raw API request to Mapillary for a single bounding box tile."""
@@ -119,7 +101,7 @@ class MapillaryClient:
 
         params = {
             "bbox": ",".join(map(str, bbox)),
-            "fields": ",".join(self.DEFAULT_FIELDS),
+            "fields": ",".join(self.db_fields),
             "limit": limit,
         }
         for attempt in range(self.retries):
