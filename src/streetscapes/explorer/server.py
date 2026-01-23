@@ -91,7 +91,7 @@ async def fetch_image_metadata(image_id: str) -> ImageMetadata :
 
 
 @app.post("/images/{image_id}/rating")
-async def set_rating(image_id: int, rating: int | None):
+async def set_rating(image_id: str, rating: int | None):
     """Set an image's rating."""
     for img in _images:
         if img.id == image_id:
@@ -101,7 +101,7 @@ async def set_rating(image_id: int, rating: int | None):
 
 
 @app.post("/images/{image_id}/tags")
-async def set_tags(image_id: int, tags: tuple[str]):
+async def set_tags(image_id: str, tags: tuple[str]):
     """Set an image's tags."""
     for img in _images:
         if img.id == image_id:
@@ -111,7 +111,7 @@ async def set_tags(image_id: int, tags: tuple[str]):
 
 
 @app.post("/images/{image_id}/notes")
-async def set_notes(image_id: int, notes: str):
+async def set_notes(image_id: str, notes: str):
     """Set an image's notes."""
     for img in _images:
         if img.id == image_id:

@@ -94,6 +94,12 @@ _images = [
                             ]
                         ],
                     ),
+                ]),
+            Segmentation(
+                model_name="sam3",
+                id="sam3-run-001",
+                run_args="",
+                instances=[                    
                     Instance(
                         label="tree",
                         polygon=[
@@ -107,7 +113,7 @@ _images = [
                         ],
                     ),
                 ],
-                notes="manually annotated",
+                notes="",
             )
         ],
     ),
