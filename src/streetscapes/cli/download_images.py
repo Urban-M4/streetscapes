@@ -1,3 +1,4 @@
+import os
 import logging
 from pathlib import Path
 
@@ -43,6 +44,8 @@ def mapillary(
         logger.info("No new images to download.")
         return
 
+    token = token or os.getenv("MAPILLARY_TOKEN")
+
     mapillary = MapillaryClient(token)
 
     total = len(records)
@@ -58,7 +61,7 @@ def mapillary(
     downloaded = 0
 
     for idx, (uid, image_id, url, shard, location) in track(
-        enumerate(records), "Downloading images..."
+        enumerate(records), "Downloading images...", total=len(records)
     ):
 
         # Determine the shard
