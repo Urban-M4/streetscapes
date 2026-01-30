@@ -301,7 +301,11 @@ class Project:
 
         # Ensure that that the camera_parameters column is a list of floats
         df["camera_parameters"] = df["camera_parameters"].apply(
-            lambda params: [float(params)] if isinstance(params, int | float) else list(map(float, params))
+            lambda params: (
+                [float(params)]
+                if isinstance(params, int | float)
+                else list(map(float, params))
+            )
         )
 
         df.insert(loc=0, column="uuid", value=None)
@@ -534,38 +538,29 @@ class Project:
     def register_collection(
         self,
         collection: str,
-        paths: list[Path],
-        replace: bool = True,
+        uids: list[uuid.UUID],
+        overwrite: bool = True,
     ):
         """
         Register a downloaded (local) image into the database.
 
         Args:
             collection: The collection to add the images to.
-            paths: Paths to the image files.
-            replace: Replace existing entries with new ones.
+            uids: Image UUIDs.
+            overwrite: Overwrite existing entries with new ones.
         """
 
-        hashes = [utils.get_image_hash(path) for path in paths]
-        uids = [
-            ibis.uuid(utils.hash2uuid(h)).to_pyarrow() for h in hashes if h is not None
-        ]
+        if overwrite:
+            sql = f"DELETE FROM collections WHERE name='{collection}';"
+            self._con.raw_sql(sql)
 
-        if len(uids) == 0:
-            return
-
-        if "collections" not in self._con.tables:
-            logger.warning(
-                f"Project database seems to be corrupted: missing table 'collections'."
-            )
-            return
-
+        uids = [ibis.uuid(u).to_pyarrow() for u in uids]
         data = {
             "name": [collection for _ in range(len(uids))],
             "image": uids,
         }
 
-        self.update_table("collections", data, replace)
+        self.update_table("collections", data, overwrite)
 
     def save_segmentation(
         self,
