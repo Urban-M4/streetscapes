@@ -48,7 +48,7 @@ def save_segmentations(
     for response in responses:
 
         # Retrieve or create a UUID for this segmentation.
-        seg_uuid = ibis.uuid(processed.get(response.hash, uuid7()))
+        seg_uuid = ibis.uuid(processed.get(response.uid, uuid7()))
         seg_fname = f"{seg_uuid.to_pyarrow().as_py()}.npz"
         seg_fpath = ensure_dir(project.data_home / f"models/{model_name}/segmentations")
 
@@ -67,7 +67,7 @@ def save_segmentations(
         seg_rows["timestamp"].append(timestamp.to_pyarrow())
 
         # M2M table update.
-        m2m_rows["image_hash"].append(response.hash)
+        m2m_rows["image_hash"].append(response.uid)
         m2m_rows["model"].append(model_name)
         m2m_rows["uuid"].append(seg_uuid.to_pyarrow())
 

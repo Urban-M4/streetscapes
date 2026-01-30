@@ -1,13 +1,13 @@
 import numpy as np
 import orjson as oj
 from pydantic import BaseModel
-
+import uuid
 from streetscapes.utils import logger
 from streetscapes.models.maskformer.model import MaskFormer
 
 
 class MaskFormerImage(BaseModel):
-    hash: bytes
+    uid: uuid.UUID
     image: bytes
 
 
@@ -17,7 +17,7 @@ class MaskFormerRequest(BaseModel):
 
 
 class MaskFormerResponse(BaseModel):
-    hash: bytes
+    uid: uuid.UUID
     labels: list[str]
     instances: bytes
 
@@ -51,15 +51,15 @@ class MaskFormerService:
         # Convert the request into a schema to validate it.
         schema = MaskFormerRequest(**request)
 
-        hashes = []
+        uids = []
         images = []
         for entry in schema.images:
-            hashes.append(entry.hash)
+            uids.append(entry.uid)
             images.append(np.array(oj.loads(entry.image)))
 
         # Segment the images
         segmentations = self.model.segment_images(
-            hashes,
+            uids,
             images,
             schema.labels,
         )
