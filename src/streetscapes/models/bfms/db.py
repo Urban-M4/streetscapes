@@ -56,7 +56,7 @@ def save_segmentation(
     logger.info(f"Saving segmentation {seg_fname}...")
     np.savez_compressed(
         seg_fpath / seg_fname,
-        mask=response.mask,
+        mask=response.instances,
     )
 
     # Model table update.

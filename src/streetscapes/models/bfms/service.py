@@ -11,7 +11,7 @@ class BFMSRequest(BaseModel):
 
 class BFMSResponse(BaseModel):
     uid: uuid.UUID | None = None
-    mask: str  # JSON-encoded numpy array
+    instances: bytes  # JSON-encoded numpy array
 
 
 class BFMSService:
@@ -28,12 +28,11 @@ class BFMSService:
         req = BFMSRequest(**request)
 
         image = np.array(oj.loads(req.image), dtype=np.uint8)
-
-        mask = self.model.segment(image)
+        results = self.model.segment(image)
 
         response = BFMSResponse(
-            mask=oj.dumps(
-                mask,
+            instances=oj.dumps(
+                results,
                 option=oj.OPT_SERIALIZE_NUMPY,
             )
         )
