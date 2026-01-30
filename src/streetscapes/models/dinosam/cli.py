@@ -28,7 +28,6 @@ def cli(
     box_threshold: float = 0.3,
     text_threshold: float = 0.3,
     overwrite: bool = False,
-    bootstrap: bool = False,
 ):
     """Segment images with DinoSAM.
 
@@ -108,9 +107,9 @@ def cli(
 
     for batch in batched(unprocessed.items(), batch_size):
 
-        # Extract the hashes
+        # Load the images and their UUIDs
         uids = [b[0] for b in batch]
-        images = [np.asarray(iio.imread(b[1])) for b in batch]
+        images = [np.asarray(iio.imread(b[1][0])) for b in batch]
 
         # Process the images
         data = {
@@ -138,11 +137,10 @@ def cli(
             seg_fname = f"{response.uuid}.npz"
 
             # Save the segmentations.
-            logger.info(f"[ Saving segmentation '{seg_fname}'...")
-            instances = oj.loads(response.instances)
+            logger.info(f"Saving segmentation '{seg_fname}'...")
+            segmentation = oj.loads(response.instances)
 
-            project.save_segmentation(archive_path, instances)
-
+            project.save_segmentation(archive_path / seg_fname, segmentation)
 
     # Add the labels to the database
-    project.update_table('labels', label_data)
+    project.update_table("labels", label_data, overwrite)
