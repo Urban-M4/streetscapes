@@ -436,7 +436,7 @@ def get_device(device: torch.device | str | None) -> torch.device:
     return torch.device(device)
 
 
-def get_image_hash(image: Path | bytes) -> bytes:
+def get_image_hash(image: str | Path | bytes) -> bytes:
     """Get the SHA-256 hash of an image file.
 
     Args:
