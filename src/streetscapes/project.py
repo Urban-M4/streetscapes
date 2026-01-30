@@ -3,8 +3,8 @@ from pathlib import Path
 import ibis
 from pandas import DataFrame
 from shapely.geometry import box
-
-from uuid import UUID
+import numpy as np
+import uuid
 import duckdb
 import platformdirs as pdirs
 
@@ -152,15 +152,6 @@ class Project:
     def _bootstrap(self):
         """
         Bootstrap the project with some core tables:
-
-        - images: Images processed by *any* model.
-            Serves as a reference table to check which images have been processed at all.
-            Columns:
-            - sha256 (can also serve as a unique ID)
-            - geohash (see download_images.py)
-
-        NOTE: In the schema definition, '!' in front of the type means 'non-nullable':
-        https://ibis-project.org/reference/datatypes#parameters
         """
 
         if self._db_name in self._con.list_databases():
@@ -263,15 +254,15 @@ class Project:
             path /= model
         return utils.ensure_dir(path) if create else path
 
-    def get_archive_uuid(
+    def get_segmentation_run_uid(
         self,
         collection: str,
         model: str,
         run: str,
         create: bool = False,
-    ) -> UUID | None:
+    ) -> uuid.UUID | None:
         """
-        Get the archive UUID from a (collection, model, run) key.
+        Get the UUID of a segmentation run.
 
         If the key doesn't exist, a random UUID is returned if
         `create` is True, otherwise None.
@@ -390,18 +381,6 @@ class Project:
             Each dict must have keys: 'id', 'source', 'path', 'geometry'.
         """
 
-        # self._con.raw_sql(
-        #     """
-        #     CREATE TABLE IF NOT EXISTS images (
-        #         hash TEXT PRIMARY KEY,
-        #         id TEXT NOT NULL,
-        #         source TEXT NOT NULL,
-        #         path TEXT NOT NULL,
-        #         geometry GEOMETRY
-        #     )
-        # """
-        # )
-
         sql = """
         INSERT INTO images (id, source, geometry)
         VALUES (GEN_RANDOM_UUID(), ?, ?, ?, ST_GeomFromWKB(?))
@@ -415,51 +394,60 @@ class Project:
         # Execute as batch
         self._con.con.executemany(sql, params)
 
-    def add_segmentations(
+    def update_table(
         self,
-        collections: str | list[str],
-        models: str | list[str],
-        runs: str | list[str],
-        archives: UUID | list[UUID],
+        table: str,
+        data: dict,
+        replace: bool = True,
     ):
         """
-        Add an entry to the intermediate lookup table.
+        Update a table.
 
         Args:
-            collections: Collection names.
-            models: Models used for processing the images.
-            runs: Model runs.
-            archives: UUIDs of the entries in the model tables.
+            table: The table to update.
+            data: Updated data.
+            replace: Replace or ignore conflicting data.
         """
 
-        if isinstance(collections, str):
-            collections = [collections]
+        if table not in self._con.tables:
+            logger.error(
+                f"Project database seems to be corrupted: missing table '{table}'."
+            )
+            return
 
-        if isinstance(models, str):
-            models = [models]
+        updated_df = ibis.memtable(data).to_pandas()
 
-        if isinstance(runs, str):
-            runs = [runs]
+        try:
+            alt = "REPLACE" if replace else "IGNORE"
+            self._con.con.register("updated_df", updated_df)
+            self._con.raw_sql(f"INSERT OR {alt} INTO {table} FROM updated_df;")
 
-        if isinstance(archives, UUID):
-            archives = [archives]
+        except duckdb.ConstraintException as e:
+            logger.debug(f"Constraint violation on '{table}': {e}")
 
-        data = {
-            "collection": collections,
-            "model": models,
-            "run": runs,
-            "archive": [ibis.uuid(a).to_pyarrow() for a in archives],
-        }
+        except Exception as e:
+            logger.debug(f"Error updating table '{table}': {e}")
 
-        # We assume that the images already exist in the `images`` table:
-        self._con.insert("segmentations", data)
+    def add_segmentation(
+        self,
+        data: ibis.Table,
+        replace: bool = True,
+    ):
+        """
+        Add a new segmentation to the database.
+
+        Args:
+            data: A temporary Ibis table.
+            replace: Replace or ignore conflicting data.
+        """
+        return self.update_table("segmentations", data, replace)
 
     def get_segmentation_status(
         self,
         collection: str,
         model: str,
         run: str,
-    ) -> tuple[dict[bytes, UUID], list[tuple[bytes, UUID]]]:
+    ) -> tuple[dict[bytes, uuid.UUID], list[tuple[bytes, uuid.UUID]]]:
         """
         Filter out processed images. Using the sha256 hash as the unique image ID.
 
@@ -500,55 +488,49 @@ class Project:
             archive = archive[0]
         else:
             archive = utils.uuid7()
-            self.add_segmentations(collection, model, run, archive)
 
         archive_path = utils.ensure_dir(self.get_archive_path(model) / str(archive))
         existing = set([p.stem for p in archive_path.iterdir()])
 
-        keys = ("hash", "path", "source")
-        t_seg_flt = seg_filtered.inner_join(t_im, seg_filtered.hash == t_im.hash)
+        keys = ("uuid", "shard", "source")
+        t_seg_flt = seg_filtered.inner_join(t_im, seg_filtered.image == t_im.uuid)
         t_all = t_seg_flt.outer_join(t_seg, t_seg_flt.name == t_seg.collection)
         entries = t_all.select(*keys).to_pyarrow().to_pydict()
 
         processed = {}
         unprocessed = {}
-        for h, p, s in zip(entries["hash"], entries["path"], entries["source"]):
-            if h is not None and h.hex() in existing:
-                processed.add(h)
+        for uid, shard, src in zip(
+            entries["uuid"], entries["shard"], entries["source"]
+        ):
+            if uid is not None and uid in existing:
+                processed.add(uid)
             else:
-                unprocessed[h] = self.get_image_path(s) / p
+                path = self.get_image_path(src)
+                if shard is not None:
+                    path /= shard
+                unprocessed[uid] = (path, shard)
 
         return processed, unprocessed
 
     def register_images(
         self,
         data: ibis.Table,
+        replace: bool = True,
     ):
         """
-        Register downloaded (local) images with the database.
+        Register downloaded (local) images into the database.
 
         Args:
             data: A temporary Ibis table.
+            replace: Replace or ignore conflicting data.
         """
-
-        if "images" not in self._con.tables:
-            logger.error(
-                f"Project database seems to be corrupted: missing table 'images'."
-            )
-            return
-
-        try:
-            self._con.con.register("new_images", data.to_pandas())
-            self._con.raw_sql(f"INSERT OR REPLACE INTO images FROM new_images;")
-
-        except duckdb.ConstraintException as e:
-            logger.debug(f"Error updating table 'images'")
+        return self.update_table("images", data, replace)
 
     def register_collection(
         self,
         collection: str,
         paths: list[Path],
-        overwrite: bool = False,
+        replace: bool = True,
     ):
         """
         Register a downloaded (local) image into the database.
@@ -556,13 +538,15 @@ class Project:
         Args:
             collection: The collection to add the images to.
             paths: Paths to the image files.
-            overwrite: Overwrite existing entries.
+            replace: Replace existing entries with new ones.
         """
 
-        ihashes = [utils.get_image_hash(path) for path in paths]
-        ihashes = [h for h in ihashes if h is not None]
+        hashes = [utils.get_image_hash(path) for path in paths]
+        uids = [
+            ibis.uuid(utils.hash2uuid(h)).to_pyarrow() for h in hashes if h is not None
+        ]
 
-        if len(ihashes) == 0:
+        if len(uids) == 0:
             return
 
         if "collections" not in self._con.tables:
@@ -572,14 +556,34 @@ class Project:
             return
 
         data = {
-            "name": [collection for _ in range(len(ihashes))],
-            "hash": ihashes,
+            "name": [collection for _ in range(len(uids))],
+            "image": uids,
         }
 
-        try:
-            self._con.insert("collections", data, overwrite=overwrite)
+        self.update_table("collections", data, replace)
 
-        except duckdb.ConstraintException:
-            logger.warning(
-                f"Error registering collection '{collection}': duplicate key..."
-            )
+    def save_segmentation(
+        self,
+        path: Path | str,
+        instances: np.ndarray,
+        fmt: str = "npz",
+    ):
+        """
+        Save a segmentation.
+
+        Args:
+            path: The file to save instances to.
+            instances: NumPy array of instance masks.
+            fmt: Format of the saved file.
+        """
+
+        match fmt:
+            case "npz", _:
+                np.savez_compressed(path, instances)
+            case "npy":
+                np.save(path, instances)
+            # TODO: Add parquet and efficient geometry storage.
+            # case "parquet":
+            #     np.save(path, instances)
+            case _:
+                np.savez_compressed(path, instances)
