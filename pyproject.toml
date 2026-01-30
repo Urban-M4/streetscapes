@@ -49,12 +49,13 @@ dependencies = [
     "torchvision",
     "tqdm",
     "transformers",
-    "uuid7gen"
+    "uuid7gen",
 ]
 authors = [
     { name = "Claire Donnelly", email = "c.donnelly@esciencecenter.nl" },
     { name = "Alexander Hadjiivanov", email = "a.hadjiivanov@esciencecenter.nl" },
     { name = "Peter Kalverla", email = "p.kalverla@esciencecenter.nl" },
+    { name = "Bart Schilperoort", email = "b.schilperoort@esciencecenter.nl" }
 ]
 description = "Code for downloading, segmenting and analysing images from Mapillary and KartaView, with the aim of extracting the emissivity and albedo of buildings."
 readme = "README.md"
@@ -62,6 +63,7 @@ license = { file = "LICENCE.md" }
 
 [project.scripts]
 streetscapes = "streetscapes.cli.main:app"
+streetscapes-explorer = "streetscapes.explorer.server:serve"
 
 [tool.ruff]
 lint.select = ["F", "E", "TYP", "B", "D", "C", "Q", "I"]
@@ -72,8 +74,13 @@ lint.select = ["F", "E", "TYP", "B", "D", "C", "Q", "I"]
 [tool.ruff.lint.pydocstyle]
 convention = "google"
 
-[dependency-groups]
+[project.optional-dependencies]
+explorer = [
+    "fastapi",
+    "uvicorn",
+]
 dev = [
+    "fastapi[standard]",
     "pytest>=8.4.2",
     "ruff",
     "py-spy",
