@@ -1,7 +1,7 @@
 import numpy as np
 import orjson as oj
 from pydantic import BaseModel
-
+import uuid
 from streetscapes.models.bfms.model import BFMS
 
 
@@ -10,8 +10,8 @@ class BFMSRequest(BaseModel):
 
 
 class BFMSResponse(BaseModel):
+    uid: uuid.UUID | None = None
     mask: str  # JSON-encoded numpy array
-    hash: bytes | None = None
 
 
 class BFMSService:

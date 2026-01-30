@@ -23,6 +23,7 @@ def save_segmentation(
     params: dict | None,
     response: BFMSResponse,
     processed: dict[bytes, uuid.UUID],
+    shard: str | None = None,
 ):
     """
     Save a segmentation.
@@ -32,6 +33,7 @@ def save_segmentation(
         params: The model parameters.
         response: A BFMS response model.
         processed: Images that have already been processed.
+        shard: An optional subdirectory.
     """
 
     model_name = "bfms"

@@ -55,15 +55,15 @@ def cli(
     logger.info(f"Segmenting {len(unprocessed)} images using BFMS...")
 
     # Process images one by one
-    for img_hash, img_path in unprocessed:
+    for uuid, (path, shard) in unprocessed:
 
         # Extract the hashes
-        image = np.asarray(iio.imread(img_path))
+        image = np.asarray(iio.imread(path))
 
         # Create request for the service
         request = {"image": oj.dumps(image, option=oj.OPT_SERIALIZE_NUMPY)}
         response = handle.remote(request).result()
-        response.hash = img_hash
+        response.hash = uuid
 
         # Save segmentation immediately
-        save_segmentation(project, model_params, response, processed)
+        save_segmentation(project, model_params, response, processed, shard)
