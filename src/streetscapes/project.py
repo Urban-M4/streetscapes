@@ -299,7 +299,13 @@ class Project:
     def ingest_mapillary(self, df: DataFrame, table: str = "mapillary"):
         """Ingest a DataFrame of Mapillary metadata."""
 
+        # Ensure that that the camera_parameters column is a list of floats
+        df["camera_parameters"] = df["camera_parameters"].apply(
+            lambda params: [float(params)] if isinstance(params, int | float) else list(map(float, params))
+        )
+
         df.insert(loc=0, column="uuid", value=None)
+
         self._con.con.register("metadata_tile", df)
 
         # TODO: consider configurable duplicate behaviour (REPLACE or IGNORE)
@@ -335,10 +341,8 @@ class Project:
 
     def export_csv(self, table: str, output_path: str):
         nonspatial = self._select_nonspatial(table)
-        self._con.raw_sql(
-            f"""COPY (SELECT {nonspatial} FROM {table}) TO '{output_path}'
-                (HEADER, DELIMITER ',');"""
-        )
+        self._con.raw_sql(f"""COPY (SELECT {nonspatial} FROM {table}) TO '{output_path}'
+                (HEADER, DELIMITER ',');""")
 
     def export_gpkg(self, table: str, output_path: str):
         self._require_geometry(table, "GeoPackage")
