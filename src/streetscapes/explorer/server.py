@@ -40,9 +40,7 @@ app.add_middleware(
 def _inbounds(img: Image | ImageMetadata, bbox: Bbox) -> bool:
     # Temporary implementation.
     # Full implementation needs to account for spherical coordinates properly
-    if bbox.n > img.lat > bbox.s and bbox.w > img.lon > bbox.e:
-        return True
-    return False
+    return bbox.n > img.lat > bbox.s and bbox.w > img.lon > bbox.e
 
 
 def _fetch_images(bbox: Optional[Bbox]) -> list[Image]:
@@ -158,7 +156,7 @@ async def _serve():
     )
     print(
         "The streetscapes-explorer should have launched automatically.\n"
-        "To start it manually, go to https://urban-m4.github.io/Urban-M5/ and "
+        "To open it manually, go to https://urban-m4.github.io/Urban-M5/ and "
         "paste in https://0.0.0.0:5000 as web service.\n"
         "You will need to disable your ad blocker (like uBlock Origin Lite)"
         " and allow your web browser to load localhost resources."
