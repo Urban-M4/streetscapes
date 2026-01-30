@@ -142,9 +142,10 @@ class MapillaryClient:
             "fields": ",".join(self.db_fields),
             "limit": limit,
         }
+
         for attempt in range(self.retries):
             try:
-                res = self.session.get(self.BASE_URL, params=params, timeout=10)
+                res = self.session.get(self.BASE_URL, params=params, timeout=20)
                 res.raise_for_status()
                 return res.json().get("data", [])
             except (requests.RequestException, ValueError):
