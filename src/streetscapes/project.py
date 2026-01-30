@@ -402,7 +402,7 @@ class Project:
         self,
         table: str,
         data: dict,
-        replace: bool = True,
+        overwrite: bool = True,
     ):
         """
         Update a table.
@@ -410,7 +410,7 @@ class Project:
         Args:
             table: The table to update.
             data: Updated data.
-            replace: Replace or ignore conflicting data.
+            overwrite: Replace or ignore conflicting data.
         """
 
         if table not in self._con.tables:
@@ -422,7 +422,7 @@ class Project:
         updated_df = ibis.memtable(data).to_pandas()
 
         try:
-            alt = "REPLACE" if replace else "IGNORE"
+            alt = "REPLACE" if overwrite else "IGNORE"
             self._con.con.register("updated_df", updated_df)
             self._con.raw_sql(f"INSERT OR {alt} INTO {table} FROM updated_df;")
 
@@ -451,7 +451,7 @@ class Project:
         collection: str,
         model: str,
         run: str,
-    ) -> tuple[dict[bytes, uuid.UUID], list[tuple[bytes, uuid.UUID]]]:
+    ) -> tuple[set[uuid.UUID], dict[uuid.UUID, tuple[Path, str]]]:
         """
         Filter out processed images. Using the sha256 hash as the unique image ID.
 
@@ -461,7 +461,8 @@ class Project:
             run: The run associated with this model.
 
         Returns:
-            A list of paths to unprocessed image.
+            A set of UUIDs of processed images and a dictionary
+            mapping UUIDs to the locations of unprocessed images.
         """
 
         t_im = self._con.table("images")
@@ -582,12 +583,12 @@ class Project:
         """
 
         match fmt:
-            case "npz", _:
+            case "npz":
                 np.savez_compressed(path, instances)
             case "npy":
                 np.save(path, instances)
             # TODO: Add parquet and efficient geometry storage.
-            # case "parquet":
-            #     np.save(path, instances)
+            # NOTE: Check if it's possible do do away with this step
+            # entirely by storing segmentation outlines straight into the database.
             case _:
                 np.savez_compressed(path, instances)
