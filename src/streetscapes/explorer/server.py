@@ -3,8 +3,12 @@
 import asyncio
 import webbrowser
 from datetime import datetime
+from pathlib import Path
 from typing import Annotated, Optional
+from uuid import UUID
 
+import ibis
+import pandas as pd
 import uvicorn
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
@@ -36,6 +40,75 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+dbpath = Path("/home/bart/.local/share/streetscapes/projects/urban_m5.duckdb")
+con = ibis.duckdb.connect(dbpath, read_only=True, extensions=["spatial", "json"])
+
+
+def _get_images():
+    data = con.table("mapillary").select(
+        "uuid", "thumb_original_url", "geometry"
+    ).to_pandas()
+
+    return [
+        Image(*args)
+        for args in zip(
+            data["uuid"].astype(str),
+            data["thumb_original_url"],
+            data["geometry"].y,
+            data["geometry"].x,
+            strict=True,
+        )
+    ]
+
+
+def _check_result_count(data: pd.DataFrame, id: str | UUID) -> None:
+    if len(data) < 1:
+        msg = f"No entry found with ID {id}"
+        raise ValueError(msg)
+    if len(data) > 1:
+        msg = f"More than one entry found with ID {id}. Database corrupted?"
+
+
+def _get_source(uuid: UUID) -> str:
+    match = con.table("images").uuid == uuid
+    matching_images = con.table("images").filter(match).select("source")
+    result = matching_images.to_pandas()
+    _check_result_count(result, uuid)
+    return result.values[0][0]
+
+
+def _get_metadata(id: str) -> ImageMetadata:
+    uuid = UUID(id)
+    source = _get_source(uuid)
+
+    match = con.table(source).uuid == uuid
+    data = con.table(source).filter(match).to_pandas()
+    if len(data) < 1:
+        msg = f"No entry found with ID {id}"
+        raise ValueError(msg)
+    if len(data) > 1:
+        msg = f"More than one entry found with ID {id}. Database corrupted?"
+        raise ValueError(msg)
+    data = data.squeeze()
+
+    return ImageMetadata(
+        id=str(data["uuid"]),
+        url=data["thumb_original_url"],
+        lat=data["geometry"].y,
+        lon=data["geometry"].x,
+        width=int(data["width"]),
+        height=int(data["height"]),
+        altitude=data["altitude"],
+        captured_at=datetime.fromtimestamp(data["captured_at"]/1000),
+        panoramic=bool(data["is_pano"]),
+        source=source,
+        tags=[],
+        rating=0,
+        compass_angle=float(data["compass_angle"]),
+        notes="",
+        segmentation=[],
+    )
+
 
 def _inbounds(img: Image | ImageMetadata, bbox: Bbox) -> bool:
     # Temporary implementation.
@@ -45,12 +118,14 @@ def _inbounds(img: Image | ImageMetadata, bbox: Bbox) -> bool:
 
 def _fetch_images(bbox: Optional[Bbox]) -> list[Image]:
     if bbox is not None:
-        return [Image(img) for img in _images if _inbounds(img, bbox)]
-    return _images
+        return _get_images()
+    return _get_images()
 
 
-def _unknown_image(image_id):
+def _unknown_image(image_id, err: Optional[Exception] = None):
     msg = f"No image found with id '{image_id}'"
+    if err is not None:
+        raise HTTPException(status_code=404, detail=msg) from err
     raise HTTPException(status_code=404, detail=msg)
 
 
@@ -92,10 +167,10 @@ async def fetch_images(filter: Annotated[FilterParams, Query()]
 @app.get("/images/{image_id}")
 async def fetch_image_metadata(image_id: str) -> ImageMetadata :
     """Get all metadata associated with a certain image, including segmentations."""
-    for img in _images:
-        if img.id == image_id:
-            return img
-    _unknown_image(image_id)
+    try:
+        return _get_metadata(image_id)
+    except ValueError as err:
+        _unknown_image(image_id, err)
 
 
 @app.post("/images/{image_id}/rating")
