@@ -31,37 +31,29 @@ class Project:
             },
             "init": [],
         },
-        "collections": {
+        "runs": {
             "schema": {
-                "name": "STRING NOT NULL",
-                "image": "UUID NOT NULL",
-            },
-            "init": ["ALTER TABLE collections ADD PRIMARY KEY (name, image);"],
-        },
-        "labels": {
-            "schema": {
-                "image": "UUID NOT NULL",
+                "run": "UUID NOT NULL PRIMARY KEY",
                 "model": "STRING NOT NULL",
-                "run": "STRING NOT NULL",
-                "labels": "STRING[] NOT NULL",
+                "metadata": "JSON",
             },
-            "init": ["ALTER TABLE labels ADD PRIMARY KEY (image, model, run);"],
+            "init": [],
         },
         "segmentations": {
             "schema": {
-                "collection": "STRING NOT NULL",
-                "model": "STRING NOT NULL",
                 "run": "STRING NOT NULL",
-                "archive": "UUID NOT NULL",  # UUID7
-                "params": "BINARY",
+                "curated": "BOOL NOT NULL DEFAULT TRUE",
+                "image": "UUID NOT NULL",
+                "labels": "STRING[] NOT NULL",
+                "polygons": "GEOMETRY",
             },
             "init": [
-                "ALTER TABLE segmentations ADD PRIMARY KEY (collection, model, run);"
+                "ALTER TABLE segmentations ADD PRIMARY KEY (run, curated, image);"
             ],
         },
         "mapillary": {
             "schema": {
-                "uuid": "UUID",
+                "image": "UUID",
                 "altitude": "FLOAT8",
                 "atomic_scale": "FLOAT8",
                 "camera_type": "STRING",
@@ -134,8 +126,10 @@ class Project:
             extensions=["spatial", "json"],
         )
 
-        self._bootstrap()
-        self._con.raw_sql(f"USE {self._db_name};")
+        if self._db_name not in self._con.list_databases():
+            self.bootstrap()
+
+        self._use_db()
 
     @property
     def db_path(self) -> Path:
@@ -149,21 +143,35 @@ class Project:
     def image_path(self) -> Path:
         return self.data_home / "images"
 
-    def _bootstrap(self):
+    def _use_db(self, db: str | None = None):
+        self._con.raw_sql(f"USE {db or self._db_name};")
+
+    def bootstrap(
+        self,
+        overwrite: bool = True,
+    ):
         """
-        Bootstrap the project with some core tables:
+        Bootstrap the project with the core tables
+        specified in the `core_tables`.
+
+        Args:
+            overwrite: Overwrite an existing database.
         """
 
         if self._db_name in self._con.list_databases():
-            return
+            if overwrite:
+                self._con.drop_database(self._db_name, force=True)
+            else:
+                return
 
         self._con.create_database(self._db_name)
+        self._use_db()
 
         # Tables that should exist in every project.
         # Just update the set with table names
         # and define the schema in the `schema` property.
         for name, items in self.core_tables.items():
-            self.ensure_table(name)
+            self.ensure_table(name, overwrite=overwrite)
 
             if (init := items.get("init")) is not None:
                 for sql in init:
@@ -206,9 +214,6 @@ class Project:
             [f"{fname} {definition}" for fname, definition in schema.items()]
         )
         sql = f"{sql} ({fields});"
-
-        if overwrite and name in self._con.tables:
-            self._con.drop_table(name, database=self._db_name)
 
         return self._con.raw_sql(sql)
 
@@ -256,9 +261,9 @@ class Project:
 
     def get_segmentation_run_uid(
         self,
+        run: str,
         collection: str,
         model: str,
-        run: str,
         create: bool = False,
     ) -> uuid.UUID | None:
         """
@@ -268,9 +273,9 @@ class Project:
         `create` is True, otherwise None.
 
         Args:
+            run: The model urn.
             collection: Collection name.
             model: Model name.
-            run: The model urn.
             create: Create a random UUID if it's missing.
 
         Returns:
