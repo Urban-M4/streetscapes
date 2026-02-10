@@ -28,6 +28,7 @@ dependencies = [
     "loguru",
     "matplotlib",
     "mit-semseg",
+    "mimesis",
     "numpy",
     "orjson",
     "osmnx",
