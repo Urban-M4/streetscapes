@@ -266,6 +266,7 @@ class Project:
         self,
         result: uuid.UUID,
         segmentations: bool = False,
+        curated: bool | None = None,
     ) -> list[dict]:
         """
         Get (an optionally curated) segmentation run.
@@ -273,6 +274,7 @@ class Project:
         Args:
             run: The model run.
             segmentations: If True, get the associated segmentations as well.
+            curated: Optionally filter segmentations by 'curated' status.
 
         Returns:
             UUID of the archive.
@@ -284,6 +286,8 @@ class Project:
         if segmentations:
             t_seg = self._con.table("segmentations")
             t = t.inner_join(t_seg, t_seg.run == t.run)
+            if curated is not None:
+                t = t.filter([t.curated == curated])
 
         result = t.to_pyarrow().to_pylist()
 
@@ -344,9 +348,9 @@ class Project:
         }
 
         for r in runs:
-            r.setdefault('run', utils.uuid7())
-            r['run'] = ibis.uuid(r['run']).to_pyarrow()
-            r['metadata'] = oj.dumps(r.get('metadata'))
+            r.setdefault("run", utils.uuid7())
+            r["run"] = ibis.uuid(r["run"]).to_pyarrow()
+            r["metadata"] = oj.dumps(r.get("metadata"))
             for k in data:
                 data[k].append(r.get(k))
 
