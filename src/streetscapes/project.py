@@ -7,6 +7,7 @@ import numpy as np
 import uuid
 import duckdb
 import platformdirs as pdirs
+import orjson as oj
 
 from streetscapes import utils
 from streetscapes import config
@@ -34,14 +35,14 @@ class Project:
         "runs": {
             "schema": {
                 "run": "UUID NOT NULL PRIMARY KEY",
-                "model": "STRING NOT NULL",
+                "model": "STRING",
                 "metadata": "JSON",
             },
             "init": [],
         },
         "segmentations": {
             "schema": {
-                "run": "STRING NOT NULL",
+                "run": "UUID NOT NULL",
                 "curated": "BOOL NOT NULL DEFAULT TRUE",
                 "image": "UUID NOT NULL",
                 "labels": "STRING[] NOT NULL",
@@ -57,7 +58,6 @@ class Project:
                 "altitude": "FLOAT8",
                 "atomic_scale": "FLOAT8",
                 "camera_type": "STRING",
-                "camera_parameters": "FLOAT8[]",
                 "captured_at": "UBIGINT",
                 "compass_angle": "FLOAT8",
                 "computed_altitude": "FLOAT8",
@@ -160,6 +160,9 @@ class Project:
 
         if self._db_name in self._con.list_databases():
             if overwrite:
+                # First, drop all the tables:
+                for t in self._con.tables:
+                    self._con.drop_table(t, database=self._db_name)
                 self._con.drop_database(self._db_name, force=True)
             else:
                 return
@@ -259,47 +262,97 @@ class Project:
             path /= model
         return utils.ensure_dir(path) if create else path
 
-    def get_segmentation_run_uid(
+    def get_run(
         self,
-        run: str,
-        collection: str,
-        model: str,
-        create: bool = False,
-    ) -> uuid.UUID | None:
+        result: uuid.UUID,
+        segmentations: bool = False,
+    ) -> list[dict]:
         """
-        Get the UUID of a segmentation run.
-
-        If the key doesn't exist, a random UUID is returned if
-        `create` is True, otherwise None.
+        Get (an optionally curated) segmentation run.
 
         Args:
-            run: The model urn.
-            collection: Collection name.
-            model: Model name.
-            create: Create a random UUID if it's missing.
+            run: The model run.
+            segmentations: If True, get the associated segmentations as well.
 
         Returns:
             UUID of the archive.
         """
-        tbl = self._con.table("segmentations")
-        archive_id = (
-            tbl.filter(
-                [
-                    tbl.collection == collection,
-                    tbl.model == model,
-                    tbl.run == run,
-                ]
-            )
-            .select("archive")
-            .to_pyarrow()
-            .to_pydict()["archive"]
-        )
 
-        if len(archive_id) == 0:
-            if create:
-                return utils.uuid7()
-            return
-        return archive_id[0]
+        t = self._con.table("runs")
+        t = t.filter([t.run == result])
+
+        if segmentations:
+            t_seg = self._con.table("segmentations")
+            t = t.inner_join(t_seg, t_seg.run == t.run)
+
+        result = t.to_pyarrow().to_pylist()
+
+        return result
+
+    def add_run(
+        self,
+        model: str | None,
+        metadata: dict | None = None,
+        run: uuid.UUID | None = None,
+        overwrite: bool = False,
+    ) -> dict:
+        """
+        Add a run for a model and its associated metadata.
+
+        Args:
+            model: The model used for this run.
+            metadata: Any metadata pertaining to the model or the run.
+            run: The model run ID (optional, UUID7 used by default).
+            overwrite: Overwrite an existing entry.
+
+        Returns:
+            The data added to the database.
+        """
+        if run is None:
+            run = utils.uuid7()
+
+        data = {
+            "run": [ibis.uuid(run).to_pyarrow()],
+            "model": [model],
+            "metadata": [oj.dumps(metadata)],
+        }
+
+        result = self.update_table("runs", data, overwrite)
+
+        return result
+
+    def add_runs(
+        self,
+        runs: list[dict],
+        overwrite: bool = False,
+    ) -> dict:
+        """
+        Add a run for a model and its associated metadata.
+
+        Args:
+            runs: List of run data as dictionaries.
+            overwrite: Overwrite an existing entry.
+
+        Returns:
+            The data added to the database.
+        """
+
+        data = {
+            "run": [],
+            "model": [],
+            "metadata": [],
+        }
+
+        for r in runs:
+            r.setdefault('run', utils.uuid7())
+            r['run'] = ibis.uuid(r['run']).to_pyarrow()
+            r['metadata'] = oj.dumps(r.get('metadata'))
+            for k in data:
+                data[k].append(r.get(k))
+
+        result = self.update_table("runs", data, overwrite)
+
+        return result
 
     def ingest_mapillary(self, df: DataFrame, table: str = "mapillary"):
         """Ingest a DataFrame of Mapillary metadata."""
@@ -428,12 +481,14 @@ class Project:
             )
             return
 
-        updated_df = ibis.memtable(data).to_pandas()
+        mt = ibis.memtable(data)
 
         try:
             alt = "REPLACE" if overwrite else "IGNORE"
-            self._con.con.register("updated_df", updated_df)
+            self._con.con.register("updated_df", mt.to_pandas())
             self._con.raw_sql(f"INSERT OR {alt} INTO {table} FROM updated_df;")
+            result = mt.to_pyarrow().to_pylist()
+            return result
 
         except duckdb.ConstraintException as e:
             logger.debug(f"Constraint violation on '{table}': {e}")
