@@ -22,9 +22,9 @@ import pygeohash
 from streetscapes.utils.metadata import ImageMeta
 
 if sys.version_info >= (3, 14):
-    from uuid import uuid7
+    from uuid import uuid7 as __uuid7
 else:
-    from uuid7gen import uuid7
+    from uuid7gen import uuid7 as __uuid7
 
 
 def iso_timestamp() -> str:
@@ -516,3 +516,17 @@ def get_geohash_shard_path(location: shapely.Point):
     geom = shapely.from_wkb(location)
     geohash = pygeohash.encode(geom.y, geom.x, precision=7)  # 153m x 153m
     return Path(geohash[:2]) / geohash[2:4] / geohash[4:6]
+
+
+def uuid7(as_str: bool = False) -> uuid.UUID | str:
+    """
+    Return a UUID7 instance, optionally converted to string.
+
+    Args:
+        as_str: If True, convert the UUID to string before returning.
+
+    Returns:
+        The UUID.
+    """
+    u = __uuid7()
+    return u if not as_str else str(u)
