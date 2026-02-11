@@ -90,8 +90,8 @@ def mapillary(
         downloaded += 1
 
     console.print(f"Registering {len(image_data['uuid'])} images...")
-    df = ibis.memtable(image_data)
-    proj.register_images(df)
+
+    proj.add_images(image_data)
 
     console.print(
         f"Download complete: {downloaded}/{total} images saved under {proj.get_image_path('mapillary')}."
