@@ -11,10 +11,10 @@ from cyclopts import App
 from pathlib import Path
 import ibis
 
-ibis.options.interactive = True
+from streetscapes import utils
 
 bootstrap_cli = App(help="Bootstrap project database.")
-
+ibis.options.interactive = True
 
 def _populate_builder(
     field: Field,
@@ -50,7 +50,8 @@ def _populate_builder(
         "runs",
         Schema(
             lambda: {
-                "run": uuid7gen.uuid7(),
+                "run": utils.uuid7(),
+                "timestamp": utils.iso_timestamp("microseconds"),
                 "model": field.get_random_instance().weighted_choice(
                     choices=model_choices
                 ),
@@ -69,8 +70,15 @@ def _populate_builder(
         Schema(
             lambda: {
                 "curated": field("development.boolean"),
-                "labels": fieldset("text.word"),
-                "polygons": shp.Polygon(field("numeric.matrix", m=15, n=2)),
+                "labels": fieldset("text.word", i=3),
+                "polygons": shp.GeometryCollection(
+                    [
+                        shp.MultiPolygon(
+                            [shp.Polygon(field("numeric.matrix", m=10, n=2))]
+                        )
+                        for _ in range(3)
+                    ]
+                ),
             }
         ).map(
             lambda item, ctx: {
@@ -175,7 +183,7 @@ def bootstrap(
     segmentations: int = 100,
     runs: int = 30,
 ):
-    '''
+    """
     Bootstrap the database.
 
     Args:
@@ -184,7 +192,7 @@ def bootstrap(
         mapillary: Number of Mapillary entries.
         segmentations: Number of segmentations.
         runs: Number of runs.
-    '''
+    """
 
     # Mimesis objects
     SEED = None
@@ -207,7 +215,7 @@ def bootstrap(
         proj._con.raw_sql(f"INSERT OR IGNORE INTO {t} FROM fake_data;")
         proj._con.con.unregister("fake_data")
 
-    print(proj._con.table("images").head())
+    print(proj.table("runs").head())
 
 
 bootstrap_cli.command(bootstrap, name="bootstrap")

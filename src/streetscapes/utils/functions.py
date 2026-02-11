@@ -27,22 +27,35 @@ else:
     from uuid7gen import uuid7 as __uuid7
 
 
-def iso_timestamp() -> str:
+def iso_timestamp(
+    precision: str = "seconds",
+    fmt: str | None = None,
+) -> str:
     """Create a date-timestamp as a simplified ISO-formatted string.
 
     Useful for adding a unique but meaningful string to the
     name of a directory or a file that might be created
     repeatedly with the same name (for instance, when
     running the same experiment multiple times).
+    The format is ISO 8601.
 
     NOTE: UTC time is used to avoid ambiguity.
+
+    Args:
+        precision: Precision for the timespec parameter.
+        fmt: Explicit format.
 
     Returns:
         The formatted timestamp.
     """
 
-    # Simplified ISO format (no timezone, etc.).
-    return datetime.strftime(datetime.now(timezone.utc), "%Y-%m-%d_%H-%M-%S")
+    ts = datetime.now()
+
+    if fmt is not None:
+        ts = datetime.strftime(ts, fmt)
+    else:
+        ts = ts.isoformat(sep=" ", timespec=precision or "seconds")
+    return ts
 
 
 def is_notebook() -> bool:
