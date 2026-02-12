@@ -9,6 +9,7 @@ import duckdb
 import platformdirs as pdirs
 import orjson as oj
 import shapely as shp
+import shutil
 
 from streetscapes import utils
 from streetscapes import config
@@ -26,7 +27,7 @@ class Project:
             "schema": {
                 "uuid": "UUID PRIMARY KEY",
                 "source": "STRING",
-                "shard": "STRING",  # An optional path relative to the main image directory
+                "shard": "STRING",
                 "notes": "STRING",
                 "tags": "STRING[]",
                 "rating": "INTEGER",  # 0-5
@@ -45,9 +46,9 @@ class Project:
         "segmentations": {
             "schema": {
                 "run": "STRING NOT NULL",
-                "curated": "BOOL NOT NULL DEFAULT TRUE",
+                "curated": "BOOL NOT NULL DEFAULT FALSE",
                 "image": "UUID NOT NULL",
-                "labels": "STRING[] NOT NULL",
+                "labels": "STRING[]",
                 "polygons": "GEOMETRY",
             },
             "init": [
@@ -94,8 +95,7 @@ class Project:
         root_dir: str | Path | None = None,
     ):
 
-        # TODO: also read name from config? But keep option to overwrite?
-        self.name = name or "streetscapes"
+        self.name = name or config.get("active_project")
 
         # Ensure that the root directory exists
         self.root_dir = utils.ensure_dir(
@@ -123,8 +123,12 @@ class Project:
         # Internal attributes.
         # ==================================================
         # Timestamp precision
+        # TODO: Move all these into the configuration.
         self._timespec = "microseconds"
         self._db_name = "metadata"
+        self._local_source_name = "local"
+
+        # Database connection
         self._con = ibis.duckdb.connect(
             self.db_path,
             extensions=["spatial", "json"],
@@ -167,29 +171,40 @@ class Project:
         if name in self._con.tables:
             return self._con.table(name)
 
-    def _use_db(
+    def schema(
         self,
-        db: str | None = None,
-    ):
-        self._con.raw_sql(f"USE {db or self._db_name};")
+        name: str,
+    ) -> dict | None:
+        """
+        Return the schema for a table.
+
+        Args:
+            name: Table name.
+
+        Returns:
+            An optional table schema.
+        """
+        if name in self.core_tables:
+            return self.core_tables[name]["schema"]
 
     def bootstrap(
         self,
-        overwrite: bool = True,
+        overwrite: bool = False,
     ):
         """
         Bootstrap the project with the core tables
-        specified in the `core_tables`.
+        specified in the `core_tables` attribute.
 
         Args:
             overwrite: Overwrite an existing database.
         """
-
+        self._use_db()
         if self._db_name in self._con.list_databases():
             if overwrite:
                 # First, drop all the tables:
                 for t in self.tables:
-                    self._con.drop_table(t, database=self._db_name)
+                    self._con.truncate_table(t, database=self._db_name)
+                    self._con.drop_table(t, database=self._db_name, force=True)
                 self._con.drop_database(self._db_name, force=True)
             else:
                 return
@@ -200,6 +215,8 @@ class Project:
         # Tables that should exist in every project.
         # Just update the set with table names
         # and define the schema in the `schema` property.
+
+        self._con.con.commit()
         for name, items in self.core_tables.items():
             self.ensure_table(name, overwrite=overwrite)
 
@@ -216,8 +233,6 @@ class Project:
         """
         Ensure that a table exists with the given schema.
 
-        TODO: Convert raw SQL into Ibis expressions.
-
         Args:
             name: Table name.
             schema: Schema to use for the table if it doesn't exist.
@@ -231,7 +246,7 @@ class Project:
 
         if schema is None:
             table = self.core_tables.get(name)
-            if table is None or (schema := table.get("schema")) is None:
+            if table is None or (schema := self.schema(name)) is None:
                 raise ValueError(f"Please provide a valid schema for table '{name}'.")
 
         if overwrite:
@@ -242,61 +257,75 @@ class Project:
         fields = ", ".join(
             [f"{fname} {definition}" for fname, definition in schema.items()]
         )
-        sql = f"{sql} ({fields});"
+        sql = f"{sql} ({fields})"
 
         return self._con.raw_sql(sql)
 
-    def get_image_path(
+    def get_image_dir_for_source(
         self,
         source: str | None = None,
         create: bool = False,
     ) -> Path:
         """
-        Get the path to the directory where downloaded images are stored,
-        optionally specifying a source.
+        Get the path to the directory where downloaded images
+        are stored, optionally specifying a source.
 
         Args:
-            model: The source name (e.g., 'mapillary').
+            source: The source name (e.g., 'mapillary').
             create: Optionally create the directory.
 
         Returns:
             A Path object.
         """
         path = self.image_path
-        if source is not None:
-            path /= source
+        if source is None:
+            source = self._local_source_name
+        path /= source
         return utils.ensure_dir(path) if create else path
 
-    def get_image_path_from_uuid(
+    def get_image_paths_from_uuids(
         self,
-        uid: uuid.UUID,
+        uids: uuid.UUID | list[uuid.UUID],
     ) -> Path:
         """
-        Get the path to an image from its UUID.
+        Get image paths from UUIDs.
 
         Args:
-            uid: Image UUID (produced with SHA-256, see utils.hash2uuid)
+            uids: Image UUID(s) (produced with SHA-256, see utils.hash2uuid)
 
         Returns:
-            The path to the image.
+            The paths to the images.
         """
 
+        if isinstance(uids, uuid.UUID | str):
+            uids = [uids]
+
+        uids = [uuid.UUID(u) if isinstance(u, str) else u for u in uids]
+
         t = self.table("images")
-        t = t.filter([t.uuid == uid]).to_pyarrow().to_pylist()
+        results = t.filter([t.uuid.isin(uids)]).to_pyarrow().to_pylist()
 
-        if len(t) == 0:
-            return
+        paths = {}
+        for result in results:
+            uid, source, shard = (
+                uuid.UUID(result["uuid"]),
+                result["source"],
+                result["shard"],
+            )
 
-        t = t[0]
-        source, shard = t["source"], t["shard"]
-        idir = self.get_image_path(source) / shard
-        files = idir.glob(f"{uid}")
-        if len(img_file) > 0:
-            img_file = files[0]
-            if img_file.is_file():
-                return img_file
+            src_dir = self.get_image_dir_for_source(source)
+            if shard is not None:
+                src_dir /= shard
 
-    def get_archive_path(
+            fpath = list(src_dir.glob(f"*{uid}*"))
+            if len(fpath) > 0:
+                fpath = fpath[0]
+                if fpath.is_file():
+                    paths[uid] = fpath, source
+
+        return paths
+
+    def get_archive_dir_for_model(
         self,
         model: str,
         create: bool = False,
@@ -339,8 +368,9 @@ class Project:
         t = t.filter([t.run == result])
 
         if segmentations:
-            t_seg = self.table("segmentations")
-            t = t.inner_join(t_seg, t_seg.run == t.run)
+            t = self.table("segmentations")
+            t_run = self.table("runs")
+            t = t.inner_join(t_run, t.run == t_run.run)
             if curated is not None:
                 t = t.filter([t.curated == curated])
 
@@ -397,7 +427,7 @@ class Project:
             The data added to the database.
         """
 
-        data = {k: [] for k in self.core_tables["runs"]["schema"]}
+        data = {k: [] for k in self.schema("runs")}
 
         for r in runs:
             r.setdefault("run", utils.uuid7(True))
@@ -478,41 +508,31 @@ class Project:
 
     def add_segmentation(
         self,
-        curated: bool,
+        run: str,
         image: uuid.UUID | str,
         labels: list[str],
-        polygons: shp.GeometryCollection,
-        run: str | None = None,
-        model: str | None = None,
-        metadata: dict | None = None,
-        overwrite: bool = True,
+        curated: bool = False,
+        polygons: shp.GeometryCollection | None = None,
+        overwrite: bool = False,
     ):
         """
         Add a new segmentation to the database.
 
         Args:
-            curated: Curation status.
+            run: Model run ID.
             image: Image ID.
             labels: A list of labels.
+            curated: Curation status.
             polygons: A Shapely GeometryCollection.
-            run: Optional run ID.
-            model: The model used for the segmentation.
-            metadata: Any metadata associated with this segmentation.
             overwrite: Replace or ignore conflicting data.
         """
 
-        if run is None:
-            run = utils.uuid7(True)
-
-        # Store the run
-        self.add_run(run, model, metadata, overwrite)
-
         data = {
-            "run": run,
-            "curated": curated,
-            "image": ibis.uuid(image).to_pyarrow(),
-            "labels": labels,
-            "polygons": polygons,
+            "run": [run],
+            "curated": [curated],
+            "image": [ibis.uuid(image).to_pyarrow()],
+            "labels": [labels],
+            "polygons": [polygons],
         }
 
         result = self.update_table("segmentations", data, overwrite)
@@ -522,32 +542,21 @@ class Project:
     def add_segmentations(
         self,
         segmentations: list[dict],
-        run: str | None = None,
-        model: str | None = None,
-        metadata: dict | None = None,
-        overwrite: bool = True,
+        overwrite: bool = False,
     ):
         """
-        Add a new segmentation to the database.
+        Add a new set of segmentations to the database.
 
         Args:
             segmentations: A list of dictionaries containing segmentation data.
-            run: Optional run ID.
-            model: The model used for the segmentation.
-            metadata: Any metadata associated with this segmentation.
             overwrite: Replace or ignore conflicting data.
         """
 
-        if run is None:
-            run = utils.uuid7(True)
-
-        # Store the run
-        self.add_run(run, model, metadata, overwrite)
-
-        data = {k: [] for k in self.core_tables["segmentations"]["schema"]}
+        data = {k: [] for k in self.schema("segmentations")}
 
         for s in segmentations:
             s["image"] = ibis.uuid(s["image"]).to_pyarrow()
+            s.setdefault("curated", False)
             for k in data:
                 data[k].append(s.get(k))
 
@@ -555,9 +564,9 @@ class Project:
 
     def get_segmentation_status(
         self,
-        images: uuid.UUID,
+        uids: uuid.UUID | str | list[uuid.UUID | str],
         run: str,
-    ) -> tuple[set[uuid.UUID], ...]:
+    ) -> tuple[set[uuid.UUID], dict[uuid.UUID, Path]]:
         """
         Filter out processed images.
 
@@ -569,27 +578,29 @@ class Project:
             Sets of UUIDs for processed and unprocessed images.
         """
 
-        images = list(map(uuid.UUID, images))
+        if isinstance(uids, uuid.UUID | str):
+            uids = [uids]
+        uids = [uuid.UUID(u) if isinstance(u, str) else u for u in uids]
 
         t_seg = self.table("segmentations")
-        t_seg_flt = t_seg.filter([t_seg.image.isin(images), t_seg.run == run]).select(
+        t_seg_flt = t_seg.filter([t_seg.image.isin(uids), t_seg.run == run]).select(
             "image"
         )
 
         processed = set(t_seg_flt.to_pyarrow().to_pydict()["image"])
-        unprocessed = set(images).difference(processed)
-
+        missing = list(set(uids).difference(processed))
+        unprocessed = self.get_image_paths_from_uuids(missing)
         return processed, unprocessed
 
     def add_image(
         self,
         uid: uuid.UUID,
         source: str | None = None,
-        shard: str | None = None,
+        path: str | None = None,
         notes: str | None = None,
         tags: list[str] | None = None,
         rating: int | None = None,
-        overwrite: bool = True,
+        overwrite: bool = False,
     ):
         """
         Register downloaded (local) images into the database.
@@ -599,7 +610,7 @@ class Project:
                 Should be generated automatically from the SHA-256 hash of the image.
                 See `utils.hash2uuid()`.
             source: Image provenance.
-            shard: Shard segment of the image's storage path.
+            path: Relative or absolute path to the image.
             notes: Freestyle notes.
             tags: List of image tags descriptive of the image.
             rating: Image quality rating.
@@ -609,7 +620,7 @@ class Project:
         data = {
             "uuid": [ibis.uuid(uid).to_pyarrow()],
             "source": [source],
-            "shard": [shard],
+            "path": [path],
             "notes": [notes],
             "tags": [tags],
             "rating": [rating],
@@ -619,8 +630,8 @@ class Project:
 
     def add_images(
         self,
-        data: dict,
-        overwrite: bool = True,
+        images: list[dict],
+        overwrite: bool = False,
     ):
         """
         Register downloaded (local) images into the database.
@@ -630,24 +641,54 @@ class Project:
             overwrite: Replace or ignore conflicting data.
         """
 
-        _data = {
-            "uuid": [],
-            "source": [],
-            "shard": [],
-            "notes": [],
-            "tags": [],
-            "rating": [],
-        }
+        data = {k: [] for k in self.schema("images")}
 
-        for i in data:
-            if "uuid" not in i:
+        for image in images:
+            if "uuid" not in image:
                 raise KeyError(f"The 'uuid' field is mandatory.")
-            i["uuid"] = ibis.uuid(i["uuid"]).to_pyarrow()
+            image["uuid"] = ibis.uuid(image["uuid"]).to_pyarrow()
 
-            for k in _data:
-                _data[k].append(i.get(k))
+            for k in data:
+                data[k].append(image.get(k))
 
-        return self.update_table("images", _data, overwrite)
+        self.update_table("images", data, overwrite)
+        return data
+
+    def ingest_image_dir(
+        self,
+        path: Path | str,
+        shard: str | None = None,
+        overwrite: bool = False,
+    ):
+        """
+        Add images from a directory.
+
+        Args:
+            path: A directory containing images.
+        """
+
+        path = Path(path)
+        image_paths = utils.get_image_paths(path)
+        image_data_list = []
+        image_dir = self.get_image_dir_for_source(self._local_source_name, create=True)
+        if shard is not None:
+            image_dir = utils.ensure_dir(image_dir / shard)
+
+        for ip in image_paths:
+            image_data = {k: None for k in self.schema("images")}
+            uid = utils.get_image_uuid(ip)
+
+            new_fname = f"{uid}{ip.suffix}".lower()
+            new_fpath = image_dir / new_fname
+
+            if not new_fpath.exists() or overwrite:
+                shutil.copy2(ip, new_fpath)
+
+            image_data["uuid"] = uid
+
+            image_data_list.append(image_data)
+
+        return self.add_images(image_data_list, overwrite)
 
     def ingest_mapillary(self, df: DataFrame, table: str = "mapillary"):
         """Ingest a DataFrame of Mapillary metadata."""
@@ -668,71 +709,53 @@ class Project:
         # TODO: consider configurable duplicate behaviour (REPLACE or IGNORE)
         self._con.raw_sql(f"INSERT OR IGNORE INTO {table} FROM metadata_tile")
 
-    def filter_bbox(self, table: str, bbox: Bbox):
-        """Return an Ibis table expression filtered by a bounding box."""
+    def ingest_image_records(self, records: list[dict]):
+        """Batch insert local images into `images`.
 
-        table = self.ensure_table(table)
+        Parameters
+        ----------
+        records : list of dict
+            Each dict must have keys: 'id', 'source', 'path', 'geometry'.
+        """
+
+        sql = """
+        INSERT INTO images (id, source, geometry)
+        VALUES (GEN_RANDOM_UUID(), ?, ?, ?, ST_GeomFromWKB(?))
+        ON CONFLICT DO NOTHING
+        """
+
+        params = [
+            (r["id"], r["source"], str(r["path"]), r["geometry"]) for r in records
+        ]
+
+        # Execute as batch
+        self._con.con.executemany(sql, params)
+
+    def filter_bbox(
+        self,
+        table: str,
+        bbox: Bbox,
+    ) -> ibis.Table:
+        """
+        Return an Ibis table expression filtered by a bounding box.
+
+        Args:
+            table: The table name.
+            bbox: The bounding box.
+
+        Returns:
+            An Ibis table.
+        """
+
+        table = self.table(table)
         envelope_expr = ibis.literal(box(*bbox).wkt, type="geospatial:geometry")
         return table.filter(table.geometry.within(envelope_expr))
-
-    def register_collection(
-        self,
-        collection: str,
-        uids: list[uuid.UUID],
-        overwrite: bool = True,
-    ):
-        """
-        Register a downloaded (local) image into the database.
-
-        Args:
-            collection: The collection to add the images to.
-            uids: Image UUIDs.
-            overwrite: Overwrite existing entries with new ones.
-        """
-
-        if overwrite:
-            sql = f"DELETE FROM collections WHERE name='{collection}';"
-            self._con.raw_sql(sql)
-
-        uids = [ibis.uuid(u).to_pyarrow() for u in uids]
-        data = {
-            "name": [collection for _ in range(len(uids))],
-            "image": uids,
-        }
-
-        self.update_table("collections", data, overwrite)
-
-    def save_segmentation(
-        self,
-        path: Path | str,
-        instances: np.ndarray,
-        fmt: str = "npz",
-    ):
-        """
-        Save a segmentation.
-
-        Args:
-            path: The file to save instances to.
-            instances: NumPy array of instance masks.
-            fmt: Format of the saved file.
-        """
-
-        match fmt:
-            case "npz":
-                np.savez_compressed(path, instances)
-            case "npy":
-                np.save(path, instances)
-            # TODO: Add parquet and efficient geometry storage.
-            # NOTE: Check if it's possible do do away with this step
-            # entirely by storing segmentation outlines straight into the database.
-            case _:
-                np.savez_compressed(path, instances)
 
     def update_table(
         self,
         table: str,
         data: dict,
-        overwrite: bool = True,
+        overwrite: bool = False,
     ):
         """
         Update a table.
@@ -772,7 +795,7 @@ class Project:
             "uid": "uuid",
             "id": "id",
             "url": "thumb_2048_url",
-            "shard": "shard",
+            "path": "path",
             "location": "geometry",
         }
         t_map = self.table("mapillary")
@@ -783,40 +806,6 @@ class Project:
         if len(data) == 0:
             return [() * len(keys)]
         return list(zip(*[data[k] for k in keys]))
-
-    def ingest_images(self, records: list[dict]):
-        """Batch insert local images into `images`.
-
-        Parameters
-        ----------
-        records : list of dict
-            Each dict must have keys: 'id', 'source', 'path', 'geometry'.
-        """
-
-        sql = """
-        INSERT INTO images (id, source, geometry)
-        VALUES (GEN_RANDOM_UUID(), ?, ?, ?, ST_GeomFromWKB(?))
-        ON CONFLICT DO NOTHING
-        """
-
-        params = [
-            (r["id"], r["source"], str(r["path"]), r["geometry"]) for r in records
-        ]
-
-        # Execute as batch
-        self._con.con.executemany(sql, params)
-
-    # Export functions
-    def _select_nonspatial(self, table: str) -> str:
-        """Return SELECT clause converting geometry to WKT if present."""
-        if "geometry" in self.table(table).columns:
-            return "* EXCLUDE (geometry), ST_AsText(geometry) AS geometry"
-        return "*"
-
-    def _require_geometry(self, table: str, fmt: str):
-        """Ensure table has a geometry column before geospatial export."""
-        if "geometry" not in self.table(table).columns:
-            raise ValueError(f"{fmt} export requires a 'geometry' column in '{table}'.")
 
     def export_parquet(self, table: str, output_path: str):
         self._con.raw_sql(f"COPY {table} TO '{output_path}' (FORMAT PARQUET);")
@@ -843,3 +832,26 @@ class Project:
         self._con.raw_sql(
             f"COPY {table} TO '{output_path}' WITH (FORMAT GDAL, DRIVER 'GeoJSON');"
         )
+
+    def _use_db(
+        self,
+        db: str | None = None,
+    ):
+        self._con.raw_sql(f"USE {db or self._db_name};")
+
+    # Export functions
+    def _select_nonspatial(self, table: str) -> str:
+        """Return SELECT clause converting geometry to WKT if present."""
+        if "geometry" in self.table(table).columns:
+            return "* EXCLUDE (geometry), ST_AsText(geometry) AS geometry"
+        return "*"
+
+    def _require_geometry(self, table: str, fmt: str):
+        """Ensure table has a geometry column before geospatial export."""
+        if "geometry" not in self.table(table).columns:
+            raise ValueError(f"{fmt} export requires a 'geometry' column in '{table}'.")
+
+
+if __name__ == "__main__":
+    project = Project("streetscapes")
+    project.bootstrap(overwrite=True)
