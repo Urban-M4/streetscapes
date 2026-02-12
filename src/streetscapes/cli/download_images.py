@@ -49,7 +49,7 @@ def mapillary(
     mapillary = MapillaryClient(token)
 
     total = len(records)
-    image_dir = proj.get_image_path("mapillary")
+    image_dir = proj.get_image_dir_for_source("mapillary")
     console.print(f"Downloading {total} image(s) to {image_dir}.")
 
     # Add metadata to batch
@@ -64,7 +64,7 @@ def mapillary(
         enumerate(records), "Downloading images...", total=len(records)
     ):
 
-        # Determine the shard
+        # Determine the path
         output_dir = Path(image_dir)
         shard = None
         if location is not None:
@@ -94,5 +94,5 @@ def mapillary(
     proj.add_images(image_data)
 
     console.print(
-        f"Download complete: {downloaded}/{total} images saved under {proj.get_image_path('mapillary')}."
+        f"Download complete: {downloaded}/{total} images saved under {proj.get_image_dir_for_source('mapillary')}."
     )
