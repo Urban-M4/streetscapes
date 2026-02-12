@@ -10,6 +10,6 @@ class ImageMeta:
     ihash: bytes
     iuuid: uuid.UUID
     ext: str
+    fpath: str | Path | None = None
     source: str | None = None
-    path: str | Path | None = None
-    shard: str | None = None
+    shard: str | Path | None = None
