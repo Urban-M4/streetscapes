@@ -2,6 +2,7 @@ import typing as tp
 import numpy as np
 import skimage as ski
 import uuid
+from tqdm import tqdm
 from streetscapes import utils
 from streetscapes.utils import logger
 
@@ -197,9 +198,9 @@ class DinoSAM:
 
         with torch.no_grad():
 
-            for idx, (image_hash, image) in enumerate(zip(uids, images)):
+            for idx, (uid, image) in tqdm(enumerate(zip(uids, images)), total=len(images)):
                 # Dictionary that will hold all the information about the segmentation
-                segmentation = {"hash": image_hash}
+                segmentation = {"uid": uid}
 
                 # Detect objects
                 inputs = self.dino_processor(

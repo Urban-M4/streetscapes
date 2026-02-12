@@ -1,5 +1,5 @@
 import numpy as np
-
+import uuid
 from streetscapes import logger
 from streetscapes import utils
 
@@ -150,7 +150,7 @@ class MaskFormer:
 
     def segment_images(
         self,
-        uids: list[bytes],
+        uids: list[uuid.UUID],
         images: list[np.ndarray],
         labels: str | list[str] | None = None,
     ) -> list[dict]:
