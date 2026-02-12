@@ -9,15 +9,14 @@ import skimage as ski
 from dotenv import load_dotenv
 from IPython import get_ipython
 from collections.abc import Iterable
-from datetime import datetime, timezone
+from datetime import datetime
 import filetype as ft
-import imageio.v3 as iio
 from hashlib import sha256
 import uuid
 import sys
-from PIL import Image
 import shapely
 import pygeohash
+import shapely as shp
 
 from streetscapes.utils.metadata import ImageMeta
 
@@ -481,6 +480,56 @@ def hash2uuid(ihash: bytes) -> uuid.UUID:
     return uuid.UUID(ihash.hex()[::2])
 
 
+def get_image_uuid(image: str | Path | bytes) -> uuid.UUID:
+    """Get the unique and reproducible UUID of an image file.
+
+    Args:
+        image: The path to the file or raw bytes.
+
+    Returns:
+        Image UUID.
+    """
+
+    if isinstance(image, str | Path):
+        image = Path(image).read_bytes()
+
+    if not ft.is_image(image):
+        return
+
+    return hash2uuid(get_image_hash(image))
+
+
+def get_image_paths(path: Path) -> list[Path]:
+    """
+    Get only the image paths in a directory.
+
+    Args:
+        path: A directory of images.
+
+    Returns:
+        Image paths.
+    """
+
+    if not isinstance(path, Path | str):
+        raise ValueError(f"Invalid path '{path}'")
+
+    path = Path(path)
+    if path.is_file():
+        # Single file, return as list.
+        return [path]
+
+    entries = path.glob("**/*")
+    image_paths = []
+    for entry in entries:
+
+        if not ft.is_image(entry):
+            continue
+
+        image_paths.append(entry)
+
+    return image_paths
+
+
 def get_image_metadata(image: bytes | str | Path) -> ImageMeta:
     """
     Get some reproducible image metadata.
@@ -543,3 +592,59 @@ def uuid7(as_str: bool = False) -> uuid.UUID | str:
     """
     u = __uuid7()
     return u if not as_str else str(u)
+
+
+def seg2poly(segmentation: np.ndarray) -> shp.MultiPolygon:
+    """
+    Convert a segmentation to a Shapely MultiPolygon.
+
+    Args:
+        segmentation: An instance segmentation.
+
+    Returns:
+        A MultiPolygon defining the outlines of the instance.
+        Using a MultiPolygon in case instances consist of
+        disconnected regions that have to be described
+        with multiple polygons.
+    """
+
+    # NOTE: Stub - to be implemented
+    canvas = np.zeros_like(segmentation)
+    contour = ski.segmentation.mark_boundaries(canvas, segmentation)
+    nz = np.nonzero(contour)
+    # ...
+
+
+def save_instances(
+    path: Path | str,
+    instances: np.ndarray,
+    fmt: str = "npz",
+):
+    """
+    Save a segmentation.
+
+    Args:
+        path: The file to save instances to.
+        instances: NumPy array of instance masks.
+        fmt: Format of the saved file.
+    """
+
+    path = Path(path)
+    if path.is_dir():
+        raise ValueError(
+            f"The provided path is a directory, please provide a file path."
+        )
+
+    fpath = path.with_suffix(f".{fmt}")
+    ensure_dir(path.parent)
+    match fmt:
+        case "npz":
+            np.savez_compressed(fpath, instances)
+        case "npy":
+            np.save(fpath, instances)
+        # TODO: Add parquet and efficient geometry storage.
+        # NOTE: Check if it's possible do do away with this step
+        # entirely by storing segmentation outlines as polygons
+        # straight into the database.
+        case _:
+            np.savez_compressed(fpath, instances)
