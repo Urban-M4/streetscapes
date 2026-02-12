@@ -10,12 +10,13 @@ class BFMSRequest(BaseModel):
 
 
 class BFMSResponse(BaseModel):
-    uid: uuid.UUID | None = None
+    labels: list[str]  # Instance labels
     instances: bytes  # JSON-encoded numpy array
 
 
 class BFMSService:
-    """Inference service for the BFMS model.
+    """
+    Inference service for the BFMS model.
 
     Exposes BFMS inferece as a structured request/response
     interface usable by Ray Serve.
@@ -28,13 +29,14 @@ class BFMSService:
         req = BFMSRequest(**request)
 
         image = np.array(oj.loads(req.image), dtype=np.uint8)
-        results = self.model.segment(image)
+        result = self.model.segment(image)
 
         response = BFMSResponse(
+            labels=result["labels"],
             instances=oj.dumps(
-                results,
+                result["instances"],
                 option=oj.OPT_SERIALIZE_NUMPY,
-            )
+            ),
         )
 
         return response
