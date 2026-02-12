@@ -1,14 +1,7 @@
-"""Command line interface for BFMS model."""
-
-from pathlib import Path
-import ibis
-
-import filetype as ft
+from itertools import batched
 import imageio.v3 as iio
 import numpy as np
 import orjson as oj
-
-from streetscapes import config
 from streetscapes import utils
 from streetscapes.utils.logging import logger
 from streetscapes.project import Project
@@ -17,101 +10,84 @@ from streetscapes.serve.server import serve_model
 
 def cli(
     image_path: str,
-    collection: str,
-    run: str = str(utils.iso_timestamp()),
+    run: str | None = None,
+    project: str = "streetscapes",
     overwrite: bool = False,
-    project: str | None = None,
 ):
-    """Segment images with BFMS.
+    """
+    Segment images with BFMS.
 
     Args:
-        image_path: Path to an image or a directory of images.
-        collection: A named image subset.
-        run: A run identifier.
-        overwrite: Whether to overwrite existing segmentations.
-        project: An optional project to attach to.
+        image_path: Path to the images to be segmented.
+        run: Model run ID.
+        project: The project to use.
+        overwrite: Overwrite an existing run.
     """
 
-    # Resolve paths
-    image_path = Path(image_path)
-    if image_path.is_dir():
-        image_paths = [p for p in image_path.glob("*.*") if ft.is_image(p)]
-    else:
-        image_paths = [image_path] if ft.is_image(image_path) else []
-
-    if not image_paths:
-        return
-
-    model_name = "bfms"
-
     # Open the project
-    project = Project(project or config.get("active_project"))
+    proj = Project(project)
 
-    # Determine which images need processing
-    status = project.get_segmentation_status(collection, model_name, run)
+    # Save the run metadata.
+    # ==================================================
+    model = "bfms"
+    model_params = {}
+    if run is None:
+        run = utils.uuid7(as_str=True)
 
-    if status is None:
-        logger.info(f"Nothing to segment.")
+    proj.add_run(run, model, model_params, overwrite)
+
+    # Get all images that need to be processed.
+    # ==================================================
+    image_paths = utils.get_image_paths(image_path)
+    if len(image_paths) == 0:
+        logger.info(f"Nothing to process.")
         return
 
-    processed, unprocessed = status
+    uids = list(map(utils.get_image_uuid, image_paths))
+    processed, unprocessed = proj.get_segmentation_status(uids, run)
 
-    # Initialize Ray Serve handle
-    handle = serve_model(model_name)
-    logger.info(f"Segmenting {len(unprocessed)} images using BFMS...")
+    if len(unprocessed) == 0:
+        logger.info(f"Nothing to process.")
+        return
 
-    # Rows to be inserted into the database
-    seg_data = {k: [] for k in Project.core_tables["segmentations"]["schema"]}
-    run_uid = project.get_segmentation_run_uid(collection, model_name, run, create=True)
-
-    # Update the segmentation database
-    project._con.insert("segmentations", seg_data)
-    archive_path = utils.ensure_dir(
-        project.get_archive_path(model_name, create=True) / str(run_uid)
+    # Create the archive directory.
+    # ==================================================
+    archive_dir = utils.ensure_dir(
+        proj.get_archive_dir_for_model(
+            model,
+            create=True,
+        )
+        / str(run)
     )
 
-    label_data = {
-        k: [None for _ in range(len(unprocessed))]
-        for k in project.core_tables["labels"]["schema"]
-    }
+    # Segment the images and save the segmentations.
+    # ==================================================
+    # Ray Serve handle.
+    handle = serve_model(model)
+    logger.info(f"Segmenting {len(unprocessed)} images using {model}...")
 
-    # Add the segmentation run to the databse
-    model_params = {}
-    seg_data = {
-        "collection": collection,
-        "model": model_name,
-        "run": run,
-        "archive": ibis.uuid(run_uid).to_pyarrow(),
-        "params": oj.dumps(model_params),
-    }
-    project.update_table("segmentations", seg_data)
+    # NOTE: BFMS does not support a batch mode.
+    for image_idx, uid in enumerate(unprocessed, 1):
 
-    logger.info(f"Segmenting {len(unprocessed)} images...")
-    # Process images one by one
-    for idx, (uuid, (path, shard)) in enumerate(unprocessed.items()):
+        # Extract the paths and open the images as NumPy arrays.
+        path = unprocessed[uid][0]
+        source = unprocessed[uid][1]
+        request = {
+            "image": oj.dumps(
+                np.asarray(iio.imread(path)),
+                option=oj.OPT_SERIALIZE_NUMPY,
+            )
+        }
 
-        # Extract the hashes
-        image = np.asarray(iio.imread(path))
-
-        label_data["image"][idx] = ibis.uuid(response.uuid).to_pyarrow()
-        label_data["model"][idx] = model_name
-        label_data["run"][idx] = run
-        label_data["labels"][idx] = response.labels
-
-        # Create request for the service
-        request = {"image": oj.dumps(image, option=oj.OPT_SERIALIZE_NUMPY)}
+        # Process the images
+        logger.info(f"Segmenting image [{image_idx:>4d}/{len(unprocessed):>4d}]...")
         response = handle.remote(request).result()
-        response.uid = uuid
+        logger.debug(f"Successfully segmented image {uid}, saving instances.")
 
-        # The file name is constructed from the UUID.
-        seg_fname = f"{response.uuid}.npz"
-
-        # Save the segmentations.
-        logger.info(f"Saving segmentation '{seg_fname}'...")
-        instances = oj.loads(response.segmentation)
+        # Save the instances.
+        sub = path.relative_to(proj.get_image_dir_for_source(source))
+        instances = oj.loads(response.instances)
+        utils.save_instances(archive_dir / sub, instances)
 
         # Save segmentation immediately
-        project.save_segmentation(archive_path / seg_fname, instances, overwrite)
-
-    # Add the labels to the database
-    project.update_table("labels", label_data, overwrite)
+        proj.add_segmentation(run, uid, response.labels)
