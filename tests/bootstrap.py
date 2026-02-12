@@ -16,6 +16,7 @@ from streetscapes import utils
 bootstrap_cli = App(help="Bootstrap project database.")
 ibis.options.interactive = True
 
+
 def _populate_builder(
     field: Field,
     fieldset: Fieldset,
@@ -146,7 +147,7 @@ def _populate_builder(
                     choices=source_choices
                 ),
                 "shard": field(
-                    "path",
+                    "shard",
                     parts_count=3,
                     key=lambda p: "/".join([k[:2] for k in p.split("/")]),
                 ),
@@ -166,14 +167,6 @@ def _populate_builder(
             }
         ),
     )
-
-    generated = builder.create(
-        mapillary=30,
-        images=30,
-        runs=30,
-        segmentations=100,
-    )
-    return generated
 
 
 def bootstrap(
@@ -207,7 +200,14 @@ def bootstrap(
     proj = Project(project)
     proj.bootstrap(overwrite=True)
 
-    generated = _populate_builder(field, fieldset, builder)
+    _populate_builder(field, fieldset, builder)
+
+    generated = builder.create(
+        mapillary=mapillary,
+        images=images,
+        runs=runs,
+        segmentations=segmentations,
+    )
 
     for t in generated:
         df = DataFrame(generated[t])
