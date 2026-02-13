@@ -4,6 +4,7 @@ import os
 import ibis
 from cyclopts import App
 from rich.progress import track
+import typer
 
 from streetscapes import config
 from streetscapes.cli.console import console
@@ -19,23 +20,21 @@ fetch_metadata_cli = App(help="Fetch metadata for a source")
 @fetch_metadata_cli.command(name="mapillary")
 def mapillary(
     bbox: Bbox,
-    tile_size: float = 0.001,
+    tile_size: float = 0.01,
     limit: int = 1000,
     token: str | None = None,
+    project: str | None = None,
 ):
     """Fetch metadata from the Mapillary API.
 
-    Parameters
-    ----------
-    bbox:
-        Bounding box (west, south, east, north).
-    tile_size:
-        Tile size in degrees.
-    limit:
-        Maximum number of images per tile.
-    token:
-        Mapillary OAuth token (if not set via MAPILLARY_TOKEN).
+    Args:
+        bbox: Bounding box (west, south, east, north).
+        tile_size: Tile size in degrees.
+        limit: Maximum number of images per tile.
+        token: Mapillary OAuth token (if not set via MAPILLARY_TOKEN).
+        project: An optional project to attach to.
     """
+
     logger.info(f"Fetching metadata for {bbox=}")
 
     token = token or os.getenv("MAPILLARY_TOKEN")
@@ -44,7 +43,7 @@ def mapillary(
         raise typer.Exit(code=1)
 
     m = MapillaryClient(token)
-    project = Project(config.get("active_project"))
+    aproject = Project(project or config.get("active_project"))
 
     ntiles, tiles = split_bbox(bbox, tile_size)
     logger.info(f"Splitting bbox in {ntiles} tiles with {tile_size=}")
@@ -57,11 +56,11 @@ def mapillary(
         if len(df) == 0:
             continue
 
-        project.ingest_mapillary(df)
+        aproject.ingest_mapillary(df)
 
     # Inform user about result
     ibis.options.interactive = True
-    filtered = project.filter_bbox("mapillary", bbox)
+    filtered = aproject.filter_bbox("mapillary", bbox)
     logger.info(f"Total images in bbox: {filtered.count().execute()}, first 5 rows:")
     console.print(filtered.limit(5))  # console print gives nicer table than logger
     logger.info("Ready.")

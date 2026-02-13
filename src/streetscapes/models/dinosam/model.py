@@ -1,6 +1,8 @@
 import typing as tp
 import numpy as np
 import skimage as ski
+import uuid
+from tqdm import tqdm
 from streetscapes import utils
 from streetscapes.utils import logger
 
@@ -168,14 +170,14 @@ class DinoSAM:
 
     def segment_images(
         self,
-        hashes: list[bytes],
+        uids: list[uuid.UUID],
         images: list[np.ndarray],
         prompt: dict,
     ) -> list[dict]:
         """Segment the provided sequence of images.
 
         Args:
-            hashes: SHA-256 hash values of the images.
+            uids: UUID values associated with the images.
                 This is used for keeping track of which images have been segmented,
                 regardless of the file name and where they are stored.
             images: A list (batch) of images as NumPy arrays.
@@ -196,9 +198,9 @@ class DinoSAM:
 
         with torch.no_grad():
 
-            for idx, (image_hash, image) in enumerate(zip(hashes, images)):
+            for idx, (uid, image) in tqdm(enumerate(zip(uids, images)), total=len(images)):
                 # Dictionary that will hold all the information about the segmentation
-                segmentation = {"hash": image_hash}
+                segmentation = {"uid": uid}
 
                 # Detect objects
                 inputs = self.dino_processor(

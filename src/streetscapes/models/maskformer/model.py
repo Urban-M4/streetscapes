@@ -1,5 +1,5 @@
 import numpy as np
-
+import uuid
 from streetscapes import logger
 from streetscapes import utils
 
@@ -150,14 +150,14 @@ class MaskFormer:
 
     def segment_images(
         self,
-        hashes: list[bytes],
+        uids: list[uuid.UUID],
         images: list[np.ndarray],
         labels: str | list[str] | None = None,
     ) -> list[dict]:
         """Segment the provided sequence of images.
 
         Args:
-            hashes: SHA-256 hash values of the images.
+            uids: UUID values associated with the images.
                 This is used for keeping track of which images have been segmented,
                 regardless of the file name and where they are stored.
             images: A list (batch) of images as NumPy arrays.
@@ -201,7 +201,7 @@ class MaskFormer:
             # List of segmentation results.
             segmentations = [
                 {
-                    "hash": hashes[idx],
+                    "uid": uids[idx],
                     "labels": [
                         MaskFormer.id_to_label[info["label_id"]]
                         for info in item["segments_info"]
