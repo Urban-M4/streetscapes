@@ -706,6 +706,7 @@ class Project:
         self._con.con.register("metadata_tile", df)
 
         # TODO: consider configurable duplicate behaviour (REPLACE or IGNORE)
+        # TODO do not depend of order in df columns, but used named columns in SQL query
         self._con.raw_sql(f"INSERT OR IGNORE INTO {table} FROM metadata_tile")
 
     def ingest_image_records(self, records: list[dict]):
