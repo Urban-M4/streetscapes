@@ -87,7 +87,18 @@ class BFMS:
         # Argmax → semantic mask
         semantic_mask = torch.argmax(pixel_class_probs, dim=0).cpu().numpy()
 
-        return semantic_mask
+        # Split the segmentation into labels and instance masks.
+        labels = set(np.unique(semantic_mask).tolist())
+        labels.discard(0)  # Ignore background
+        labels = list(labels)
+        instances = np.zeros((len(labels), *semantic_mask.shape), dtype=np.bool_)
+        for idx, lbl in enumerate(labels):
+            instances[idx][semantic_mask == lbl] = True
+
+        return {
+            "labels": [id2label[l - 1] for l in labels],
+            "instances": instances,
+        }
 
 
 label_colors = np.array(

@@ -84,6 +84,22 @@ Model weights are downloaded automatically on first use.
 Consider generating **albedo and emissivity maps for WRF input** over Amsterdam. The workflow shows how the CLI performs heavy tasks while the API complements further analysis.
 
 ```bash
+# 1. Set active project
+streetscapes config set active_project amsterdam
+# 2. Fetch metadata for your area of interest using the Mapillary source
+streetscapes fetch-metadata mapillary --bbox  4.87 52.36 4.91 52.39
+# 3. Fetch images from mapillary
+streetscapes download-images mapillary
+# 4.1. Segment images with maskformer using a subset of labels
+streetscapes segment_images maskformer --labels building --labels vegetation --labels wall
+# 4.2. Segment images with Building/Facade Material Segmentation model (bfms)
+streetscapes segment_images bfms
+# 4.3 Segment images with DinoSAM using a custom prompt
+streetscapes segment_images dinosam --prompt 'building vegetation car truck road'
+```
+
+<!-- Potential other commands to be implemented
+```bash
 # 1. Fetch metadata for your area of interest (Global Streetscapes dataset)
 streetscapes fetch-metadata global-streetscapes \
   --bbox 4.87,52.36,4.91,52.39 \
@@ -111,7 +127,7 @@ streetscapes segment-images bfms ./segments \
 streetscapes match-buildings ./segments.geoparquet ./footprints.geoparquet \
   --materials ./materials.geoparquet \
   --output ./buildings.geoparquet
-```
+``` -->
 
 After CLI processing, the API enables flexible post-processing, visualization, and rasterization.
 

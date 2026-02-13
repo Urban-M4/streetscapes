@@ -1,44 +1,60 @@
 import os
 import re
+import sys
+import uuid
+from collections.abc import Iterable
+from datetime import datetime
+from hashlib import sha256
 from pathlib import Path
-from typing import TYPE_CHECKING
+
+import filetype as ft
 import geopandas as gpd
 import numpy as np
+import pygeohash
 import seedir as sd
+import shapely
+import shapely as shp
 import skimage as ski
 from dotenv import load_dotenv
 from IPython import get_ipython
-from collections.abc import Iterable
-from datetime import datetime, timezone
-import filetype as ft
-import imageio.v3 as iio
-from hashlib import sha256
-import uuid
 
-import sys
+from streetscapes.utils.metadata import ImageMeta
 
 if sys.version_info >= (3, 14):
-    from uuid import uuid7
+    from uuid import uuid7 as __uuid7
 else:
-    from uuid7gen import uuid7
+    from uuid7gen import uuid7 as __uuid7
 
 
-def iso_timestamp() -> str:
+def iso_timestamp(
+    precision: str = "seconds",
+    fmt: str | None = None,
+) -> str:
     """Create a date-timestamp as a simplified ISO-formatted string.
 
     Useful for adding a unique but meaningful string to the
     name of a directory or a file that might be created
     repeatedly with the same name (for instance, when
     running the same experiment multiple times).
+    The format is ISO 8601.
 
     NOTE: UTC time is used to avoid ambiguity.
+
+    Args:
+        precision: Precision for the timespec parameter.
+        fmt: Explicit format.
 
     Returns:
         The formatted timestamp.
     """
 
-    # Simplified ISO format (no timezone, etc.).
-    return datetime.strftime(datetime.now(timezone.utc), "%Y-%m-%d_%H-%M-%S")
+    ts = datetime.now()
+
+    if fmt is not None:
+        ts = datetime.strftime(ts, fmt)
+    else:
+        ts = ts.isoformat(sep=" ", timespec=precision or "seconds")
+    return ts
 
 
 def is_notebook() -> bool:
@@ -433,24 +449,27 @@ def get_device(device: "torch.device | str | None") -> "torch.device":
     return torch.device(device)
 
 
-def get_image_hash(path: Path) -> bytes:
+def get_image_hash(image: str | Path | bytes) -> bytes:
     """Get the SHA-256 hash of an image file.
 
     Args:
-        path: The path to the file.
+        image: The path to the file or raw bytes.
 
     Returns:
-        SHA-265 digest.
+        SHA-256 digest.
     """
 
-    if not ft.is_image(path):
-        return
+    if isinstance(image, str | Path):
+        image = Path(image).read_bytes()
 
-    return sha256(np.asarray(iio.imread(path))).digest()
+    if not ft.is_image(image):
+        raise ValueError("The provided file is not an image.")
+
+    return sha256(image).digest()
 
 
 def hash2uuid(ihash: bytes) -> uuid.UUID:
-    """Create a UUID from a SHA-256 hash of an image file.
+    """Create a UUID (128 bits) from a SHA-256 hash of an image file.
 
     Args:
         ihash: The hash.
@@ -460,3 +479,173 @@ def hash2uuid(ihash: bytes) -> uuid.UUID:
     """
 
     return uuid.UUID(ihash.hex()[::2])
+
+
+def get_image_uuid(image: str | Path | bytes) -> uuid.UUID:
+    """Get the unique and reproducible UUID of an image file.
+
+    Args:
+        image: The path to the file or raw bytes.
+
+    Returns:
+        Image UUID.
+    """
+
+    if isinstance(image, str | Path):
+        image = Path(image).read_bytes()
+
+    if not ft.is_image(image):
+        return
+
+    return hash2uuid(get_image_hash(image))
+
+
+def get_image_paths(path: Path) -> list[Path]:
+    """
+    Get only the image paths in a directory.
+
+    Args:
+        path: A directory of images.
+
+    Returns:
+        Image paths.
+    """
+
+    if not isinstance(path, Path | str):
+        raise ValueError(f"Invalid path '{path}'")
+
+    path = Path(path)
+    if path.is_file():
+        # Single file, return as list.
+        return [path]
+
+    entries = path.glob("**/*")
+    image_paths = []
+    for entry in entries:
+
+        if not ft.is_image(entry):
+            continue
+
+        image_paths.append(entry)
+
+    return image_paths
+
+
+def get_image_metadata(image: bytes | str | Path) -> ImageMeta:
+    """
+    Get some reproducible image metadata.
+
+    Args:
+        image: Binary content or a path to an existing image.
+
+    Returns:
+        A tuple contiaining the image metadata.
+    """
+
+    if isinstance(image, str | Path):
+        image = Path(image).read_bytes()
+
+    _hash = get_image_hash(image)
+    _uuid = hash2uuid(_hash)
+    ext = ft.guess_extension(image).lower()
+
+    return ImageMeta(image, _hash, _uuid, ext)
+
+
+def get_geohash_shard_path(location: shapely.Point):
+    """Get nested geo-hash path for given location given as a WKB point.
+
+    Geo-hash precision from
+    https://python-bloggers.com/2024/02/geohashing-from-scratch-in-python/
+    Precision          Dimension
+            1: 5,000km x 5,000km
+            2:   1,250km x 625km
+            3:     156km x 156km
+            4:   31.9km x 19.5km
+            5:   4.89km x 4.89km
+            6:   1.22km x 0.61km
+            7:       153m x 153m
+            8:     38.2m x 19.1m
+            9:     4.77m x 4.77m
+           10:    1.19m x 0.596m
+           11:     149mm x 149mm
+           12:   37.2mm x 18.6mm
+        Each level of precision subdivides the previous level into 32 subtiles.
+    Shard path of precision 7, split in three parts abc/de/fg
+    abc/ --> region level
+    de/ --> neighbourhood scale (max 32x32 = 1024 per region)
+    fg/ --> block level  (max 32x32 = 1024 per neighbourhood)
+    """
+    geom = shapely.from_wkb(location)
+    geohash = pygeohash.encode(geom.y, geom.x, precision=7)  # 153m x 153m
+    return Path(geohash[:2]) / geohash[2:4] / geohash[4:6]
+
+
+def uuid7(as_str: bool = False) -> uuid.UUID | str:
+    """
+    Return a UUID7 instance, optionally converted to string.
+
+    Args:
+        as_str: If True, convert the UUID to string before returning.
+
+    Returns:
+        The UUID.
+    """
+    u = __uuid7()
+    return u if not as_str else str(u)
+
+
+def seg2poly(segmentation: np.ndarray) -> shp.MultiPolygon:
+    """
+    Convert a segmentation to a Shapely MultiPolygon.
+
+    Args:
+        segmentation: An instance segmentation.
+
+    Returns:
+        A MultiPolygon defining the outlines of the instance.
+        Using a MultiPolygon in case instances consist of
+        disconnected regions that have to be described
+        with multiple polygons.
+    """
+
+    # NOTE: Stub - to be implemented
+    canvas = np.zeros_like(segmentation)
+    contour = ski.segmentation.mark_boundaries(canvas, segmentation)
+    nz = np.nonzero(contour)
+    # ...
+
+
+def save_instances(
+    path: Path | str,
+    instances: np.ndarray,
+    fmt: str = "npz",
+):
+    """
+    Save a segmentation.
+
+    Args:
+        path: The file to save instances to.
+        instances: NumPy array of instance masks.
+        fmt: Format of the saved file.
+    """
+
+    path = Path(path)
+    if path.is_dir():
+        raise ValueError(
+            f"The provided path is a directory, please provide a file path."
+        )
+
+    fpath = path.with_suffix(f".{fmt}")
+    ensure_dir(path.parent)
+    match fmt:
+        case "npz":
+            np.savez_compressed(fpath, instances)
+        case "npy":
+            np.save(fpath, instances)
+        # TODO: Add parquet and efficient geometry storage.
+        # NOTE: Check if it's possible do do away with this step
+        # entirely by storing segmentation outlines as polygons
+        # straight into the database.
+        case _:
+            np.savez_compressed(fpath, instances)

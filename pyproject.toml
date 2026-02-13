@@ -13,8 +13,8 @@ dependencies = [
     "duckdb",
     "environs",
     "ephem",
-    "fiona",
     "filetype",
+    "fiona",
     "geodatasets",
     "geopandas",
     "h3",
@@ -22,6 +22,7 @@ dependencies = [
     "huggingface_hub[cli]",
     "humanize",
     "ibis-framework[duckdb,geospatial]",
+    "imageio[pyav]",
     "ipykernel",
     "ipywidgets",
     "loguru",
@@ -50,6 +51,7 @@ dependencies = [
     "tqdm",
     "transformers",
     "uuid7gen",
+    "typer>=0.23.0",
 ]
 authors = [
     { name = "Claire Donnelly", email = "c.donnelly@esciencecenter.nl" },
@@ -82,11 +84,13 @@ explorer = [
 dev = [
     "fastapi[standard]",
     "pytest>=8.4.2",
+    "mimesis",
     "ruff",
     "py-spy",
     "mike",
     "mkdocs",
     "mkdocstrings[python]",
+    "mkdocs-autoapi>=0.4.1",
     "mkdocs-material",
     "mkdocs-jupyter",
 ]

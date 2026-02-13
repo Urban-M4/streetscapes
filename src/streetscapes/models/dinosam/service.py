@@ -1,13 +1,13 @@
 import numpy as np
 import orjson as oj
 from pydantic import BaseModel
-
+import uuid
 from streetscapes import utils
 from streetscapes.models.dinosam.model import DinoSAM
 
 
 class DinoSAMImage(BaseModel):
-    hash: bytes
+    uid: uuid.UUID
     image: bytes
 
 
@@ -16,7 +16,7 @@ class DinoSAMRequest(BaseModel):
     prompt: str | list[str]
 
 class DinoSAMResponse(BaseModel):
-    hash: bytes
+    uid: uuid.UUID
     labels: list[str]
     instances: bytes
 
@@ -43,14 +43,14 @@ class DinoSAMService:
     def handle(self, request: dict) -> dict:
         req = DinoSAMRequest(**request)
 
-        hashes = []
+        uids = []
         images = []
         for entry in req.images:
-            hashes.append(entry.hash)
+            uids.append(entry.uid)
             images.append(np.array(oj.loads(entry.image)))
 
         # Segment the images
-        segmentations = self.model.segment_images(hashes, images, req.prompt)
+        segmentations = self.model.segment_images(uids, images, req.prompt)
 
         # Construct the response
         response = []

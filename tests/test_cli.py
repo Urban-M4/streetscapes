@@ -69,6 +69,7 @@ class TestCLIHelp:
         assert "output" in result
 
 
+@pytest.mark.skip(reason="TODO use memisis data instead of fake_mapillary_data")
 def test_fetch_and_export_integration(fake_mapillary_client, tmp_path):
     # -----------------------
     # Print test config

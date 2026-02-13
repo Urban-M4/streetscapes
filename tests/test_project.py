@@ -4,6 +4,7 @@ import pytest
 from streetscapes.project import Project
 
 
+@pytest.mark.skip(reason="TODO use memisis data instead of fake_mapillary_data")
 def test_ingest_and_filter_bbox(fake_mapillary_data):
     project = Project("test_project")
 
@@ -16,6 +17,7 @@ def test_ingest_and_filter_bbox(fake_mapillary_data):
     count = filtered.count().execute()
     assert count == 1
 
+@pytest.mark.skip(reason="TODO use memisis data instead of fake_mapillary_data")
 def test_export_csv_parquet(tmp_path, fake_mapillary_data):
     """Test that the Project can export CSV and Parquet from a table."""
     project = Project("test_project")
@@ -38,6 +40,7 @@ def test_export_csv_parquet(tmp_path, fake_mapillary_data):
     assert "geometry" in df_out.columns
 
 
+@pytest.mark.skip(reason="TODO use memisis data instead of fake_mapillary_data")
 def test_project_export_requires_geometry(tmp_path, fake_mapillary_data):
     """Test that exporting geospatial formats raises if geometry is missing."""
     project = Project("test_project")

@@ -1,69 +1,98 @@
-"""Command line interface for BFMS model."""
+from typing import cast
 
-import logging
-from pathlib import Path
-
-import filetype as ft
 import imageio.v3 as iio
 import numpy as np
 import orjson as oj
 
-from streetscapes import config
-from streetscapes.models.bfms.db import SCHEMA
+from streetscapes import config, utils
 from streetscapes.project import Project
 from streetscapes.serve.server import serve_model
-from streetscapes.models.bfms.db import save_segmentation
-
-logger = logging.getLogger(__name__)
+from streetscapes.utils.logging import logger
 
 
 def cli(
-    image_path: str,
-    model_params: dict | None = None,
+    image_path: str | None = None,
+    run: str | None = None,
+    project: str = cast("str", config.get("active_project", "streetscapes")),
     overwrite: bool = False,
-    bootstrap: bool = False,
 ):
-    """Segment images with BFMS.
+    """
+    Segment images with BFMS.
 
     Args:
-        image_path: Path to an image or a directory of images.
-        model_params: Optional parameters to pass to the Ray Serve deployment.
-        overwrite: Whether to overwrite existing segmentations.
-        bootstrap: (Re)create the model table.
+        image_path: Path to the images to be segmented.
+            If not provided uses all downloaded images in the project.
+        run: Model run ID.
+        project: The project to use.
+        overwrite: Overwrite an existing run.
     """
-    # Resolve paths
-    image_path = Path(image_path)
-    if image_path.is_dir():
-        image_paths = [p for p in image_path.glob("*.*") if ft.is_image(p)]
-    else:
-        image_paths = [image_path] if ft.is_image(image_path) else []
-
-    if not image_paths:
-        return
-
-    model_name = "bfms"
 
     # Open the project
-    project = Project(config.get("active_project"))
-    project.ensure_table(model_name, SCHEMA, bootstrap)
+    proj = Project(project)
 
-    # Determine which images need processing
-    processed, unprocessed = project.get_segmentation_status(image_paths, model_name, overwrite)
+    # Save the run metadata.
+    # ==================================================
+    model = "bfms"
+    model_params = {}
+    if run is None:
+        run = utils.uuid7(as_str=True)
 
-    # Initialize Ray Serve handle
-    handle = serve_model(model_name, **(model_params or {}))
-    logger.info(f"Segmenting {len(unprocessed)} images using BFMS...")
+    proj.add_run(run, model, model_params, overwrite)
 
-    # Process images one by one
-    for img_hash, img_path in unprocessed:
+    # Get all images that need to be processed.
+    # ==================================================
+    if image_path is not None:
+        image_paths = utils.get_image_paths(image_path)
+        if len(image_paths) == 0:
+            logger.info(f"Nothing to process.")
+            return
 
-        # Extract the hashes
-        image = np.asarray(iio.imread(img_path))
+        uids = list(map(utils.get_image_uuid, image_paths))
+    else:
+        uids = proj.get_image_uuids()
+    processed, unprocessed = proj.get_segmentation_status(uids, run)
 
-        # Create request for the service
-        request = {"image": oj.dumps(image, option=oj.OPT_SERIALIZE_NUMPY)}
+    if len(unprocessed) == 0:
+        logger.info(f"Nothing to process.")
+        return
+
+    # Create the archive directory.
+    # ==================================================
+    archive_dir = utils.ensure_dir(
+        proj.get_archive_dir_for_model(
+            model,
+            create=True,
+        )
+        / str(run)
+    )
+
+    # Segment the images and save the segmentations.
+    # ==================================================
+    # Ray Serve handle.
+    handle = serve_model(model)
+    logger.info(f"Segmenting {len(unprocessed)} images using {model}...")
+
+    # NOTE: BFMS does not support a batch mode.
+    for image_idx, uid in enumerate(unprocessed, 1):
+
+        # Extract the paths and open the images as NumPy arrays.
+        path, source = unprocessed[uid]
+        request = {
+            "image": oj.dumps(
+                np.asarray(iio.imread(path)),
+                option=oj.OPT_SERIALIZE_NUMPY,
+            )
+        }
+
+        # Process the images
+        logger.info(f"Segmenting image [{image_idx:>4d}/{len(unprocessed):>4d}]...")
         response = handle.remote(request).result()
-        response.hash = img_hash
+        logger.debug(f"Successfully segmented image {uid}, saving instances.")
+
+        # Save the instances.
+        sub = path.relative_to(proj.get_image_dir_for_source(source))
+        instances = oj.loads(response.instances)
+        utils.save_instances(archive_dir / sub, instances)
 
         # Save segmentation immediately
-        save_segmentation(project, model_params, response, processed)
+        proj.add_segmentation(run, uid, response.labels)
