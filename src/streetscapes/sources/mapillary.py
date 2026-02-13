@@ -1,18 +1,18 @@
 # streetscapes/sources/mapillary.py
 import logging
+import uuid
 from pathlib import Path
 from time import sleep
+
 import geopandas as gpd
 import pandas as pd
 import requests
 from shapely.geometry import Point
-from PIL import Image
-import uuid
+
 from streetscapes import utils
+from streetscapes.project import Project
 from streetscapes.utils.bbox import Bbox
 from streetscapes.utils.metadata import ImageMeta
-from streetscapes.project import Project
-from streetscapes.cli.console import console
 
 logger = logging.getLogger(__name__)
 
@@ -130,7 +130,7 @@ class MapillaryClient:
             output_path = output_dir / f"{meta.uid}.{meta.ext}"
             output_path.write_bytes(meta.content)
 
-        meta.path = output_path
+        meta.fpath = output_path
         meta.source = "mapillary"
 
         return meta

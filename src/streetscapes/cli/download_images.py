@@ -1,13 +1,11 @@
-import os
 import logging
+import os
 from pathlib import Path
 
 from cyclopts import App
 from rich.progress import track
 
-import ibis
-from streetscapes import utils
-from streetscapes import config
+from streetscapes import config, utils
 from streetscapes.cli.console import console
 from streetscapes.project import Project
 from streetscapes.sources.mapillary import MapillaryClient
@@ -83,9 +81,8 @@ def mapillary(
         )
 
         # Update the Mapillary table
-        proj._con.raw_sql(
-            f"UPDATE mapillary SET image='{meta.uid}' WHERE id={image_id};"
-        )
+        query = "UPDATE mapillary SET image=? WHERE id=?"
+        proj._con.execute(query, (str(meta.uid), image_id))
 
         downloaded += 1
 

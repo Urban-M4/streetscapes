@@ -1,16 +1,15 @@
-from pathlib import Path
 from itertools import batched
 from typing import cast
-import orjson as oj
-import numpy as np
+
 import imageio as iio
-import filetype as ft
+import numpy as np
+import orjson as oj
 
 from streetscapes import config, utils
-from streetscapes.utils import logger
+from streetscapes.models.maskformer.model import MaskFormer
 from streetscapes.project import Project
 from streetscapes.serve.server import serve_model
-from streetscapes.models.maskformer.model import MaskFormer
+from streetscapes.utils import logger
 
 
 def cli(

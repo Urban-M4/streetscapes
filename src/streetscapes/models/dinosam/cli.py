@@ -1,16 +1,14 @@
 """Command line interface for BFMS model."""
 
 import logging
-from pathlib import Path
 from itertools import batched
-import filetype as ft
+from typing import cast
+
 import imageio.v3 as iio
 import numpy as np
 import orjson as oj
-import ibis
 
-from streetscapes import utils
-from streetscapes import config
+from streetscapes import config, utils
 from streetscapes.project import Project
 from streetscapes.serve.server import serve_model
 
@@ -18,22 +16,23 @@ logger = logging.getLogger(__name__)
 
 
 def cli(
-    image_path: str,
     prompt: str,
+    image_path: str | None = None,
     batch_size: int = 10,
     sam_model_id: str = "facebook/sam2.1-hiera-large",
     dino_model_id: str = "IDEA-Research/grounding-dino-base",
     box_threshold: float = 0.3,
     text_threshold: float = 0.3,
     run: str | None = None,
-    project: str = "streetscapes",
+    project: str = cast("str", config.get("active_project", "streetscapes")),
     overwrite: bool = False,
 ):
     """Segment images with DinoSAM.
 
     Args:
-        image_path: Path to an image or a directory of images.
         prompt: The prompt to use for this model.
+        image_path: Path to an image or a directory of images.
+            If not provided uses all downloaded images in the project.
         batch_size: Batch size for the segmenter.
         sam_model_id: SAM model ID (Huggingface format).
         dino_model_id: Dino model ID (Huggingface format).
@@ -64,12 +63,15 @@ def cli(
 
     # Get all images that need to be processed.
     # ==================================================
-    image_paths = utils.get_image_paths(image_path)
-    if len(image_paths) == 0:
-        logger.info(f"Nothing to process.")
-        return
+    if image_path is not None:
+        image_paths = utils.get_image_paths(image_path)
+        if len(image_paths) == 0:
+            logger.info(f"Nothing to process.")
+            return
 
-    uids = list(map(utils.get_image_uuid, image_paths))
+        uids = list(map(utils.get_image_uuid, image_paths))
+    else:
+        uids = proj.get_image_uuids()[:15]
     processed, unprocessed = proj.get_segmentation_status(uids, run)
 
     if len(unprocessed) == 0:

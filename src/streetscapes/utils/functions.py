@@ -1,22 +1,22 @@
 import os
 import re
+import sys
+import uuid
+from collections.abc import Iterable
+from datetime import datetime
+from hashlib import sha256
 from pathlib import Path
-from typing import TYPE_CHECKING
+
+import filetype as ft
 import geopandas as gpd
 import numpy as np
+import pygeohash
 import seedir as sd
+import shapely
+import shapely as shp
 import skimage as ski
 from dotenv import load_dotenv
 from IPython import get_ipython
-from collections.abc import Iterable
-from datetime import datetime
-import filetype as ft
-from hashlib import sha256
-import uuid
-import sys
-import shapely
-import pygeohash
-import shapely as shp
 
 from streetscapes.utils.metadata import ImageMeta
 
@@ -456,14 +456,14 @@ def get_image_hash(image: str | Path | bytes) -> bytes:
         image: The path to the file or raw bytes.
 
     Returns:
-        SHA-265 digest.
+        SHA-256 digest.
     """
 
     if isinstance(image, str | Path):
         image = Path(image).read_bytes()
 
     if not ft.is_image(image):
-        return
+        raise ValueError("The provided file is not an image.")
 
     return sha256(image).digest()
 

@@ -90,8 +90,12 @@ streetscapes config set active_project amsterdam
 streetscapes fetch-metadata mapillary --bbox  4.87 52.36 4.91 52.39
 # 3. Fetch images from mapillary
 streetscapes download-images mapillary
-# 4. Segment images with maskformer using a subset of labels
+# 4.1. Segment images with maskformer using a subset of labels
 streetscapes segment_images maskformer --labels building --labels vegetation --labels wall
+# 4.2. Segment images with Building/Facade Material Segmentation model (bfms)
+streetscapes segment_images bfms
+# 4.3 Segment images with DinoSAM using a custom prompt
+streetscapes segment_images dinosam --prompt 'building vegetation car truck road'
 ```
 
 <!-- Potential other commands to be implemented

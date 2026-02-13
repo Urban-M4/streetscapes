@@ -1,17 +1,15 @@
-from streetscapes.project import Project
 import uuid
-import uuid7gen
-import shapely as shp
-from mimesis import Field, Schema, Fieldset
-from mimesis.schema import SchemaBuilder
-from mimesis.locales import Locale
-from mimesis import keys
-from pandas import DataFrame
-from cyclopts import App
-from pathlib import Path
+
 import ibis
+import shapely as shp
+from cyclopts import App
+from mimesis import Field, Fieldset, Schema, keys
+from mimesis.locales import Locale
+from mimesis.schema import SchemaBuilder
+from pandas import DataFrame
 
 from streetscapes import utils
+from streetscapes.project import Project
 
 bootstrap_cli = App(help="Bootstrap project database.")
 ibis.options.interactive = True

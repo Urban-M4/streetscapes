@@ -1,17 +1,19 @@
-from itertools import batched
+from typing import cast
+
 import imageio.v3 as iio
 import numpy as np
 import orjson as oj
-from streetscapes import utils
-from streetscapes.utils.logging import logger
+
+from streetscapes import config, utils
 from streetscapes.project import Project
 from streetscapes.serve.server import serve_model
+from streetscapes.utils.logging import logger
 
 
 def cli(
-    image_path: str,
+    image_path: str | None = None,
     run: str | None = None,
-    project: str = "streetscapes",
+    project: str = cast("str", config.get("active_project", "streetscapes")),
     overwrite: bool = False,
 ):
     """
@@ -19,6 +21,7 @@ def cli(
 
     Args:
         image_path: Path to the images to be segmented.
+            If not provided uses all downloaded images in the project.
         run: Model run ID.
         project: The project to use.
         overwrite: Overwrite an existing run.
@@ -38,12 +41,15 @@ def cli(
 
     # Get all images that need to be processed.
     # ==================================================
-    image_paths = utils.get_image_paths(image_path)
-    if len(image_paths) == 0:
-        logger.info(f"Nothing to process.")
-        return
+    if image_path is not None:
+        image_paths = utils.get_image_paths(image_path)
+        if len(image_paths) == 0:
+            logger.info(f"Nothing to process.")
+            return
 
-    uids = list(map(utils.get_image_uuid, image_paths))
+        uids = list(map(utils.get_image_uuid, image_paths))
+    else:
+        uids = proj.get_image_uuids()
     processed, unprocessed = proj.get_segmentation_status(uids, run)
 
     if len(unprocessed) == 0:

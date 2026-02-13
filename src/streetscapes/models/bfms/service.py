@@ -1,7 +1,7 @@
 import numpy as np
 import orjson as oj
 from pydantic import BaseModel
-import uuid
+
 from streetscapes.models.bfms.model import BFMS
 
 
