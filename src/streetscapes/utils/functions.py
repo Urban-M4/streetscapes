@@ -1,7 +1,7 @@
 import os
 import re
 from pathlib import Path
-import torch
+from typing import TYPE_CHECKING
 import geopandas as gpd
 import numpy as np
 import seedir as sd
@@ -426,7 +426,7 @@ def extract_categories(prompt: str | list[str]) -> dict:
     return f"{prompt.strip()}."
 
 
-def get_device(device: torch.device | str | None) -> torch.device:
+def get_device(device: "torch.device | str | None") -> "torch.device":
     """Get a Torch device.
 
     Args:
@@ -435,6 +435,7 @@ def get_device(device: torch.device | str | None) -> torch.device:
     Returns:
         A torch.device object.
     """
+    import torch
 
     if isinstance(device, torch.device):
         return device
