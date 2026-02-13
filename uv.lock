@@ -2114,6 +2114,19 @@ wheels = [
 ]
 
 [[package]]
+name = "mkdocs-autoapi"
+version = "0.4.1"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "mkdocs" },
+    { name = "mkdocstrings" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/00/22/75c85eb1129754da3d1275a599e924ee266a94c68d94db632f58e1f5897e/mkdocs_autoapi-0.4.1.tar.gz", hash = "sha256:3ea73c66361124afea8024a5cb2d681b8d88c3137b6acfed6fe31e11f7b8cf85", size = 21947, upload-time = "2025-04-02T02:12:59.746Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/c9/9a/41dd5bb54cb698fa6e7e970fc224df9e53ca26ca8951f5647769ba2150cb/mkdocs_autoapi-0.4.1-py3-none-any.whl", hash = "sha256:0f6903058c1a790c6180870559ad930fea04da93961371e21ff23cd010f09c78", size = 24280, upload-time = "2025-04-02T02:12:58.735Z" },
+]
+
+[[package]]
 name = "mkdocs-autorefs"
 version = "1.4.2"
 source = { registry = "https://pypi.org/simple" }
@@ -4408,6 +4421,7 @@ dev = [
     { name = "mike" },
     { name = "mimesis" },
     { name = "mkdocs" },
+    { name = "mkdocs-autoapi" },
     { name = "mkdocs-jupyter" },
     { name = "mkdocs-material" },
     { name = "mkdocstrings", extra = ["python"] },
@@ -4448,6 +4462,7 @@ requires-dist = [
     { name = "mimesis", marker = "extra == 'dev'" },
     { name = "mit-semseg" },
     { name = "mkdocs", marker = "extra == 'dev'" },
+    { name = "mkdocs-autoapi", marker = "extra == 'dev'", specifier = ">=0.4.1" },
     { name = "mkdocs-jupyter", marker = "extra == 'dev'" },
     { name = "mkdocs-material", marker = "extra == 'dev'" },
     { name = "mkdocstrings", extras = ["python"], marker = "extra == 'dev'" },

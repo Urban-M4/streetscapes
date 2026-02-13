@@ -9,17 +9,6 @@ nav:
       - Using data sources: examples/use_data_sources.ipynb
       - Segmenting downloaded images: examples/segmentation.ipynb
       - Rasterise data: examples/rasterise.ipynb
-  - API:
-      - Models:
-          - Base: api/models/base.md
-          - MaskFormer: api/models/maskformer.md
-          - DinoSam: api/models/dinosam.md
-      - Sources:
-          - Hugging Face: api/sources/hf.md
-          - Images: api/sources/image.md
-      - Utils:
-          - Functions: api/utils/functions.md
-      - Main: api/main.md
   - About:
       - Licence: about/licence.md
       - Contributing: about/contributing.md
@@ -52,10 +41,13 @@ theme:
   nav_style: dark
 plugins:
   - search
+  - mkdocs-autoapi:
+      autoapi_dir: src
   - mkdocstrings:
       handlers:
         python:
-          paths: [..]
+          paths:
+            - src
           options:
             show_source: false
             group_by_category: false

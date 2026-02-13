@@ -90,6 +90,7 @@ dev = [
     "mike",
     "mkdocs",
     "mkdocstrings[python]",
+    "mkdocs-autoapi>=0.4.1",
     "mkdocs-material",
     "mkdocs-jupyter",
 ]

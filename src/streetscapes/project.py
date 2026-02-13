@@ -1,21 +1,17 @@
+import shutil
+import uuid
 from pathlib import Path
 
+import duckdb
 import ibis
+import orjson as oj
+import platformdirs as pdirs
+import shapely as shp
 from pandas import DataFrame
 from shapely.geometry import box
-import numpy as np
-import uuid
-import duckdb
-import platformdirs as pdirs
-import orjson as oj
-import shapely as shp
-import shutil
 
-from streetscapes import utils
-from streetscapes import config
-from streetscapes import logger
+from streetscapes import config, logger, utils
 from streetscapes.utils.bbox import Bbox
-from streetscapes.utils.metadata import ImageMeta
 
 
 class Project:
