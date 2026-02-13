@@ -1,11 +1,12 @@
 from pathlib import Path
 from itertools import batched
+from typing import cast
 import orjson as oj
 import numpy as np
 import imageio as iio
 import filetype as ft
 
-from streetscapes import utils
+from streetscapes import config, utils
 from streetscapes.utils import logger
 from streetscapes.project import Project
 from streetscapes.serve.server import serve_model
@@ -13,7 +14,7 @@ from streetscapes.models.maskformer.model import MaskFormer
 
 
 def cli(
-    image_path: str,
+    image_path: str | None = None,
     labels: list[str] | None = None,
     batch_size: int = 10,
     model_id: str = "facebook/mask2former-swin-large-mapillary-vistas-panoptic",
@@ -22,13 +23,13 @@ def cli(
     overlap_threshold: float = 0.8,
     fuse_labels: list[str] | None = None,
     run: str | None = None,
-    project: str = "streetscapes",
+    project: str = cast("str", config.get("active_project", "streetscapes")),
     overwrite: bool = False,
 ):
     """Segment images with MaskFormer.
 
     Args:
-        image_path: Path to the images to be segmented.
+        image_path: Path to the images to be segmented. If not provided uses all downloaded images in the project.
         labels: Labels to focus on.
         batch_size: Batch size for the segmentation model.
         model_id: Mask2Former model to load.
@@ -38,7 +39,7 @@ def cli(
             disconnected parts within each binary instance mask.
         fuse_labels: The labels in this state will have all their instances fused together.
         run: Model run ID.
-        project: The project to use.
+        project: The project to use. Uses the active project by default.
         overwrite: Overwrite an existing run.
     """
 
@@ -62,12 +63,15 @@ def cli(
 
     # Get all images that need to be processed.
     # ==================================================
-    image_paths = utils.get_image_paths(image_path)
-    if len(image_paths) == 0:
-        logger.info(f"Nothing to process.")
-        return
+    if image_path is not None:
+        image_paths = utils.get_image_paths(image_path)
+        if len(image_paths) == 0:
+            logger.info(f"Nothing to process.")
+            return
 
-    uids = list(map(utils.get_image_uuid, image_paths))
+        uids = list(map(utils.get_image_uuid, image_paths))
+    else:
+        uids = proj.get_image_uuids()
     processed, unprocessed = proj.get_segmentation_status(uids, run)
 
     if len(unprocessed) == 0:

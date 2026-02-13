@@ -43,7 +43,7 @@ def mapillary(
         raise typer.Exit(code=1)
 
     m = MapillaryClient(token)
-    project = Project(project or config.get("active_project"))
+    aproject = Project(project or config.get("active_project"))
 
     ntiles, tiles = split_bbox(bbox, tile_size)
     logger.info(f"Splitting bbox in {ntiles} tiles with {tile_size=}")
@@ -56,11 +56,11 @@ def mapillary(
         if len(df) == 0:
             continue
 
-        project.ingest_mapillary(df)
+        aproject.ingest_mapillary(df)
 
     # Inform user about result
     ibis.options.interactive = True
-    filtered = project.filter_bbox("mapillary", bbox)
+    filtered = aproject.filter_bbox("mapillary", bbox)
     logger.info(f"Total images in bbox: {filtered.count().execute()}, first 5 rows:")
     console.print(filtered.limit(5))  # console print gives nicer table than logger
     logger.info("Ready.")

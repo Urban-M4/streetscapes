@@ -730,6 +730,14 @@ class Project:
         # Execute as batch
         self._con.con.executemany(sql, params)
 
+    def get_image_uuids(self) -> list[uuid.UUID]:
+        """Return a list of all image UUIDs in the project."""
+        t = self.table("images")
+        if t is None:
+            raise ValueError("The 'images' table is not present in the database.")
+        result = t.select("uuid").to_pyarrow().to_pydict()
+        return [uuid.UUID(u) for u in result["uuid"]]
+
     def filter_bbox(
         self,
         table: str,
@@ -799,9 +807,13 @@ class Project:
         }
         t_map = self.table("mapillary")
         t_img = self.table("images")
+        if t_img is None or t_map is None:
+            raise ValueError("Required tables 'mapillary' and 'images' are not present in the database.")
         t = t_map.outer_join(t_img, t_map.image == t_img.uuid)
         t = t.select(**keys)
-        data = t.filter([t.image.notnull()]).to_pyarrow().to_pydict()
+        # images that have been downloaded have `image IS NOT NULL`, 
+        # so we filter those out to get the missing ones.
+        data = t.filter([t.image.isnull()]).to_pyarrow().to_pydict()
         if len(data) == 0:
             return [() * len(keys)]
         return list(zip(*[data[k] for k in keys]))
