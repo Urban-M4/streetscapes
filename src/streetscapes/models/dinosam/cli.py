@@ -99,7 +99,8 @@ def cli(
             "images": [],
             "prompt": prompt,
         }
-        for uid, (path, source) in unprocessed.items():
+        for uid in batch:
+            path, source = unprocessed[uid]
             img_data = {
                 "uid": uid,
                 "image": oj.dumps(

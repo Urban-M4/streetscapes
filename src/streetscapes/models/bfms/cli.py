@@ -70,8 +70,7 @@ def cli(
     for image_idx, uid in enumerate(unprocessed, 1):
 
         # Extract the paths and open the images as NumPy arrays.
-        path = unprocessed[uid][0]
-        source = unprocessed[uid][1]
+        path, source = unprocessed[uid]
         request = {
             "image": oj.dumps(
                 np.asarray(iio.imread(path)),
