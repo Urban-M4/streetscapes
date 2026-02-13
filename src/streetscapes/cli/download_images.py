@@ -81,8 +81,9 @@ def mapillary(
         )
 
         # Update the Mapillary table
-        query = "UPDATE mapillary SET image=? WHERE id=?"
-        proj._con.execute(query, (str(meta.uid), image_id))
+        proj._con.raw_sql(
+            f"UPDATE mapillary SET image='{meta.uid}' WHERE id={image_id};"
+        )
 
         downloaded += 1
 
