@@ -71,7 +71,7 @@ def cli(
 
         uids = list(map(utils.get_image_uuid, image_paths))
     else:
-        uids = proj.get_image_uuids()[:15]
+        uids = proj.get_image_uuids()
     processed, unprocessed = proj.get_segmentation_status(uids, run)
 
     if len(unprocessed) == 0:
