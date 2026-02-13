@@ -544,11 +544,11 @@ def get_image_metadata(image: bytes | str | Path) -> ImageMeta:
     if isinstance(image, str | Path):
         image = Path(image).read_bytes()
 
-    ihash = get_image_hash(image)
-    iuuid = hash2uuid(ihash)
+    _hash = get_image_hash(image)
+    _uuid = hash2uuid(_hash)
     ext = ft.guess_extension(image).lower()
 
-    return ImageMeta(image, ihash, iuuid, ext)
+    return ImageMeta(image, _hash, _uuid, ext)
 
 
 def get_geohash_shard_path(location: shapely.Point):

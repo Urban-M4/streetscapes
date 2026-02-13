@@ -792,15 +792,15 @@ class Project:
         """Return list of (id, url, location) for Mapillary images to download."""
 
         keys = {
-            "uid": "uuid",
+            "image": "image",
             "id": "id",
             "url": "thumb_2048_url",
-            "path": "path",
+            "shard": "shard",
             "location": "geometry",
         }
         t_map = self.table("mapillary")
         t_img = self.table("images")
-        t = t_map.outer_join(t_img, t_map.uuid == t_img.uuid)
+        t = t_map.outer_join(t_img, t_map.image == t_img.uuid)
         t = t.select(**keys)
         data = t.to_pyarrow().to_pydict()
         if len(data) == 0:

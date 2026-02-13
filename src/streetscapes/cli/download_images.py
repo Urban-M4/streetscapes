@@ -53,18 +53,14 @@ def mapillary(
     console.print(f"Downloading {total} image(s) to {image_dir}.")
 
     # Add metadata to batch
-    image_data = {
-        k: [None for _ in range(len(records))]
-        for k in proj.core_tables["images"]["schema"]
-    }
-
+    image_data = {k: [] for k in proj.schema("images")}
     downloaded = 0
 
     for idx, (uid, image_id, url, shard, location) in track(
         enumerate(records), "Downloading images...", total=len(records)
     ):
 
-        # Determine the path
+        # Determine the shard
         output_dir = Path(image_dir)
         shard = None
         if location is not None:
@@ -78,13 +74,13 @@ def mapillary(
         meta.shard = str(shard)
 
         # Image registration
-        image_data["uuid"][idx] = ibis.uuid(meta.iuuid).to_pyarrow()
-        image_data["source"][idx] = meta.source
-        image_data["shard"][idx] = meta.shard
+        image_data["uuid"].append(ibis.uuid(meta.uid).to_pyarrow())
+        image_data["source"].append(meta.source)
+        image_data["shard"].append(meta.shard)
 
         # Update the Mapillary table
         proj._con.raw_sql(
-            f"UPDATE mapillary SET uuid='{meta.iuuid}' WHERE id={image_id};"
+            f"UPDATE mapillary SET image='{meta.uid}' WHERE id={image_id};"
         )
 
         downloaded += 1

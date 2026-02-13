@@ -119,13 +119,15 @@ class MapillaryClient:
             content = response.content
 
         if content is None:
-            raise ValueError(f"Failed to download image with UUID '{uid}': empty content")
+            raise ValueError(
+                f"Failed to download image with UUID '{uid}': empty content"
+            )
 
         meta = utils.get_image_metadata(content)
 
         if uid is None and output_dir is not None:
             utils.ensure_dir(output_dir)
-            output_path = output_dir / f"{meta.iuuid}.{meta.ext}"
+            output_path = output_dir / f"{meta.uid}.{meta.ext}"
             output_path.write_bytes(meta.content)
 
         meta.path = output_path

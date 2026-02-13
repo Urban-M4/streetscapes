@@ -1,5 +1,4 @@
 from dataclasses import dataclass
-import io
 import uuid
 from pathlib import Path
 
@@ -7,8 +6,8 @@ from pathlib import Path
 class ImageMeta:
 
     content: bytes
-    ihash: bytes
-    iuuid: uuid.UUID
+    hash: bytes
+    uid: uuid.UUID
     ext: str
     fpath: str | Path | None = None
     source: str | None = None
