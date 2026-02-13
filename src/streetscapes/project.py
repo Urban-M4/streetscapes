@@ -198,7 +198,6 @@ class Project:
         Args:
             overwrite: Overwrite an existing database.
         """
-        self._use_db()
         if self._db_name in self._con.list_databases():
             if overwrite:
                 # First, drop all the tables:
@@ -850,8 +849,3 @@ class Project:
         """Ensure table has a geometry column before geospatial export."""
         if "geometry" not in self.table(table).columns:
             raise ValueError(f"{fmt} export requires a 'geometry' column in '{table}'.")
-
-
-if __name__ == "__main__":
-    project = Project("streetscapes")
-    project.bootstrap(overwrite=True)
