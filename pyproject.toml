@@ -52,6 +52,7 @@ dependencies = [
     "tqdm",
     "transformers",
     "uuid7gen",
+    "typer>=0.23.0",
 ]
 authors = [
     { name = "Claire Donnelly", email = "c.donnelly@esciencecenter.nl" },
