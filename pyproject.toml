@@ -28,7 +28,6 @@ dependencies = [
     "loguru",
     "matplotlib",
     "mit-semseg",
-    "mimesis",
     "numpy",
     "orjson",
     "osmnx",
@@ -85,6 +84,7 @@ explorer = [
 dev = [
     "fastapi[standard]",
     "pytest>=8.4.2",
+    "mimesis",
     "ruff",
     "py-spy",
     "mike",
