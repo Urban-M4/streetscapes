@@ -9,7 +9,6 @@ from streetscapes import utils
 from streetscapes.utils import logger
 from streetscapes.project import Project
 from streetscapes.serve.server import serve_model
-from streetscapes.models.maskformer.db import SCHEMA, save_segmentations
 from streetscapes.models.maskformer.model import MaskFormer
 
 
