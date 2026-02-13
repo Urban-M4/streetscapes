@@ -802,7 +802,7 @@ class Project:
         t_img = self.table("images")
         t = t_map.outer_join(t_img, t_map.image == t_img.uuid)
         t = t.select(**keys)
-        data = t.to_pyarrow().to_pydict()
+        data = t.filter([t.image.notnull()]).to_pyarrow().to_pydict()
         if len(data) == 0:
             return [() * len(keys)]
         return list(zip(*[data[k] for k in keys]))
