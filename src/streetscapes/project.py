@@ -121,7 +121,6 @@ class Project:
         # Timestamp precision
         # TODO: Move all these into the configuration.
         self._timespec = "microseconds"
-        self._db_name = "metadata"
         self._local_source_name = "local"
 
         # Database connection
@@ -129,11 +128,6 @@ class Project:
             self.db_path,
             extensions=["spatial", "json"],
         )
-
-        if self._db_name not in self._con.list_databases():
-            self.bootstrap()
-
-        self._use_db()
 
     @property
     def db_path(self) -> Path:
@@ -182,42 +176,6 @@ class Project:
         """
         if name in self.core_tables:
             return self.core_tables[name]["schema"]
-
-    def bootstrap(
-        self,
-        overwrite: bool = False,
-    ):
-        """
-        Bootstrap the project with the core tables
-        specified in the `core_tables` attribute.
-
-        Args:
-            overwrite: Overwrite an existing database.
-        """
-        if self._db_name in self._con.list_databases():
-            if overwrite:
-                # First, drop all the tables:
-                for t in self.tables:
-                    self._con.truncate_table(t, database=self._db_name)
-                    self._con.drop_table(t, database=self._db_name, force=True)
-                self._con.drop_database(self._db_name, force=True)
-            else:
-                return
-
-        self._con.create_database(self._db_name)
-        self._use_db()
-
-        # Tables that should exist in every project.
-        # Just update the set with table names
-        # and define the schema in the `schema` property.
-
-        self._con.con.commit()
-        for name, items in self.core_tables.items():
-            self.ensure_table(name, overwrite=overwrite)
-
-            if (init := items.get("init")) is not None:
-                for sql in init:
-                    self._con.raw_sql(sql)
 
     def ensure_table(
         self,
@@ -840,12 +798,6 @@ class Project:
         self._con.raw_sql(
             f"COPY {table} TO '{output_path}' WITH (FORMAT GDAL, DRIVER 'GeoJSON');"
         )
-
-    def _use_db(
-        self,
-        db: str | None = None,
-    ):
-        self._con.raw_sql(f"USE {db or self._db_name};")
 
     # Export functions
     def _select_nonspatial(self, table: str) -> str:
