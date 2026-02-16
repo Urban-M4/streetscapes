@@ -128,6 +128,7 @@ class Project:
             self.db_path,
             extensions=["spatial", "json"],
         )
+        self.bootstrap()
 
     @property
     def db_path(self) -> Path:
@@ -176,6 +177,28 @@ class Project:
         """
         if name in self.core_tables:
             return self.core_tables[name]["schema"]
+
+    def bootstrap(
+        self,
+        overwrite: bool = False,
+    ):
+        """
+        Bootstrap the project with the core tables
+        specified in the `core_tables` attribute.
+
+        Args:
+            overwrite: Overwrite an existing database.
+        """
+        # Tables that should exist in every project.
+        # Just update the set with table names
+        # and define the schema in the `schema` property.
+
+        for name, items in self.core_tables.items():
+            self.ensure_table(name, overwrite=overwrite)
+
+            if (init := items.get("init")) is not None:
+                for sql in init:
+                    self._con.raw_sql(sql)
 
     def ensure_table(
         self,
