@@ -132,7 +132,7 @@ def cli(
                     "run": run,
                     "image": response.uid,
                     "labels": response.labels,
-                    "polygons": mask2poly(instances),
+                    "polygons": mask2poly(instances, model="maskformer"),
                 }
             )
         # Update the segmentation table.

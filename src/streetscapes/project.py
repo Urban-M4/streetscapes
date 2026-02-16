@@ -5,6 +5,7 @@ from pathlib import Path
 import duckdb
 import ibis
 import orjson as oj
+import pandas as pd
 import platformdirs as pdirs
 import shapely as shp
 from pandas import DataFrame
@@ -166,8 +167,7 @@ class Project:
         self,
         name: str,
     ) -> dict | None:
-        """
-        Return the schema for a table.
+        """Return the schema for a table.
 
         Args:
             name: Table name.
@@ -182,9 +182,9 @@ class Project:
         self,
         overwrite: bool = False,
     ):
-        """
-        Bootstrap the project with the core tables
-        specified in the `core_tables` attribute.
+        """Bootstrap the project with the core tables.
+        
+        Tables are specified in the `core_tables` attribute.
 
         Args:
             overwrite: Overwrite an existing database.
@@ -192,13 +192,8 @@ class Project:
         # Tables that should exist in every project.
         # Just update the set with table names
         # and define the schema in the `schema` property.
-
-        for name, items in self.core_tables.items():
+        for name, _ in self.core_tables.items():
             self.ensure_table(name, overwrite=overwrite)
-
-            if (init := items.get("init")) is not None:
-                for sql in init:
-                    self._con.raw_sql(sql)
 
     def ensure_table(
         self,
@@ -206,8 +201,7 @@ class Project:
         schema: dict | ibis.Schema | None = None,
         overwrite: bool = False,
     ) -> ibis.Table:
-        """
-        Ensure that a table exists with the given schema.
+        """Ensure that a table exists with the given schema.
 
         Args:
             name: Table name.
@@ -491,8 +485,7 @@ class Project:
         polygons: shp.GeometryCollection | None = None,
         overwrite: bool = False,
     ):
-        """
-        Add a new segmentation to the database.
+        """Add a new segmentation to the database.
 
         Args:
             run: Model run ID.
@@ -511,7 +504,7 @@ class Project:
             "polygons": [polygons],
         }
 
-        result = self.update_table("segmentations", data, overwrite)
+        result = self.update_table("segmentations", data, overwrite=True)
 
         return result
 
@@ -527,7 +520,6 @@ class Project:
             segmentations: A list of dictionaries containing segmentation data.
             overwrite: Replace or ignore conflicting data.
         """
-
         data = {k: [] for k in self.schema("segmentations")}
 
         for s in segmentations:
@@ -742,40 +734,33 @@ class Project:
         data: dict,
         overwrite: bool = False,
     ):
-        """
-        Update a table.
+        """Update a table.
 
         Args:
             table: The table to update.
             data: Updated data.
             overwrite: Replace or ignore conflicting data.
         """
-
         if table not in self.tables:
             logger.error(
                 f"Project database seems to be corrupted: missing table '{table}'."
             )
-            return
-
-        mt = ibis.memtable(data)
+            return None
 
         try:
             alt = "REPLACE" if overwrite else "IGNORE"
-            self._con.con.register("updated_df", mt.to_pandas())
+            self._con.con.register("updated_df", pd.DataFrame(data))
             self._con.raw_sql(f"INSERT OR {alt} INTO {table} FROM updated_df;")
-            result = mt.to_pyarrow().to_pylist()
-            return result
 
         except duckdb.ConstraintException as e:
-            logger.debug(f"Constraint violation on '{table}': {e}")
+            logger.error(f"Constraint violation on '{table}': {e}")
 
         except Exception as e:
-            logger.debug(f"Error updating table '{table}': {e}")
+            logger.error(f"Error updating table '{table}': {e}")
 
     # TODO: could generalize to "get_records(table, columns, include='missing')"
     def get_mapillary_download_records(self) -> list[tuple[str, str]]:
         """Return list of (id, url, location) for Mapillary images to download."""
-
         keys = {
             "image": "image",
             "id": "id",
