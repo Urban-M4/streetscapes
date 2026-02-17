@@ -750,7 +750,10 @@ class Project:
         try:
             alt = "REPLACE" if overwrite else "IGNORE"
             self._con.con.register("updated_df", pd.DataFrame(data))
-            self._con.raw_sql(f"INSERT OR {alt} INTO {table} FROM updated_df;")
+            if table == "segmentations":
+                self._con.raw_sql(f"INSERT INTO {table} FROM updated_df;")
+            else:
+                self._con.raw_sql(f"INSERT OR {alt} INTO {table} FROM updated_df;")
 
         except duckdb.ConstraintException as e:
             logger.error(f"Constraint violation on '{table}': {e}")

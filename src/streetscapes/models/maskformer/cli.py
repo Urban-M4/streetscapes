@@ -42,7 +42,6 @@ def cli(
         project: The project to use. Uses the active project by default.
         overwrite: Overwrite an existing run.
     """
-
     # Open the project
     proj = Project(project)
 
