@@ -95,7 +95,7 @@ def _get_segmentations(uuid: UUID) -> list[Segmentation]:
     if len(seg_data) < 1:
         msg = f"No segmentations found with ID {id}"
         print(msg)
-        raise ValueError(msg)
+        return []
 
     segmentations = []
 
