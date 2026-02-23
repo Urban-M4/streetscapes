@@ -10,6 +10,7 @@ from uuid import UUID
 import ibis
 import pandas as pd
 import uvicorn
+from cyclopts import App, Parameter
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.params import Query
@@ -31,6 +32,7 @@ app = FastAPI()
 
 origins = [
     "http://localhost",
+    "https://localhost",
     "http://localhost:5173",
     "https://urban-m4.github.io",
 ]
@@ -268,29 +270,61 @@ async def segment_image(image_id, model, run_args):
     pass
 
 
-async def _start_uvicorn():
-    config = uvicorn.Config(app, host="0.0.0.0", port=5000, log_level="info")
+async def _start_uvicorn(port: int, log_info: bool):
+    config = uvicorn.Config(
+        app,
+        host="0.0.0.0",
+        port=port,
+        log_level="info" if log_info else "warning",
+    )
     server = uvicorn.Server(config)
     await server.serve()
 
 
-async def _serve():
-    server = _start_uvicorn()
-    print("Waiting for the streetscapes-explorer to start...")
-    await asyncio.sleep(5)
-    webbrowser.open(
-        "https://urban-m4.github.io/Urban-M5/?s=http://localhost:5000"
-    )
+async def _serve(port: int, open_webpage: bool, log_info: bool):
+    server = _start_uvicorn(port, log_info)
+    if open_webpage:
+        print("Waiting for the streetscapes-explorer to start...")
+        await asyncio.sleep(5)
+        webbrowser.open(
+            f"https://urban-m4.github.io/Urban-M5/?s=http://localhost:{port}"
+        )
+        print(
+            "The streetscapes-explorer should have launched automatically.\n"
+            "To open it manually, go to https://urban-m4.github.io/Urban-M5/ and "
+        )
+    else:
+        print(
+            "Starting the streetscapes-explorer...\n\n"
+            "To open the explorer, go to https://urban-m4.github.io/Urban-M5/ and "
+        )
     print(
-        "The streetscapes-explorer should have launched automatically.\n"
-        "To open it manually, go to https://urban-m4.github.io/Urban-M5/ and "
-        "paste in https://0.0.0.0:5000 as web service.\n"
-        "You will need to disable your ad blocker (like uBlock Origin Lite)"
-        " and allow your web browser to load localhost resources."
+        f"paste in https://0.0.0.0:{port} as web service.\n"
+        "  You will need to disable your ad blocker (like uBlock Origin Lite)\n"
+        "and allow your web browser to load localhost resources."
     )
     await server
 
 
-def serve():
-    """Start the Streetscapes Explorer server."""
-    asyncio.run(_serve())
+cli = App(help="Streetscapes data explorer")
+
+@cli.default
+async def serve(
+    *,
+    port: Annotated[int, Parameter(name=["--port", "-p"])] = 5001,
+    open_webpage: bool = True,
+    verbose_logs: bool = False,
+):
+    """Start the Streetscapes Explorer server.
+    
+    Args:
+        port: port to host the backend on.
+        open_webpage: automatically open a browser window with the frontend viewer,
+            with the backend correctly configured.
+        verbose_logs: display verbose backend server logs, useful for debugging the
+            frontend.
+    """
+    await _serve(port, open_webpage, verbose_logs)
+
+if __name__ == "__main__":
+   cli()
