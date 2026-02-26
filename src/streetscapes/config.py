@@ -5,8 +5,8 @@ CONFIG_FILE = user_config_path("streetscapes", ensure_exists=True) / "config.jso
 
 
 DEFAULTS = {
-    "root_dir": user_data_path("streetscapes"),
-    "data_home": user_cache_path("streetscapes"),
+    "project_dir": user_data_path("streetscapes"),
+    "image_dir": user_cache_path("streetscapes"),
     "active_project": "streetscapes",
 }
 
