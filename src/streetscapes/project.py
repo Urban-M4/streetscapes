@@ -87,8 +87,8 @@ class Project:
     def __init__(
         self,
         name: str | None = None,
+        cache_dir: str | Path | None = None,
         data_dir: str | Path | None = None,
-        root_dir: str | Path | None = None,
     ):
 
         self.name = name or config.get("active_project")
@@ -97,7 +97,7 @@ class Project:
         self.root_dir = utils.ensure_dir(
             config.get(
                 "root_dir",
-                root_dir or pdirs.user_data_path("streetscapes"),
+                data_dir or pdirs.user_data_path("streetscapes"),
             )
         )
         self.project_home = Path(
@@ -109,7 +109,7 @@ class Project:
             config.get(
                 "data_home",
                 utils.ensure_dir(
-                    data_dir or pdirs.user_cache_path("streetscapes"),
+                    cache_dir or pdirs.user_cache_path("streetscapes"),
                 ),
             )
         )
@@ -808,7 +808,7 @@ class Project:
             raise ValueError("Required tables 'mapillary' and 'images' are not present in the database.")
         t = t_map.outer_join(t_img, t_map.image == t_img.uuid)
         t = t.select(**keys)
-        # images that have been downloaded have `image IS NOT NULL`, 
+        # images that have been downloaded have `image IS NOT NULL`,
         # so we filter those out to get the missing ones.
         data = t.filter([t.image.isnull()]).to_pyarrow().to_pydict()
         if len(data) == 0:

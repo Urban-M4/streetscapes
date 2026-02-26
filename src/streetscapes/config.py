@@ -1,11 +1,12 @@
 import json
 from omegaconf import OmegaConf
-from platformdirs import user_config_path, user_cache_path
+from platformdirs import user_config_path, user_cache_path, user_data_path
 
 CONFIG_FILE = user_config_path("streetscapes", ensure_exists=True) / "config.json"
 
 
 DEFAULTS = {
+    "root_dir": user_data_path("streetscapes"),
     "data_home": user_cache_path("streetscapes"),
     "active_project": "streetscapes",
 }
