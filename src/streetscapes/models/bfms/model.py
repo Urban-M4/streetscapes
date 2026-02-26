@@ -7,20 +7,6 @@ from PIL import Image
 from platformdirs import user_data_path
 from streetscapes import utils
 
-# Source: https://figshare.com/s/fd38d547fdb8708381f5
-MODEL_FILES = {
-    "config.json": {
-        "url": "https://figshare.com/ndownloader/files/50246925?private_link=fd38d547fdb8708381f5",
-        "md5": "1b32428cfb4f6cfff8800779364289d4",
-    },
-    "model.safetensors": {
-        "url": "https://figshare.com/ndownloader/files/50246928?private_link=fd38d547fdb8708381f5",
-        "md5": "30c3999e43d1ee20c0685e92256c5d11",
-    },
-}
-
-MODEL_PATH = user_data_path("streetscapes") / "models/bfms"
-
 
 class BFMS:
     """Building/Facade Material Segmentation model based on Mask2Former."""
@@ -28,6 +14,7 @@ class BFMS:
     def __init__(
         self,
         device: str | None = None,
+        model_id: str = "jinfengxie/BFMS_1014",
     ):
         """Load the BFMS model.
 
@@ -36,19 +23,18 @@ class BFMS:
         """
         import transformers as tform
 
-        _ensure_model()
-
         self.device = utils.get_device(device)
 
-        config = tform.Mask2FormerConfig.from_pretrained(MODEL_PATH / "config.json")
+        config = tform.Mask2FormerConfig.from_pretrained(model_id)
 
         self.model = tform.Mask2FormerForUniversalSegmentation.from_pretrained(
-            MODEL_PATH / "model.safetensors",
+            model_id,
             config=config,
         ).to(self.device)
 
+        config.to_json_file("/tmp/bfms-config.json")
         self.processor = tform.AutoImageProcessor.from_pretrained(
-            MODEL_PATH / "config.json",
+            "/tmp/bfms-config.json",
             use_fast=True,
         )
 
@@ -204,34 +190,3 @@ def md5(path, chunk_size=8192):
         for chunk in iter(lambda: f.read(chunk_size), b""):
             h.update(chunk)
     return h.hexdigest()
-
-
-def _ensure_model():
-    """Ensure that model weights and config are available.
-
-    Download from figshare if not already present.
-    """
-    import requests
-
-    MODEL_PATH.mkdir(parents=True, exist_ok=True)
-
-    for name, meta in MODEL_FILES.items():
-        path = MODEL_PATH / name
-
-        if path.exists() and md5(path) == meta["md5"]:
-            continue
-
-        tmp = path.with_suffix(path.suffix + ".tmp")
-        print(f"Downloading {name}")
-
-        with requests.get(meta["url"], stream=True, timeout=30) as r:
-            r.raise_for_status()
-            with open(tmp, "wb") as f:
-                for chunk in r.iter_content(8192):
-                    f.write(chunk)
-
-        tmp.replace(path)
-
-        if md5(path) != meta["md5"]:
-            path.unlink(missing_ok=True)
-            raise RuntimeError(f"Checksum mismatch for {name}")
