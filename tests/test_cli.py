@@ -42,20 +42,20 @@ class TestCLIHelp:
 
     def test_main_help(self):
         result = run_cli("streetscapes --help")
-        assert "fetch_metadata" in result
+        assert "fetch-metadata" in result
 
     def test_fetch_metadata_help(self):
-        result = run_cli("streetscapes fetch_metadata --help")
+        result = run_cli("streetscapes fetch-metadata --help")
         assert "mapillary" in result
 
     def test_fetch_metadata_mapillary_help(self):
-        result = run_cli("streetscapes fetch_metadata mapillary --help")
+        result = run_cli("streetscapes fetch-metadata mapillary --help")
         assert "--bbox" in result
         assert "--tile-size" in result
         assert "--limit" in result
 
     def test_download_images_mapillary_help(self):
-        result = run_cli("streetscapes download_images mapillary --help")
+        result = run_cli("streetscapes download-images mapillary --help")
         assert "--skip-existing" in result
         assert "--token" in result
 
@@ -115,7 +115,7 @@ def test_fetch_and_export_integration(fake_mapillary_client, tmp_path):
     # -----------------------
     # Test download CLI (mapillary)
     # -----------------------
-    result_dl = run_cli("streetscapes download_images mapillary --skip-existing")
+    result_dl = run_cli("streetscapes download-images mapillary --skip-existing")
 
     # Verify filesystem
     image_dir = project.get_image_dir("mapillary")
