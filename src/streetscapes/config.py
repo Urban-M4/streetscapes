@@ -1,4 +1,3 @@
-import json
 from omegaconf import OmegaConf
 from platformdirs import user_config_path, user_cache_path, user_data_path
 

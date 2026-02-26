@@ -10,6 +10,7 @@ from streetscapes.models.maskformer.model import MaskFormer
 from streetscapes.project import Project
 from streetscapes.serve.server import serve_model
 from streetscapes.utils import logger
+from streetscapes.utils.masks import mask2poly
 
 
 def cli(
@@ -41,7 +42,6 @@ def cli(
         project: The project to use. Uses the active project by default.
         overwrite: Overwrite an existing run.
     """
-
     # Open the project
     proj = Project(project)
 
@@ -131,6 +131,7 @@ def cli(
                     "run": run,
                     "image": response.uid,
                     "labels": response.labels,
+                    "polygons": mask2poly(instances, model="maskformer"),
                 }
             )
         # Update the segmentation table.
