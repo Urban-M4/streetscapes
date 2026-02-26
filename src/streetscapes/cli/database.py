@@ -1,7 +1,10 @@
+"""CLI commands to view/manipulate the database."""
 from pathlib import Path
-from cyclopts import App
-from streetscapes import config
 from typing import TYPE_CHECKING
+
+from cyclopts import App
+
+from streetscapes import config
 
 if TYPE_CHECKING:
     import ibis
@@ -46,7 +49,7 @@ def delete_segmentations(
     *,
     run_id: str,
 ):
-    """Remove segmentation runs from database
+    """Remove segmentation runs from database.
 
     Args:
         run_id: Run ID that you want to delete. Use '*' to remove all segmention runs.
