@@ -11,7 +11,8 @@ import shapely as shp
 from pandas import DataFrame
 from shapely.geometry import box
 
-from streetscapes import config, logger, utils
+from streetscapes import config, utils
+from streetscapes.utils import logger
 from streetscapes.utils.bbox import Bbox
 
 

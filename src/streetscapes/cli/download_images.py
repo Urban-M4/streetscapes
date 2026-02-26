@@ -5,10 +5,8 @@ from pathlib import Path
 from cyclopts import App
 from rich.progress import track
 
-from streetscapes import config, utils
+from streetscapes import config
 from streetscapes.cli.console import console
-from streetscapes.project import Project
-from streetscapes.sources.mapillary import MapillaryClient
 
 logger = logging.getLogger(__name__)
 
@@ -28,6 +26,9 @@ def mapillary(
         token: Mapillary OAuth token (if not set via MAPILLARY_TOKEN).
         project: An optional project to attach to.
     """
+    from streetscapes.sources.mapillary import MapillaryClient
+    from streetscapes.project import Project
+    from streetscapes.utils import get_geohash_shard_path
 
     proj = Project(project or config.get("active_project"))
 
@@ -62,7 +63,7 @@ def mapillary(
         output_dir = Path(image_dir)
         shard = None
         if location is not None:
-            shard = utils.get_geohash_shard_path(location)
+            shard = get_geohash_shard_path(location)
             if output_dir is not None:
                 output_dir /= shard
 

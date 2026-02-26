@@ -1,6 +1,5 @@
 import numpy as np
 import uuid
-from streetscapes import logger
 from streetscapes import utils
 
 
@@ -106,6 +105,7 @@ class MaskFormer:
                 strings instead of integers (the strings are converted to their IDs).
             device: Specify a device to run the model on.
         """
+        from streetscapes.utils import logger
         import transformers as tform
 
         self.device = utils.get_device(device)

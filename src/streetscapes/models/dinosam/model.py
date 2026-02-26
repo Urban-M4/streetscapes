@@ -4,7 +4,6 @@ import skimage as ski
 import uuid
 from tqdm import tqdm
 from streetscapes import utils
-from streetscapes.utils import logger
 
 
 class DinoSAM:
@@ -187,6 +186,7 @@ class DinoSAM:
         Returns:
             A list of dictionaries containing instance-level segmentation information.
         """
+        from streetscapes.utils import logger
         import torch
 
         # Flatten the label dictionary

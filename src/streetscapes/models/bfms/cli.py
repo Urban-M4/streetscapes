@@ -4,10 +4,7 @@ import imageio.v3 as iio
 import numpy as np
 import orjson as oj
 
-from streetscapes import config, utils
-from streetscapes.project import Project
-from streetscapes.serve.server import serve_model
-from streetscapes.utils.logging import logger
+from streetscapes import config
 
 
 def cli(
@@ -26,6 +23,10 @@ def cli(
         project: The project to use.
         overwrite: Overwrite an existing run.
     """
+    from streetscapes import utils
+    from streetscapes.project import Project
+    from streetscapes.utils.logging import logger
+    from streetscapes.serve.server import serve_model
 
     # Open the project
     proj = Project(project)

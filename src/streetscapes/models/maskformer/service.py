@@ -2,7 +2,6 @@ import numpy as np
 import orjson as oj
 from pydantic import BaseModel
 import uuid
-from streetscapes.utils import logger
 from streetscapes.models.maskformer.model import MaskFormer
 
 

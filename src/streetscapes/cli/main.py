@@ -1,5 +1,4 @@
 from cyclopts import App
-from dotenv import load_dotenv
 
 from streetscapes.cli.config import config_cli
 from streetscapes.cli.download_images import download_images_cli
@@ -9,8 +8,6 @@ from streetscapes.cli.segment_images import segment_images_cli
 
 # from streetscapes.cli.finetune_model import finetune_model_cli
 # from streetscapes.cli.identify_buildings import identify_buildings_cli
-
-load_dotenv()
 
 app = App(help="Street view image analysis toolkit")
 

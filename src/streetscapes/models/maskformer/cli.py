@@ -5,12 +5,7 @@ import imageio as iio
 import numpy as np
 import orjson as oj
 
-from streetscapes import config, utils
-from streetscapes.models.maskformer.model import MaskFormer
-from streetscapes.project import Project
-from streetscapes.serve.server import serve_model
-from streetscapes.utils import logger
-from streetscapes.utils.masks import mask2poly
+from streetscapes import config
 
 
 def cli(
@@ -42,6 +37,14 @@ def cli(
         project: The project to use. Uses the active project by default.
         overwrite: Overwrite an existing run.
     """
+
+    from streetscapes import utils
+    from streetscapes.models.maskformer.model import MaskFormer
+    from streetscapes.project import Project
+    from streetscapes.serve.server import serve_model
+    from streetscapes.utils import logger
+    from streetscapes.utils.masks import mask2poly
+
     # Open the project
     proj = Project(project)
 
