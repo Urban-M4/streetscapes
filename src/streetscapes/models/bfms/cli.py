@@ -8,6 +8,7 @@ from streetscapes import config, utils
 from streetscapes.project import Project
 from streetscapes.serve.server import serve_model
 from streetscapes.utils.logging import logger
+from streetscapes.utils.masks import mask2poly
 
 
 def cli(
@@ -77,9 +78,10 @@ def cli(
 
         # Extract the paths and open the images as NumPy arrays.
         path, source = unprocessed[uid]
+        img = np.asarray(iio.imread(path))
         request = {
             "image": oj.dumps(
-                np.asarray(iio.imread(path)),
+                img,
                 option=oj.OPT_SERIALIZE_NUMPY,
             )
         }
@@ -93,6 +95,10 @@ def cli(
         sub = path.relative_to(proj.get_image_dir_for_source(source))
         instances = oj.loads(response.instances)
         utils.save_instances(archive_dir / sub, instances)
-
         # Save segmentation immediately
-        proj.add_segmentation(run, uid, response.labels)
+        proj.add_segmentation(
+            run,
+            uid,
+            response.labels,
+            polygons=mask2poly(np.array(instances), model="bfms", image=img,),
+        )
