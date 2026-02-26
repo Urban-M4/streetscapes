@@ -25,8 +25,7 @@ def load() -> dict:
     cfg = OmegaConf.load(CONFIG_FILE)
     # Optional: fill in missing keys for forward compatibility
     for k, v in DEFAULTS.items():
-        if k not in cfg:
-            cfg[k] = v
+        cfg.setdefault(k, v)
     return cfg
 
 
