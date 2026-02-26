@@ -27,10 +27,12 @@ def segmentation_stats():
     t_segs = db.table("segmentations")
     t_runs = db.table("runs")
     if t_segs.nunique().to_pandas() == 0:
-        print("The segmentations table is empty")
+        print(f"The '{config.get("active_project")}' segmentations table is empty")
     else:
         runs = list(t_runs.select("run").to_pandas()["run"])
-        print("Segmentation runs in database:")
+        print(
+            f"Segmentation runs in project '{config.get("active_project")}' database:"
+        )
         print(f"{'Name': <37}| Entries")
         print("-"*37 + "+" + "-"*8)
         
@@ -56,8 +58,8 @@ def delete_segmentations(
     
     if run_id == "*":
         reply = input(
-            "This will remove all segmentation runs from"
-            " the database, are you sure? [y/N]"
+            "This will remove all segmentation runs from the "
+            f"'{config.get("active_project")}' project database, are you sure? [y/N]"
         )
         if reply in ["y", "Y"]:
             db.raw_sql("DELETE FROM segmentations WHERE True;")
