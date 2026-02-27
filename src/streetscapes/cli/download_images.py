@@ -34,7 +34,7 @@ def mapillary(
     # TODO: perhaps move this to context in main cli?
     console.rule("Streetscapes")
     console.print(f"Active project: {proj.name}")
-    console.print(f"Data home: {proj.data_home}")
+    console.print(f"Data home: {proj.image_dir}")
 
     records = proj.get_mapillary_download_records()
 

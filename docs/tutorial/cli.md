@@ -45,12 +45,13 @@ streetscapes config list
 ┏━━━━━━━━━━━━━━━━┳━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┓
 ┃ Key            ┃ Value                                     ┃
 ┡━━━━━━━━━━━━━━━━╇━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┩
-│ data_home      │ /<current user>/.local/share/streetscapes │
+│ project_dir    │ /<current user>/.local/share/streetscapes │
+│ image_dir      │ /<current user>/.cache/streetscapes       │
 │ active_project │ streetscapes                              │
 └────────────────┴───────────────────────────────────────━━━─┘
 ```
 
-The `data_home` directory is where Streetscapes will be storing its projects, databases and output files. The `active_project` will be used by default if a project name is not provided when instantiating a [`Project`](../../src/streetscapes/project.py).
+The `project_dir` directory is where Streetscapes will be storing its projects, databases and output files. The `active_project` will be used by default if a project name is not provided when instantiating a [`Project`](../../src/streetscapes/project.py).
 
 ## Downloading images
 
