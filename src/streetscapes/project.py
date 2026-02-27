@@ -88,29 +88,28 @@ class Project:
     def __init__(
         self,
         name: str | None = None,
-        cache_dir: str | Path | None = None,
-        data_dir: str | Path | None = None,
+        image_dir: str | Path | None = None,
+        project_dir: str | Path | None = None,
     ):
 
         self.name = name or config.get("active_project")
 
-        # Ensure that the root directory exists
-        self.root_dir = utils.ensure_dir(
+        # Directory for projects (databases + segmentations)
+        self.project_dir = Path(
             config.get(
-                "root_dir",
-                data_dir or pdirs.user_data_path("streetscapes"),
+                "project_dir",
+                utils.ensure_dir(
+                    project_dir or pdirs.user_data_path("streetscapes") / "projects"
+                ),
             )
-        )
-        self.project_home = Path(
-            config.get("project_home", utils.ensure_dir(self.root_dir / "projects"))
         )
 
         # Directory for cached data (images)
-        self.data_home = Path(
+        self.image_dir = Path(
             config.get(
-                "data_home",
+                "image_dir",
                 utils.ensure_dir(
-                    cache_dir or pdirs.user_cache_path("streetscapes"),
+                    image_dir or pdirs.user_cache_path("streetscapes"),
                 ),
             )
         )
@@ -133,15 +132,15 @@ class Project:
 
     @property
     def db_path(self) -> Path:
-        return self.project_home / f"{self.name}.duckdb"
+        return self.project_dir / f"{self.name}.duckdb"
 
     @property
     def archive_path(self) -> Path:
-        return self.root_dir / "archives"
+        return self.project_dir / "archives"
 
     @property
     def image_path(self) -> Path:
-        return self.data_home / "images"
+        return self.image_dir / "images"
 
     @property
     def tables(self) -> list[str]:
@@ -183,7 +182,7 @@ class Project:
         overwrite: bool = False,
     ):
         """Bootstrap the project with the core tables.
-        
+
         Tables are specified in the `core_tables` attribute.
 
         Args:
@@ -774,7 +773,9 @@ class Project:
         t_map = self.table("mapillary")
         t_img = self.table("images")
         if t_img is None or t_map is None:
-            raise ValueError("Required tables 'mapillary' and 'images' are not present in the database.")
+            raise ValueError(
+                "Required tables 'mapillary' and 'images' are not present in the database."
+            )
         t = t_map.outer_join(t_img, t_map.image == t_img.uuid)
         t = t.select(**keys)
         # images that have been downloaded have `image IS NOT NULL`,
