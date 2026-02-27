@@ -13,6 +13,7 @@ from streetscapes.utils.logging import logger
 def cli(
     image_path: str | None = None,
     run: str | None = None,
+    register: bool = False,
     project: str = cast("str", config.get("active_project", "streetscapes")),
     overwrite: bool = False,
 ):
@@ -23,6 +24,7 @@ def cli(
         image_path: Path to the images to be segmented.
             If not provided uses all downloaded images in the project.
         run: Model run ID.
+        register: Register missing images (there is no source by default).
         project: The project to use.
         overwrite: Overwrite an existing run.
     """
@@ -48,6 +50,8 @@ def cli(
             return
 
         uids = list(map(utils.get_image_uuid, image_paths))
+        if register:
+            proj.ingest_image_dir(image_path)
     else:
         uids = proj.get_image_uuids()
     processed, unprocessed = proj.get_segmentation_status(uids, run)

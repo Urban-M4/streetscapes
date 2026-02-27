@@ -23,6 +23,7 @@ def cli(
     overlap_threshold: float = 0.8,
     fuse_labels: list[str] | None = None,
     run: str | None = None,
+    register: bool = False,
     project: str = cast("str", config.get("active_project", "streetscapes")),
     overwrite: bool = False,
 ):
@@ -38,10 +39,12 @@ def cli(
         overlap_threshold: The overlap mask area threshold to merge or discard small
             disconnected parts within each binary instance mask.
         fuse_labels: The labels in this state will have all their instances fused together.
+        register: Register missing images (there is no source by default).
         run: Model run ID.
         project: The project to use. Uses the active project by default.
         overwrite: Overwrite an existing run.
     """
+
     # Open the project
     proj = Project(project)
 
@@ -69,6 +72,8 @@ def cli(
             return
 
         uids = list(map(utils.get_image_uuid, image_paths))
+        if register:
+            proj.ingest_image_dir(image_path)
     else:
         uids = proj.get_image_uuids()
     processed, unprocessed = proj.get_segmentation_status(uids, run)

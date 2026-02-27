@@ -23,6 +23,7 @@ def cli(
     dino_model_id: str = "IDEA-Research/grounding-dino-base",
     box_threshold: float = 0.3,
     text_threshold: float = 0.3,
+    register: bool = False,
     run: str | None = None,
     project: str = cast("str", config.get("active_project", "streetscapes")),
     overwrite: bool = False,
@@ -38,6 +39,7 @@ def cli(
         dino_model_id: Dino model ID (Huggingface format).
         box_threshold: Box threshold for Dino.
         text_threshold: Text threshold for Dino.
+        register: Register missing images (there is no source by default).
         overwrite: Whether to overwrite existing segmentations.
         run: Model run ID.
         project: The project to use.
@@ -64,12 +66,14 @@ def cli(
     # Get all images that need to be processed.
     # ==================================================
     if image_path is not None:
-        image_paths = utils.get_image_paths(image_path)
-        if len(image_paths) == 0:
+        image_file_paths = utils.get_image_paths(image_path)
+        if len(image_file_paths) == 0:
             logger.info(f"Nothing to process.")
             return
 
-        uids = list(map(utils.get_image_uuid, image_paths))
+        uids = list(map(utils.get_image_uuid, image_file_paths))
+        if register:
+            proj.ingest_image_dir(image_path)
     else:
         uids = proj.get_image_uuids()
     processed, unprocessed = proj.get_segmentation_status(uids, run)
