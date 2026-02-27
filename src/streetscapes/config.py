@@ -34,5 +34,6 @@ def get(key: str, default=None):
 
 def set(key: str, value):
     cfg = load()
-    cfg[key] = value
-    OmegaConf.save(cfg, CONFIG_FILE)
+    if key in DEFAULTS:
+        cfg[key] = value
+        OmegaConf.save(cfg, CONFIG_FILE)
