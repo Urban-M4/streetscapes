@@ -6,12 +6,11 @@ import duckdb
 import ibis
 import orjson as oj
 import pandas as pd
-import platformdirs as pdirs
 import shapely as shp
 from pandas import DataFrame
 from shapely.geometry import box
 
-from streetscapes import config, logger, utils
+from streetscapes import CFG, logger, utils
 from streetscapes.utils.bbox import Bbox
 
 
@@ -88,41 +87,24 @@ class Project:
     def __init__(
         self,
         name: str | None = None,
-        data_dir: str | Path | None = None,
-        root_dir: str | Path | None = None,
+        image_dir: str | Path | None = None,
+        project_dir: str | Path | None = None,
     ):
 
-        self.name = name or config.get("active_project")
+        self.name = name or CFG.active_project
 
-        # Ensure that the root directory exists
-        self.root_dir = utils.ensure_dir(
-            config.get(
-                "root_dir",
-                root_dir or pdirs.user_data_path("streetscapes"),
-            )
-        )
-        self.project_home = Path(
-            config.get("project_home", utils.ensure_dir(self.root_dir / "projects"))
-        )
+        # Directory for projects (databases + segmentations)
+        self.project_dir = Path(project_dir or CFG.project_dir)
 
         # Directory for cached data (images)
-        self.data_home = Path(
-            config.get(
-                "data_home",
-                utils.ensure_dir(
-                    data_dir or pdirs.user_cache_path("streetscapes"),
-                ),
-            )
-        )
+        self.image_dir = Path(image_dir or CFG.image_dir)
 
-        config.set("active_project", self.name)
+        CFG.active_project = self.name
+        CFG.save()
 
-        # Internal attributes.
+        # Internal attributes
         # ==================================================
-        # Timestamp precision
-        # TODO: Move all these into the configuration.
-        self._timespec = "microseconds"
-        self._local_source_name = "local"
+        self._timestamp_resolution = "microseconds"
 
         # Database connection
         self._con = ibis.duckdb.connect(
@@ -133,15 +115,15 @@ class Project:
 
     @property
     def db_path(self) -> Path:
-        return self.project_home / f"{self.name}.duckdb"
+        return self.project_dir / f"{self.name}.duckdb"
 
     @property
     def archive_path(self) -> Path:
-        return self.root_dir / "archives"
+        return self.project_dir / "archives"
 
     @property
     def image_path(self) -> Path:
-        return self.data_home / "images"
+        return self.image_dir / "images"
 
     @property
     def tables(self) -> list[str]:
@@ -183,7 +165,7 @@ class Project:
         overwrite: bool = False,
     ):
         """Bootstrap the project with the core tables.
-        
+
         Tables are specified in the `core_tables` attribute.
 
         Args:
@@ -249,7 +231,7 @@ class Project:
         """
         path = self.image_path
         if source is None:
-            source = self._local_source_name
+            source = CFG.local_cache_dir_name
         path /= source
         return utils.ensure_dir(path) if create else path
 
@@ -372,7 +354,7 @@ class Project:
 
         data = {
             "run": [run],
-            "timestamp": [utils.iso_timestamp(self._timespec)],
+            "timestamp": [utils.iso_timestamp(self._timestamp_resolution)],
             "model": [model],
             "metadata": [oj.dumps(metadata)],
         }
@@ -401,7 +383,7 @@ class Project:
 
         for r in runs:
             r.setdefault("run", utils.uuid7(True))
-            r.setdefault("timestamp", utils.iso_timestamp(self._timespec))
+            r.setdefault("timestamp", utils.iso_timestamp(self._timestamp_resolution))
             r["metadata"] = oj.dumps(r.get("metadata"))
             for k in data:
                 data[k].append(r.get(k))
@@ -638,7 +620,7 @@ class Project:
         path = Path(path)
         image_paths = utils.get_image_paths(path)
         image_data_list = []
-        image_dir = self.get_image_dir_for_source(self._local_source_name, create=True)
+        image_dir = self.get_image_dir_for_source(CFG.local_cache_dir_name, create=True)
         if shard is not None:
             image_dir = utils.ensure_dir(image_dir / shard)
 
@@ -774,10 +756,12 @@ class Project:
         t_map = self.table("mapillary")
         t_img = self.table("images")
         if t_img is None or t_map is None:
-            raise ValueError("Required tables 'mapillary' and 'images' are not present in the database.")
+            raise ValueError(
+                "Required tables 'mapillary' and 'images' are not present in the database."
+            )
         t = t_map.outer_join(t_img, t_map.image == t_img.uuid)
         t = t.select(**keys)
-        # images that have been downloaded have `image IS NOT NULL`, 
+        # images that have been downloaded have `image IS NOT NULL`,
         # so we filter those out to get the missing ones.
         data = t.filter([t.image.isnull()]).to_pyarrow().to_pydict()
         if len(data) == 0:

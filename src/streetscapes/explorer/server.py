@@ -15,7 +15,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.params import Query
 from shapely.ops import transform
 
-from streetscapes import config
+from streetscapes import CFG
 from streetscapes.explorer.data import (
     AggregateStats,
     Bbox,
@@ -42,17 +42,16 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
-
-dbpath = Path(
-    f"{config.get("data_home")}/projects/{config.get("active_project")}.duckdb"
-)
+dbpath = Path(f"{CFG.project_dir}/{CFG.active_project}.duckdb")
 con = ibis.duckdb.connect(dbpath, read_only=True, extensions=["spatial", "json"])
 
 
 def _get_images():
-    data = con.table("mapillary").select(
-        "image", "thumb_original_url", "geometry"
-    ).to_pandas()
+    data = (
+        con.table("mapillary")
+        .select("image", "thumb_original_url", "geometry")
+        .to_pandas()
+    )
 
     return [
         Image(*args)
@@ -110,7 +109,8 @@ def _get_segmentations(uuid: UUID) -> list[Segmentation]:
             Instance(
                 label,
                 [list(points.exterior.coords) for points in poly.geoms],
-            ) for label, poly in zip(labels, polys, strict=True)
+            )
+            for label, poly in zip(labels, polys, strict=True)
         ]
         runinfo = runs.filter(runs.run == row["run"]).to_pandas().squeeze()
         seg = Segmentation(
@@ -150,7 +150,7 @@ def _get_metadata(id: str) -> ImageMetadata:
         width=int(data["width"]),
         height=int(data["height"]),
         altitude=data["altitude"],
-        captured_at=datetime.fromtimestamp(data["captured_at"]/1000),
+        captured_at=datetime.fromtimestamp(data["captured_at"] / 1000),
         panoramic=bool(data["is_pano"]),
         source=source,
         tags=[],
@@ -190,7 +190,7 @@ async def root():
 @app.get("/project")
 async def project():
     """Get the active project name."""
-    return config.get("active_project")
+    return str(CFG.active_project)
 
 
 @app.get("/stats")
@@ -198,26 +198,35 @@ async def fetch_stats(bbox: Annotated[Bbox, Query()]) -> AggregateStats:
     """Get the aggregate stats of the images."""
     return AggregateStats(
         tags=["sunny", "shops", "crowded"],
-        labels=["vegetation", "car", "building", "bicycle", "person", "sky", "water", "terrain", "pedestrian-area",],
+        labels=[
+            "vegetation",
+            "car",
+            "building",
+            "bicycle",
+            "person",
+            "sky",
+            "water",
+            "terrain",
+            "pedestrian-area",
+        ],
         model_run_names=["manual"],
         image_sources=[
             "mapillary",
         ],
         date_range=(datetime(2026, 1, 19), datetime(2026, 1, 20)),
-        models=["DinoSAM", "maskformer", "bfms", "manual"]
+        models=["DinoSAM", "maskformer", "bfms", "manual"],
     )
 
 
 @app.get("/images")
-async def fetch_images(filter: Annotated[FilterParams, Query()]
-) -> list[Image]:
+async def fetch_images(filter: Annotated[FilterParams, Query()]) -> list[Image]:
     """Fetch streetscape images corresponding to a bounding box and optionally filters."""
     # bbox = Bbox(**filter.model_dump())
     return _fetch_images(None)
 
 
 @app.get("/images/{image_id}")
-async def fetch_image_metadata(image_id: str) -> ImageMetadata :
+async def fetch_image_metadata(image_id: str) -> ImageMetadata:
     """Get all metadata associated with a certain image, including segmentations."""
     try:
         return _get_metadata(image_id)
@@ -262,6 +271,7 @@ async def set_instance_label(
     """Set the label of a specific instance within a segmentation."""
     pass
 
+
 @app.post("/images/{image_id}/segment/{model}/{run_args}")
 async def segment_image(image_id, model, run_args):
     """Compute a new segmentation of an image."""
@@ -278,9 +288,7 @@ async def _serve():
     server = _start_uvicorn()
     print("Waiting for the streetscapes-explorer to start...")
     await asyncio.sleep(5)
-    webbrowser.open(
-        "https://urban-m4.github.io/Urban-M5/?s=http://localhost:5000"
-    )
+    webbrowser.open("https://urban-m4.github.io/Urban-M5/?s=http://localhost:5000")
     print(
         "The streetscapes-explorer should have launched automatically.\n"
         "To open it manually, go to https://urban-m4.github.io/Urban-M5/ and "
