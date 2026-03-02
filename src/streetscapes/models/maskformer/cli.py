@@ -5,7 +5,7 @@ import imageio as iio
 import numpy as np
 import orjson as oj
 
-from streetscapes import config, utils
+from streetscapes import CFG, utils
 from streetscapes.models.maskformer.model import MaskFormer
 from streetscapes.project import Project
 from streetscapes.serve.server import serve_model
@@ -23,7 +23,7 @@ def cli(
     overlap_threshold: float = 0.8,
     fuse_labels: list[str] | None = None,
     run: str | None = None,
-    project: str = cast("str", config.get("active_project", "streetscapes")),
+    project: str = cast("str", CFG.active_project),
     overwrite: bool = False,
 ):
     """Segment images with MaskFormer.

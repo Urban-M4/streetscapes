@@ -4,7 +4,7 @@ import imageio.v3 as iio
 import numpy as np
 import orjson as oj
 
-from streetscapes import config, utils
+from streetscapes import CFG, utils
 from streetscapes.project import Project
 from streetscapes.serve.server import serve_model
 from streetscapes.utils.logging import logger
@@ -14,7 +14,7 @@ from streetscapes.utils.masks import mask2poly
 def cli(
     image_path: str | None = None,
     run: str | None = None,
-    project: str = cast("str", config.get("active_project", "streetscapes")),
+    project: str = cast("str", CFG.active_project),
     overwrite: bool = False,
 ):
     """
