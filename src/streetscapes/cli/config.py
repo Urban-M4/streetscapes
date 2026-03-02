@@ -1,9 +1,9 @@
-import json
+from pprint import pp
 
 from cyclopts import App
 from rich.table import Table
 
-from streetscapes import config
+from streetscapes import conf
 from streetscapes.cli.console import console
 
 config_cli = App(name="config")
@@ -11,15 +11,39 @@ config_cli = App(name="config")
 
 @config_cli.command(name="set")
 def set_config(key: str, value: str):
-    """Set a global streetscapes config value."""
-    config.set(key, value)
+    """
+    Set a global streetscapes config value
+
+    Args:
+        key: The configuration option.
+        value: The value to set the option to.
+
+    Raises:
+        SystemExit: Raised if the configuration option does not exist.
+    """
+
+    if not hasattr(conf, key):
+        print(f"No config value for '{key}'", err=True)
+        raise SystemExit(code=1)
+
+    setattr(conf, key, value)
+    conf.save()
     print(f"Config '{key}' set to '{value}'.")
 
 
 @config_cli.command(name="get")
 def get_config(key: str):
-    """Get a config value."""
-    value = config.get(key)
+    """
+    Get a config value.
+
+    Args:
+        key: The configuration option.
+
+    Raises:
+        SystemExit: Raised if the configuration option does not exist.
+    """
+
+    value = getattr(conf, key)
     if value is not None:
         print(value)
     else:
@@ -30,19 +54,20 @@ def get_config(key: str):
 @config_cli.command(name="list")
 def list_config(
     json_output: bool = False,
+    indent: int = 2,
 ):
     """List configuration settings.
 
-    Parameters
-    ----------
-    json_output:
-        Show configuration as JSON if True.
+    Args:
+        json_output: Show configuration as JSON if True.
+        indent: Indentation for JSON output.
     """
-    cfg = config.load()
 
     if json_output:
-        print(json.dumps(cfg, indent=2))
+        pp(conf.model_dump_json(indent=indent))
         return
+
+    cfg = conf.model_dump(mode="python")
 
     table = Table(title="Streetscapes Configuration")
     table.add_column("Key", style="bold cyan")

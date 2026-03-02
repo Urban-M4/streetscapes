@@ -5,7 +5,9 @@ from pathlib import Path
 from cyclopts import App
 from rich.progress import track
 
-from streetscapes import config, utils
+import typer
+
+from streetscapes import conf, utils
 from streetscapes.cli.console import console
 from streetscapes.project import Project
 from streetscapes.sources.mapillary import MapillaryClient
@@ -29,12 +31,12 @@ def mapillary(
         project: An optional project to attach to.
     """
 
-    proj = Project(project or config.get("active_project"))
+    proj = Project(project or conf.active_project)
 
     # TODO: perhaps move this to context in main cli?
     console.rule("Streetscapes")
     console.print(f"Active project: {proj.name}")
-    console.print(f"Data home: {proj.data_home}")
+    console.print(f"Data home: {proj.image_dir}")
 
     records = proj.get_mapillary_download_records()
 
@@ -42,7 +44,10 @@ def mapillary(
         logger.info("No new images to download.")
         return
 
-    token = token or os.getenv("MAPILLARY_TOKEN")
+    token = token or conf.mapillary_token
+    if not token:
+        logger.error("Error: token not provided and MAPILLARY_TOKEN not set in .env.")
+        raise typer.Exit(code=1)
 
     mapillary = MapillaryClient(token)
 
