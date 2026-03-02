@@ -11,7 +11,7 @@ import shapely as shp
 from pandas import DataFrame
 from shapely.geometry import box
 
-from streetscapes import config, logger, utils
+from streetscapes import conf, logger, utils
 from streetscapes.utils.bbox import Bbox
 
 
@@ -92,36 +92,16 @@ class Project:
         project_dir: str | Path | None = None,
     ):
 
-        self.name = name or config.getopt("active_project")
+        self.name = name or conf.active_project
 
         # Directory for projects (databases + segmentations)
-        self.project_dir = Path(
-            config.getopt(
-                "project_dir",
-                utils.ensure_dir(
-                    project_dir or pdirs.user_data_path("streetscapes") / "projects"
-                ),
-            )
-        )
+        self.project_dir = Path(project_dir or conf.project_dir)
 
         # Directory for cached data (images)
-        self.image_dir = Path(
-            config.getopt(
-                "image_dir",
-                utils.ensure_dir(
-                    image_dir or pdirs.user_cache_path("streetscapes"),
-                ),
-            )
-        )
+        self.image_dir = Path(image_dir or conf.image_dir)
 
-        config.setopt("active_project", self.name)
-
-        # Internal attributes.
-        # ==================================================
-        # Timestamp precision
-        # TODO: Move all these into the configuration.
-        self._timespec = "microseconds"
-        self._local_source_name = "local"
+        conf.active_project = self.name
+        conf.save()
 
         # Database connection
         self._con = ibis.duckdb.connect(
@@ -248,7 +228,7 @@ class Project:
         """
         path = self.image_path
         if source is None:
-            source = self._local_source_name
+            source = conf.local_cache_dir_name
         path /= source
         return utils.ensure_dir(path) if create else path
 
@@ -371,7 +351,7 @@ class Project:
 
         data = {
             "run": [run],
-            "timestamp": [utils.iso_timestamp(self._timespec)],
+            "timestamp": [utils.iso_timestamp(conf.timespec)],
             "model": [model],
             "metadata": [oj.dumps(metadata)],
         }
@@ -400,7 +380,7 @@ class Project:
 
         for r in runs:
             r.setdefault("run", utils.uuid7(True))
-            r.setdefault("timestamp", utils.iso_timestamp(self._timespec))
+            r.setdefault("timestamp", utils.iso_timestamp(conf.timespec))
             r["metadata"] = oj.dumps(r.get("metadata"))
             for k in data:
                 data[k].append(r.get(k))
@@ -637,7 +617,7 @@ class Project:
         path = Path(path)
         image_paths = utils.get_image_paths(path)
         image_data_list = []
-        image_dir = self.get_image_dir_for_source(self._local_source_name, create=True)
+        image_dir = self.get_image_dir_for_source(conf.local_cache_dir_name, create=True)
         if shard is not None:
             image_dir = utils.ensure_dir(image_dir / shard)
 
