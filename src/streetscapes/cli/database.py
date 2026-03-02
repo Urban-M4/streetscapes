@@ -4,7 +4,7 @@ from typing import TYPE_CHECKING
 
 from cyclopts import App
 
-from streetscapes import config
+from streetscapes import CFG
 
 if TYPE_CHECKING:
     import ibis
@@ -18,7 +18,7 @@ def _get_db() -> "ibis.BaseBackend":
     import ibis
 
     dbpath = Path(
-        f"{config.get("data_home")}/projects/{config.get("active_project")}.duckdb"
+        f"{CFG.project_dir}/projects/{CFG.active_project}.duckdb"
     )
     return ibis.duckdb.connect(dbpath, extensions=["spatial", "json"])
 
@@ -30,11 +30,11 @@ def segmentation_stats():
     t_segs = db.table("segmentations")
     t_runs = db.table("runs")
     if t_segs.nunique().to_pandas() == 0:
-        print(f"The '{config.get("active_project")}' segmentations table is empty")
+        print(f"The '{CFG.active_project}' segmentations table is empty")
     else:
         runs = list(t_runs.select("run").to_pandas()["run"])
         print(
-            f"Segmentation runs in project '{config.get("active_project")}' database:"
+            f"Segmentation runs in project '{CFG.active_project}' database:"
         )
         print(f"{'Name': <37}| Entries")
         print("-"*37 + "+" + "-"*8)
@@ -46,7 +46,6 @@ def segmentation_stats():
 
 @segmentations_cli.command(name="delete")
 def delete_segmentations(
-    *,
     run_id: str,
 ):
     """Remove segmentation runs from database.
@@ -62,7 +61,7 @@ def delete_segmentations(
     if run_id == "*":
         reply = input(
             "This will remove all segmentation runs from the "
-            f"'{config.get("active_project")}' project database, are you sure? [y/N]"
+            f"'{CFG.active_project}' project database, are you sure? [y/N]"
         )
         if reply in ["y", "Y"]:
             db.raw_sql("DELETE FROM segmentations WHERE True;")
