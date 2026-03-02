@@ -5,6 +5,8 @@ from pathlib import Path
 from cyclopts import App
 from rich.progress import track
 
+import typer
+
 from streetscapes import config, utils
 from streetscapes.cli.console import console
 from streetscapes.project import Project
@@ -43,6 +45,9 @@ def mapillary(
         return
 
     token = token or config.getopt('mapillary_token', os.getenv("MAPILLARY_TOKEN"))
+    if not token:
+        logger.error("Error: token not provided and MAPILLARY_TOKEN not set in .env.")
+        raise typer.Exit(code=1)
 
     mapillary = MapillaryClient(token)
 
