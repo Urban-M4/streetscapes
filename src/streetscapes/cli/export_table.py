@@ -3,7 +3,6 @@ import os
 
 from cyclopts import App
 
-from streetscapes import config
 from streetscapes.project import Project
 
 logger = logging.getLogger(__name__)
@@ -15,17 +14,16 @@ export_cli = App(help="Export tables from the project.")
 def export_table(
     table_name: str,
     output: str,
+    project: str | None = None,
 ):
     """Export a table to (Geo)Parquet, CSV, JSON, GPKG, or GeoJSON.
 
-    Parameters
-    ----------
-    table_name:
-        The name of the table to export.
-    output:
-        Output file path (must have .csv, .parquet, .json, .gpkg, or .geojson extension).
+    Args:
+        table_name: The name of the table to export.
+        output: Output file path (must have .csv, .parquet, .json, .gpkg, or .geojson extension).
+        project: Optionally specify the project to work on.
     """
-    project = Project(config.get("active_project"))
+    project = Project(project)
     ext = os.path.splitext(output)[1].lower()
 
     exporters = {
