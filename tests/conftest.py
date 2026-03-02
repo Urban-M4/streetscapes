@@ -14,7 +14,7 @@ def test_config(tmp_path, monkeypatch):
     }
     monkeypatch.setattr(
         config,
-        "get",
+        "getopt",
         patched_config.get,
     )
 
