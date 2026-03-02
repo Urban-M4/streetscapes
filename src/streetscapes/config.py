@@ -1,3 +1,4 @@
+import os
 from omegaconf import OmegaConf
 from platformdirs import user_config_path, user_cache_path, user_data_path
 
@@ -8,6 +9,7 @@ DEFAULTS = {
     "project_dir": user_data_path("streetscapes"),
     "image_dir": user_cache_path("streetscapes"),
     "active_project": "streetscapes",
+    "mapillary_token": os.getenv("MAPILLARY_TOKEN", ""),
 }
 
 
@@ -23,16 +25,23 @@ def load() -> dict:
     initialize_config()
     cfg = OmegaConf.load(CONFIG_FILE)
     # Optional: fill in missing keys for forward compatibility
-    for k, v in DEFAULTS.items():
-        cfg.setdefault(k, v)
+    new_keys = set(DEFAULTS.keys()).difference(set(cfg.keys()))
+    for k in new_keys:
+        cfg.setdefault(k, DEFAULTS[k])
+
+    # Optional: remove deprecated keys that are not in DEFAULTS
+    deprecated_keys = set(cfg.keys()).difference(set(DEFAULTS.keys()))
+    for k in deprecated_keys:
+        cfg.pop(k)
+
     return cfg
 
 
-def get(key: str, default=None):
+def getopt(key: str, default=None):
     return load().get(key, default)
 
 
-def set(key: str, value):
+def setopt(key: str, value):
     cfg = load()
     if key in DEFAULTS:
         cfg[key] = value
