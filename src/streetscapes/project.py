@@ -6,7 +6,6 @@ import duckdb
 import ibis
 import orjson as oj
 import pandas as pd
-import platformdirs as pdirs
 import shapely as shp
 from pandas import DataFrame
 from shapely.geometry import box
