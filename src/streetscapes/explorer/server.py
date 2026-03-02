@@ -43,8 +43,8 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-project_dir = config.get("project_dir", config.DEFAULTS["project_dir"])
-active_project = config.get("active_project", "streetscapes")
+project_dir = config.getopt("project_dir", config.DEFAULTS["project_dir"])
+active_project = config.getopt("active_project", "streetscapes")
 dbpath = Path(f"{project_dir}/{active_project}.duckdb")
 con = ibis.duckdb.connect(dbpath, read_only=True, extensions=["spatial", "json"])
 
@@ -193,7 +193,7 @@ async def root():
 @app.get("/project")
 async def project():
     """Get the active project name."""
-    return config.get("active_project")
+    return config.getopt("active_project")
 
 
 @app.get("/stats")

@@ -13,7 +13,7 @@ from streetscapes.utils.logging import logger
 def cli(
     image_path: str | None = None,
     run: str | None = None,
-    project: str = cast("str", config.get("active_project", "streetscapes")),
+    project: str = cast("str", config.getopt("active_project", "streetscapes")),
     overwrite: bool = False,
 ):
     """

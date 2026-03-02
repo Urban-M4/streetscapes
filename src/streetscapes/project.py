@@ -92,11 +92,11 @@ class Project:
         project_dir: str | Path | None = None,
     ):
 
-        self.name = name or config.get("active_project")
+        self.name = name or config.getopt("active_project")
 
         # Directory for projects (databases + segmentations)
         self.project_dir = Path(
-            config.get(
+            config.getopt(
                 "project_dir",
                 utils.ensure_dir(
                     project_dir or pdirs.user_data_path("streetscapes") / "projects"
@@ -106,7 +106,7 @@ class Project:
 
         # Directory for cached data (images)
         self.image_dir = Path(
-            config.get(
+            config.getopt(
                 "image_dir",
                 utils.ensure_dir(
                     image_dir or pdirs.user_cache_path("streetscapes"),
@@ -114,7 +114,7 @@ class Project:
             )
         )
 
-        config.set("active_project", self.name)
+        config.setopt("active_project", self.name)
 
         # Internal attributes.
         # ==================================================

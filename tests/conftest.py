@@ -7,7 +7,7 @@ from streetscapes.sources.mapillary import MapillaryClient
 
 @pytest.fixture(autouse=True)
 def test_config(tmp_path, monkeypatch):
-    """Patch config.get('project_dir') to point to a temporary path for all tests."""
+    """Patch config.getopt('project_dir') to point to a temporary path for all tests."""
     patched_config = {
         "project_dir": str(tmp_path),
         "active_project": "test_streetscapes",

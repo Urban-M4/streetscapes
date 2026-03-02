@@ -25,7 +25,7 @@ def export_table(
     output:
         Output file path (must have .csv, .parquet, .json, .gpkg, or .geojson extension).
     """
-    project = Project(config.get("active_project"))
+    project = Project(config.getopt("active_project"))
     ext = os.path.splitext(output)[1].lower()
 
     exporters = {

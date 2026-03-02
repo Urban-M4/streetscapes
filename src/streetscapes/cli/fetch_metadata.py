@@ -43,7 +43,7 @@ def mapillary(
         raise typer.Exit(code=1)
 
     m = MapillaryClient(token)
-    aproject = Project(project or config.get("active_project"))
+    aproject = Project(project or config.getopt("active_project"))
 
     ntiles, tiles = split_bbox(bbox, tile_size)
     logger.info(f"Splitting bbox in {ntiles} tiles with {tile_size=}")

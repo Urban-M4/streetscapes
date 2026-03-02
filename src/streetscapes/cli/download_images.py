@@ -29,7 +29,7 @@ def mapillary(
         project: An optional project to attach to.
     """
 
-    proj = Project(project or config.get("active_project"))
+    proj = Project(project or config.getopt("active_project"))
 
     # TODO: perhaps move this to context in main cli?
     console.rule("Streetscapes")

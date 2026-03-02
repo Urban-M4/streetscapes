@@ -24,7 +24,7 @@ def cli(
     box_threshold: float = 0.3,
     text_threshold: float = 0.3,
     run: str | None = None,
-    project: str = cast("str", config.get("active_project", "streetscapes")),
+    project: str = cast("str", config.getopt("active_project", "streetscapes")),
     overwrite: bool = False,
 ):
     """Segment images with DinoSAM.

@@ -12,14 +12,14 @@ config_cli = App(name="config")
 @config_cli.command(name="set")
 def set_config(key: str, value: str):
     """Set a global streetscapes config value."""
-    config.set(key, value)
+    config.setopt(key, value)
     print(f"Config '{key}' set to '{value}'.")
 
 
 @config_cli.command(name="get")
 def get_config(key: str):
     """Get a config value."""
-    value = config.get(key)
+    value = config.getopt(key)
     if value is not None:
         print(value)
     else:
