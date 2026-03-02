@@ -8,8 +8,8 @@ from streetscapes.sources.mapillary import MapillaryClient
 @pytest.fixture(autouse=True)
 def test_config(tmp_path, monkeypatch):
     """Patch conf.project_dir to point to a temporary path for all tests."""
-    config.conf.project_dir = Path(tmp_path)
-    config.conf.active_project = "test_streetscapes"
+    config.CFG.project_dir = Path(tmp_path)
+    config.CFG.active_project = "test_streetscapes"
 
 
 @pytest.fixture

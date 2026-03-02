@@ -4,7 +4,7 @@ import imageio.v3 as iio
 import numpy as np
 import orjson as oj
 
-from streetscapes import conf, utils
+from streetscapes import CFG, utils
 from streetscapes.project import Project
 from streetscapes.serve.server import serve_model
 from streetscapes.utils.logging import logger
@@ -13,7 +13,7 @@ from streetscapes.utils.logging import logger
 def cli(
     image_path: str | None = None,
     run: str | None = None,
-    project: str = cast("str", conf.active_project),
+    project: str = cast("str", CFG.active_project),
     overwrite: bool = False,
 ):
     """

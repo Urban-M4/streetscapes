@@ -3,7 +3,7 @@ from pprint import pp
 from cyclopts import App
 from rich.table import Table
 
-from streetscapes import conf
+from streetscapes import CFG
 from streetscapes.cli.console import console
 
 config_cli = App(name="config")
@@ -22,12 +22,12 @@ def set_config(key: str, value: str):
         SystemExit: Raised if the configuration option does not exist.
     """
 
-    if not hasattr(conf, key):
+    if not hasattr(CFG, key):
         print(f"No config value for '{key}'", err=True)
         raise SystemExit(code=1)
 
-    setattr(conf, key, value)
-    conf.save()
+    setattr(CFG, key, value)
+    CFG.save()
     print(f"Config '{key}' set to '{value}'.")
 
 
@@ -43,7 +43,7 @@ def get_config(key: str):
         SystemExit: Raised if the configuration option does not exist.
     """
 
-    value = getattr(conf, key)
+    value = getattr(CFG, key)
     if value is not None:
         print(value)
     else:
@@ -64,10 +64,10 @@ def list_config(
     """
 
     if json_output:
-        pp(conf.model_dump_json(indent=indent))
+        pp(CFG.model_dump_json(indent=indent))
         return
 
-    cfg = conf.model_dump(mode="python")
+    cfg = CFG.model_dump(mode="python")
 
     table = Table(title="Streetscapes Configuration")
     table.add_column("Key", style="bold cyan")

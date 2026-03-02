@@ -6,7 +6,7 @@ from cyclopts import App
 from rich.progress import track
 import typer
 
-from streetscapes import conf
+from streetscapes import CFG
 from streetscapes.cli.console import console
 from streetscapes.project import Project
 from streetscapes.sources.mapillary import MapillaryClient
@@ -37,7 +37,7 @@ def mapillary(
 
     logger.info(f"Fetching metadata for {bbox=}")
 
-    token = token or conf.mapillary_token
+    token = token or CFG.mapillary_token
     if not token:
         logger.error("Error: token not provided and MAPILLARY_TOKEN not set in .env.")
         raise typer.Exit(code=1)

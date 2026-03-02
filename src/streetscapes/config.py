@@ -34,4 +34,4 @@ class Configuration(BaseSettings):
 if not CONFIG_FILE.exists():
     Configuration().save()
 
-conf = Configuration(**oj.loads(Path.read_text(CONFIG_FILE)))
+CFG = Configuration(**oj.loads(Path.read_text(CONFIG_FILE)))

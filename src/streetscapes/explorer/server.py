@@ -15,7 +15,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.params import Query
 from shapely.ops import transform
 
-from streetscapes import conf
+from streetscapes import CFG
 from streetscapes.explorer.data import (
     AggregateStats,
     Bbox,
@@ -42,7 +42,7 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
-dbpath = Path(f"{conf.project_dir}/{conf.active_project}.duckdb")
+dbpath = Path(f"{CFG.project_dir}/{CFG.active_project}.duckdb")
 con = ibis.duckdb.connect(dbpath, read_only=True, extensions=["spatial", "json"])
 
 
@@ -190,7 +190,7 @@ async def root():
 @app.get("/project")
 async def project():
     """Get the active project name."""
-    return str(conf.active_project)
+    return str(CFG.active_project)
 
 
 @app.get("/stats")

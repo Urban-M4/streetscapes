@@ -7,7 +7,7 @@ from rich.progress import track
 
 import typer
 
-from streetscapes import conf, utils
+from streetscapes import CFG, utils
 from streetscapes.cli.console import console
 from streetscapes.project import Project
 from streetscapes.sources.mapillary import MapillaryClient
@@ -31,7 +31,7 @@ def mapillary(
         project: An optional project to attach to.
     """
 
-    proj = Project(project or conf.active_project)
+    proj = Project(project or CFG.active_project)
 
     # TODO: perhaps move this to context in main cli?
     console.rule("Streetscapes")
@@ -44,7 +44,7 @@ def mapillary(
         logger.info("No new images to download.")
         return
 
-    token = token or conf.mapillary_token
+    token = token or CFG.mapillary_token
     if not token:
         logger.error("Error: token not provided and MAPILLARY_TOKEN not set in .env.")
         raise typer.Exit(code=1)

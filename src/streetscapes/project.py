@@ -10,7 +10,7 @@ import shapely as shp
 from pandas import DataFrame
 from shapely.geometry import box
 
-from streetscapes import conf, logger, utils
+from streetscapes import CFG, logger, utils
 from streetscapes.utils.bbox import Bbox
 
 
@@ -91,16 +91,16 @@ class Project:
         project_dir: str | Path | None = None,
     ):
 
-        self.name = name or conf.active_project
+        self.name = name or CFG.active_project
 
         # Directory for projects (databases + segmentations)
-        self.project_dir = Path(project_dir or conf.project_dir)
+        self.project_dir = Path(project_dir or CFG.project_dir)
 
         # Directory for cached data (images)
-        self.image_dir = Path(image_dir or conf.image_dir)
+        self.image_dir = Path(image_dir or CFG.image_dir)
 
-        conf.active_project = self.name
-        conf.save()
+        CFG.active_project = self.name
+        CFG.save()
 
         # Internal attributes
         # ==================================================
@@ -231,7 +231,7 @@ class Project:
         """
         path = self.image_path
         if source is None:
-            source = conf.local_cache_dir_name
+            source = CFG.local_cache_dir_name
         path /= source
         return utils.ensure_dir(path) if create else path
 
@@ -620,7 +620,7 @@ class Project:
         path = Path(path)
         image_paths = utils.get_image_paths(path)
         image_data_list = []
-        image_dir = self.get_image_dir_for_source(conf.local_cache_dir_name, create=True)
+        image_dir = self.get_image_dir_for_source(CFG.local_cache_dir_name, create=True)
         if shard is not None:
             image_dir = utils.ensure_dir(image_dir / shard)
 
