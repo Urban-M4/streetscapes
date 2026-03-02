@@ -1,38 +1,37 @@
-from omegaconf import OmegaConf
-from platformdirs import user_config_path, user_data_dir
+import os
+from pydantic import field_validator
+from pydantic_settings import BaseSettings
+from pathlib import Path
+import orjson as oj
+from streetscapes.utils import ensure_dir
+from platformdirs import user_config_path, user_cache_path, user_data_path
 
 CONFIG_FILE = user_config_path("streetscapes", ensure_exists=True) / "config.json"
 
 
-DEFAULTS = {
-    "data_home": user_data_dir("streetscapes"),
-    "active_project": "streetscapes",
-}
+class Configuration(BaseSettings):
+
+    project_dir: Path = user_data_path("streetscapes")
+    image_dir: Path = user_cache_path("streetscapes")
+    active_project: str = "streetscapes"
+    mapillary_token: str = os.getenv("MAPILLARY_TOKEN", "")
+    local_cache_dir_name: str = "local"
+
+    @field_validator("project_dir", mode="before")
+    @classmethod
+    def _ensure_project_dir(cls, value: str | Path) -> Path:
+        return ensure_dir(value)
+
+    @field_validator("image_dir", mode="before")
+    @classmethod
+    def _ensure_image_dir(cls, value: str | Path) -> Path:
+        return ensure_dir(value)
+
+    def save(self):
+        CONFIG_FILE.write_text(self.model_dump_json(indent=4))
 
 
-def initialize_config():
-    """Create config file with defaults if it doesn’t exist."""
-    if not CONFIG_FILE.exists():
-        cfg = OmegaConf.create(DEFAULTS)
-        OmegaConf.save(cfg, CONFIG_FILE)
+if not CONFIG_FILE.exists():
+    Configuration().save()
 
-
-def load() -> dict:
-    """Load config, initializing it if necessary."""
-    initialize_config()
-    cfg = OmegaConf.load(CONFIG_FILE)
-    # Optional: fill in missing keys for forward compatibility
-    for k, v in DEFAULTS.items():
-        if k not in cfg:
-            cfg[k] = v
-    return cfg
-
-
-def get(key: str, default=None):
-    return load().get(key, default)
-
-
-def set(key: str, value):
-    cfg = load()
-    cfg[key] = value
-    OmegaConf.save(cfg, CONFIG_FILE)
+CFG = Configuration(**oj.loads(Path.read_text(CONFIG_FILE)))

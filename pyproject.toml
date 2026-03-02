@@ -34,6 +34,7 @@ dependencies = [
     "pandas",
     "pillow>=11.3.0",
     "pyarrow",
+    "pydantic-settings",
     "pygeohash>=3.2.0",
     "pyproj",
     "rasterio",
@@ -57,7 +58,7 @@ authors = [
     { name = "Claire Donnelly", email = "c.donnelly@esciencecenter.nl" },
     { name = "Alexander Hadjiivanov", email = "a.hadjiivanov@esciencecenter.nl" },
     { name = "Peter Kalverla", email = "p.kalverla@esciencecenter.nl" },
-    { name = "Bart Schilperoort", email = "b.schilperoort@esciencecenter.nl" }
+    { name = "Bart Schilperoort", email = "b.schilperoort@esciencecenter.nl" },
 ]
 description = "Code for downloading, segmenting and analysing images from Mapillary and KartaView, with the aim of extracting the emissivity and albedo of buildings."
 readme = "README.md"
@@ -77,10 +78,7 @@ lint.select = ["F", "E", "TYP", "B", "D", "C", "Q", "I"]
 convention = "google"
 
 [project.optional-dependencies]
-explorer = [
-    "fastapi",
-    "uvicorn",
-]
+explorer = ["fastapi", "uvicorn"]
 dev = [
     "fastapi[standard]",
     "pytest>=8.4.2",
