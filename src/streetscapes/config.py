@@ -2,12 +2,15 @@ import os
 from pydantic import field_validator
 from pydantic_settings import BaseSettings
 from pathlib import Path
+import orjson as oj
 from streetscapes.utils import ensure_dir
 from platformdirs import user_config_path, user_cache_path, user_data_path
 
+CONFIG_FILE = user_config_path("streetscapes", ensure_exists=True) / "config.json"
+
 
 class Configuration(BaseSettings):
-    config_file: Path = user_config_path("streetscapes") / "config.json"
+
     project_dir: Path = user_data_path("streetscapes")
     image_dir: Path = user_cache_path("streetscapes")
     active_project: str = "streetscapes"
@@ -26,15 +29,11 @@ class Configuration(BaseSettings):
     def _ensure_image_dir(cls, value: str | Path) -> Path:
         return ensure_dir(value)
 
-    @field_validator("config_file", mode="before")
-    @classmethod
-    def _ensure_config_file(cls, value: str | Path) -> Path:
-        value = Path(value)
-        Path.touch(value)
-        return value
-
     def save(self):
-        self.config_file.write_text(self.model_dump_json(indent=4))
+        CONFIG_FILE.write_text(self.model_dump_json(indent=4))
 
 
-conf = Configuration()
+if not CONFIG_FILE.exists():
+    Configuration().save()
+
+conf = Configuration(**oj.loads(Path.read_text(CONFIG_FILE)))
