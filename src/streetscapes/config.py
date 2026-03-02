@@ -15,8 +15,6 @@ class Configuration(BaseSettings):
     image_dir: Path = user_cache_path("streetscapes")
     active_project: str = "streetscapes"
     mapillary_token: str = os.getenv("MAPILLARY_TOKEN", "")
-
-    timespec: str = "microseconds"
     local_cache_dir_name: str = "local"
 
     @field_validator("project_dir", mode="before")

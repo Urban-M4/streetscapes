@@ -102,6 +102,10 @@ class Project:
         conf.active_project = self.name
         conf.save()
 
+        # Internal attributes
+        # ==================================================
+        self._timestamp_resolution = "microseconds"
+
         # Database connection
         self._con = ibis.duckdb.connect(
             self.db_path,
@@ -350,7 +354,7 @@ class Project:
 
         data = {
             "run": [run],
-            "timestamp": [utils.iso_timestamp(conf.timespec)],
+            "timestamp": [utils.iso_timestamp(self._timestamp_resolution)],
             "model": [model],
             "metadata": [oj.dumps(metadata)],
         }
@@ -379,7 +383,7 @@ class Project:
 
         for r in runs:
             r.setdefault("run", utils.uuid7(True))
-            r.setdefault("timestamp", utils.iso_timestamp(conf.timespec))
+            r.setdefault("timestamp", utils.iso_timestamp(self._timestamp_resolution))
             r["metadata"] = oj.dumps(r.get("metadata"))
             for k in data:
                 data[k].append(r.get(k))
