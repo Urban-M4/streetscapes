@@ -42,7 +42,7 @@ def mapillary(
         logger.info("No new images to download.")
         return
 
-    token = token or os.getenv("MAPILLARY_TOKEN")
+    token = token or config.getopt('mapillary_token', os.getenv("MAPILLARY_TOKEN"))
 
     mapillary = MapillaryClient(token)
 

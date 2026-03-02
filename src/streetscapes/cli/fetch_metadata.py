@@ -37,7 +37,7 @@ def mapillary(
 
     logger.info(f"Fetching metadata for {bbox=}")
 
-    token = token or os.getenv("MAPILLARY_TOKEN")
+    token = token or config.getopt("mapillary_token", os.getenv("MAPILLARY_TOKEN"))
     if not token:
         logger.error("Error: token not provided and MAPILLARY_TOKEN not set in .env.")
         raise typer.Exit(code=1)
