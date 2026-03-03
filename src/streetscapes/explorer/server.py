@@ -1,6 +1,5 @@
 """FastAPI server implementation."""
 
-import asyncio
 import webbrowser
 from datetime import datetime
 from pathlib import Path
@@ -277,10 +276,10 @@ async def segment_image(image_id, model, run_args):
     pass
 
 
-async def _start_uvicorn(port: int, log_info: bool):
+async def _start_uvicorn(port: int, host: str, log_info: bool):
     config = uvicorn.Config(
         app,
-        host="0.0.0.0",
+        host=host,
         port=port,
         log_level="info" if log_info else "warning",
     )
@@ -288,8 +287,8 @@ async def _start_uvicorn(port: int, log_info: bool):
     await server.serve()
 
 
-async def _serve(port: int, open_webpage: bool, log_info: bool):
-    server = _start_uvicorn(port, log_info)
+async def _serve(port: int, host: str, open_webpage: bool, log_info: bool):
+    server = _start_uvicorn(port, host, log_info)
     if open_webpage:
         print("Waiting for the streetscapes-explorer to start...")
         webbrowser.open(
@@ -305,7 +304,7 @@ async def _serve(port: int, open_webpage: bool, log_info: bool):
             "To open the explorer, go to https://urban-m4.github.io/Urban-M5/ and "
         )
     print(
-        f"paste in https://0.0.0.0:{port} as web service.\n"
+        f"paste in https://localhost:{port} as web service.\n"
         "  You will need to disable your ad blocker (like uBlock Origin Lite)\n"
         "and allow your web browser to load localhost resources."
     )
@@ -318,19 +317,23 @@ cli = App(help="Streetscapes data explorer")
 async def serve(
     *,
     port: Annotated[int, Parameter(name=["--port", "-p"])] = 5001,
+    host: Annotated[str, Parameter(name=["--host", "-h"])] = "0.0.0.0",
     open_webpage: bool = True,
     verbose_logs: bool = False,
 ):
     """Start the Streetscapes Explorer server.
-    
+
     Args:
         port: port to host the backend on.
+        host: Bind socket to this host. Default (0.0.0.0) makes the backend available
+            to any machine that can communicate with the host. Set it to 127.0.0.1 to
+            allow only access from the local machine.
         open_webpage: automatically open a browser window with the frontend viewer,
             with the backend correctly configured.
         verbose_logs: display verbose backend server logs, useful for debugging the
             frontend.
     """
-    await _serve(port, open_webpage, verbose_logs)
+    await _serve(port, host, open_webpage, verbose_logs)
 
 if __name__ == "__main__":
    cli()
