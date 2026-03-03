@@ -111,10 +111,15 @@ def _get_segmentations(uuid: UUID) -> list[Segmentation]:
             for label, poly in zip(labels, polys, strict=True)
         ]
         runinfo = runs.filter(runs.run == row["run"]).to_pandas().squeeze()
+        meta = runinfo["metadata"]
+        if isinstance(meta, str):
+            meta = meta.encode("utf8").decode("unicode_escape")
+        elif isinstance(meta, dict):
+            meta = str(meta)
         seg = Segmentation(
             model_name=runinfo["model"],
             id=row["run"],
-            run_args=runinfo["metadata"].encode("utf8").decode("unicode_escape"),
+            run_args=meta,
             instances=inst,
         )
         segmentations.append(seg)

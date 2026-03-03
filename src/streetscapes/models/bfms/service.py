@@ -22,8 +22,8 @@ class BFMSService:
     interface usable by Ray Serve.
     """
 
-    def __init__(self):
-        self.model = BFMS()
+    def __init__(self, model_id: str):
+        self.model = BFMS(model_id=model_id)
 
     def handle(self, request: dict) -> dict:
         req = BFMSRequest(**request)
