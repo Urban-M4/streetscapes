@@ -295,7 +295,6 @@ async def _serve(port: int, open_webpage: bool, log_info: bool):
     server = _start_uvicorn(port, log_info)
     if open_webpage:
         print("Waiting for the streetscapes-explorer to start...")
-        await asyncio.sleep(5)
         webbrowser.open(
             f"https://urban-m4.github.io/Urban-M5/?s=http://localhost:{port}"
         )
