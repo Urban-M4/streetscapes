@@ -35,8 +35,8 @@ def mask2poly(
     Returns:
         GeometryCollection: collection of all segmentations as multipolygons.   
     """
-    if not model == "maskformer":
-        msg = "Invalid segmentation, only maskformer is supported at the moment."
+    if not model in ["maskformer", "dinosam"]:
+        msg = f"Invalid segmentation, model '{model}' is not supported at the moment."
         raise NotImplementedError(msg)
 
     if model == "maskformer":
