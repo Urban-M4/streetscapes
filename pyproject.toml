@@ -66,7 +66,7 @@ license = { file = "LICENCE.md" }
 
 [project.scripts]
 streetscapes = "streetscapes.cli.main:app"
-streetscapes-explorer = "streetscapes.explorer.server:serve"
+streetscapes-explorer = "streetscapes.explorer.server:cli"
 
 [tool.ruff]
 lint.select = ["F", "E", "TYP", "B", "D", "C", "Q", "I"]

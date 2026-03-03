@@ -11,6 +11,7 @@ import orjson as oj
 from streetscapes import CFG, utils
 from streetscapes.project import Project
 from streetscapes.serve.server import serve_model
+from streetscapes.utils.masks import mask2poly
 
 logger = logging.getLogger(__name__)
 
@@ -123,12 +124,14 @@ def cli(
                 proj.get_image_dir_for_source(unprocessed[response.uid][1])
             )
             instances = oj.loads(response.instances)
+            instances = np.array(instances) # turned 3-level nested list into 3D array
             utils.save_instances(archive_dir / sub, instances)
             segmentations.append(
                 {
                     "run": run,
                     "image": response.uid,
                     "labels": response.labels,
+                    "polygons": mask2poly(instances, model="dinosam"),
                 }
             )
 

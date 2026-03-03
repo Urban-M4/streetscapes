@@ -47,8 +47,8 @@ def mask2poly(
     """
     scale = None
 
-    if not model in ["maskformer", "bfms"]:
-        msg = "Invalid segmentation, only maskformer is supported at the moment."
+    if not model in ["maskformer", "dinosam", "bfms"]:
+        msg = f"Invalid segmentation, model '{model}' is not supported."
         raise NotImplementedError(msg)
 
     if model == "maskformer":
