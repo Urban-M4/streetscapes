@@ -317,7 +317,7 @@ cli = App(help="Streetscapes data explorer")
 async def serve(
     *,
     port: Annotated[int, Parameter(name=["--port", "-p"])] = 5001,
-    host: Annotated[str, Parameter(name=["--host", "-h"])] = "0.0.0.0",
+    host: Annotated[str, Parameter(name=["--host"])] = "0.0.0.0",
     open_webpage: bool = True,
     verbose_logs: bool = False,
 ):
