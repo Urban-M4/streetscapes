@@ -18,7 +18,7 @@ def _get_db() -> "ibis.BaseBackend":
     import ibis
 
     dbpath = Path(
-        f"{CFG.project_dir}/projects/{CFG.active_project}.duckdb"
+        f"{CFG.project_dir}/{CFG.active_project}.duckdb"
     )
     return ibis.duckdb.connect(dbpath, extensions=["spatial", "json"])
 
