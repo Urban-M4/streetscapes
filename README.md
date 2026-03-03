@@ -97,11 +97,11 @@ streetscapes segment_images bfms
 # 4.3 Segment images with DinoSAM using a custom prompt
 streetscapes segment_images dinosam --prompt 'building vegetation car truck road'
 # 5.1 view currently available segmentation runs
-streetscapes database segmentation stats
+streetscapes database segmentations stats
 # 5.2 view the segmentations in the exporer
 streetscapes-explorer
 # 5.3 delete all segmentation runs in a project
-streetscapes database segmentation delete --run-id '*'
+streetscapes database segmentations delete --run-id '*'
 ```
 
 <!-- Potential other commands to be implemented
