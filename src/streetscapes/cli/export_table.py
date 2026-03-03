@@ -3,7 +3,6 @@ import os
 
 from cyclopts import App
 
-from streetscapes.project import Project
 
 logger = logging.getLogger(__name__)
 
@@ -23,6 +22,8 @@ def export_table(
         output: Output file path (must have .csv, .parquet, .json, .gpkg, or .geojson extension).
         project: Optionally specify the project to work on.
     """
+    from streetscapes.project import Project
+
     project = Project(project)
     ext = os.path.splitext(output)[1].lower()
 
