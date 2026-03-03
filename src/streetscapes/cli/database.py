@@ -64,8 +64,8 @@ def delete_segmentations(
             f"'{CFG.active_project}' project database, are you sure? [y/N]"
         )
         if reply in ["y", "Y"]:
-            db.raw_sql("DELETE FROM segmentations WHERE True;")
-            db.raw_sql("DELETE FROM runs WHERE True;")
+            db.raw_sql("DELETE FROM segmentations;")
+            db.raw_sql("DELETE FROM runs;")
     elif run_id not in runs:
         print(f"Run ID {'run_id'} not found in database")
     else:
