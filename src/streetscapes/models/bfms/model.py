@@ -4,7 +4,6 @@ from typing import Any
 import numpy as np
 import torch
 from PIL import Image
-from platformdirs import user_data_path
 from streetscapes import utils
 
 
@@ -32,9 +31,12 @@ class BFMS:
             config=config,
         ).to(self.device)
 
-        config.to_json_file("/tmp/bfms-config.json")
+        processor_cfg = (  # won't load directly from BFMS ID, but does work this way;
+            "https://huggingface.co/jinfengxie/BFMS_1014/raw/main/config.json"
+            if model_id == "jinfengxie/BFMS_1014" else model_id
+        )
         self.processor = tform.AutoImageProcessor.from_pretrained(
-            "/tmp/bfms-config.json",
+            processor_cfg,
             use_fast=True,
         )
 
