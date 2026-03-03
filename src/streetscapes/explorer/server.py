@@ -31,10 +31,7 @@ from streetscapes.explorer.dummy_data import _images
 app = FastAPI()
 
 origins = [
-    "http://localhost",
-    "https://localhost",
-    "http://localhost:5173",
-    "https://urban-m4.github.io",
+    "*",
 ]
 
 app.add_middleware(
