@@ -17,6 +17,7 @@ def cli(
     run: Optional[str] = None,
     project: str = cast("str", CFG.active_project),
     overwrite: bool = False,
+    verbose: bool = False,
 ):
     """
     Segment images with BFMS.
@@ -28,6 +29,7 @@ def cli(
         run: Model run name.
         project: The project to use.
         overwrite: Overwrite an existing run.
+        verbose: Print verbose log to the terminal. Useful for debugging models.
     """
 
     # Open the project
@@ -63,7 +65,7 @@ def cli(
         / str(run)
     )
 
-    handle = serve_model(model, **model_params)
+    handle = serve_model(model, verbose, **model_params)
     logger.info(f"Segmenting {len(unprocessed)} images using {model}...")
 
     # NOTE: BFMS does not support a batch mode.
