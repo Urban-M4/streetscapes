@@ -28,7 +28,7 @@ if TYPE_CHECKING:  # Delay slow imports for CLI responsiveness
 
 
 def iso_timestamp(
-    precision: str = "milliseconds",
+    precision: str = "seconds",
     fmt: str | None = None,
     sep: str = "T",
 ) -> str:
