@@ -46,8 +46,8 @@ def get_model_app(model: str, /, **kwargs) -> serve.Application:
     return ModelApp.bind(model, **kwargs)
 
 
-def serve_model(model: str, verbose: False, /, **kwargs) -> DeploymentHandle:
-    app = get_model_app(model, **kwargs)
+def serve_model(model: str, verbose: False, /, **model_kwargs) -> DeploymentHandle:
+    app = get_model_app(model, **model_kwargs)
 
     logger = logging.getLogger("ray.serve")
     if not verbose:
