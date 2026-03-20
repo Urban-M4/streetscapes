@@ -21,10 +21,16 @@ def set_config(key: str, value: str):
     Raises:
         SystemExit: Raised if the configuration option does not exist.
     """
+    from streetscapes.project import Project
 
     if not hasattr(CFG, key):
         print(f"No config value for '{key}'", err=True)
         raise SystemExit(code=1)
+
+    # For now, this cannot be done in a Pydantic validator
+    # because it triggers a circular import error.
+    if key == "active_project":
+        proj = Project(value)
 
     setattr(CFG, key, value)
     CFG.save()
