@@ -60,7 +60,8 @@ def cli(
         "text_threshold": text_threshold,
     }
 
-    proj.add_run(run, model, model_params, overwrite)
+    result = proj.add_run(run, model, model_params, overwrite)
+    run = result.get("run")[0]
 
     # Get all images that need to be processed.
     # ==================================================

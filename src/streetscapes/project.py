@@ -740,6 +740,8 @@ class Project:
             else:
                 self._con.raw_sql(f"INSERT OR {alt} INTO {table} FROM updated_df;")
 
+            return data
+
         except duckdb.ConstraintException as e:
             logger.error(f"Constraint violation on '{table}': {e}")
 

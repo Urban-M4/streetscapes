@@ -38,7 +38,8 @@ def cli(
     model = "bfms"
     model_params = {"model_id": model_id}
 
-    proj.add_run(run, model, model_params, overwrite)
+    result = proj.add_run(run, model, model_params, overwrite)
+    run = result.get("run")[0]
 
     if image_path is not None:
         image_paths = utils.get_image_paths(image_path)
