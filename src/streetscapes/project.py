@@ -352,7 +352,7 @@ class Project:
         ts = utils.iso_timestamp(self._timestamp_resolution)
 
         if run is None:
-            run = f"{model or 'unknown'}@{ts.replace(' ', '_')}"
+            run = f"{model or 'unknown'}-{ts}"
 
         data = {
             "run": [run],
@@ -385,7 +385,7 @@ class Project:
 
         for r in runs:
             model = r.get("model", "unknown")
-            r.setdefault("run", f"{model}@{ts.replace(' ', '_')}")
+            r.setdefault("run", f"{model}-{ts}")
             r.setdefault("timestamp", ts)
             r["metadata"] = oj.dumps(r.get("metadata"))
             for k in data:
