@@ -11,6 +11,7 @@ import orjson as oj
 from streetscapes import CFG, utils
 from streetscapes.project import Project
 from streetscapes.serve.server import serve_model
+from streetscapes.utils.masks import mask2poly
 
 logger = logging.getLogger(__name__)
 
@@ -26,6 +27,7 @@ def cli(
     run: str | None = None,
     project: str = cast("str", CFG.active_project),
     overwrite: bool = False,
+    verbose: bool = False,
 ):
     """Segment images with DinoSAM.
 
@@ -42,6 +44,7 @@ def cli(
         run: Model run ID.
         project: The project to use.
         overwrite: Overwrite an existing run.
+        verbose: Print verbose log to the terminal. Useful for debugging models.
     """
 
     # Open the project
@@ -89,7 +92,7 @@ def cli(
     # Segment the images and save the segmentations.
     # ==================================================
     # Ray Serve handle.
-    handle = serve_model(model, **model_params)
+    handle = serve_model(model, verbose, **model_params)
     logger.info(f"Segmenting {len(unprocessed)} images using {model}...")
     batches = list(batched(unprocessed, batch_size))
     for batch_idx, batch in enumerate(batches, 1):
@@ -121,12 +124,14 @@ def cli(
                 proj.get_image_dir_for_source(unprocessed[response.uid][1])
             )
             instances = oj.loads(response.instances)
+            instances = np.array(instances) # turned 3-level nested list into 3D array
             utils.save_instances(archive_dir / sub, instances)
             segmentations.append(
                 {
                     "run": run,
                     "image": response.uid,
                     "labels": response.labels,
+                    "polygons": mask2poly(instances, model="dinosam"),
                 }
             )
 

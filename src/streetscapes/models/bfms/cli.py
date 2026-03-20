@@ -1,4 +1,4 @@
-from typing import cast
+from typing import Optional, cast
 
 import imageio.v3 as iio
 import numpy as np
@@ -8,13 +8,16 @@ from streetscapes import CFG, utils
 from streetscapes.project import Project
 from streetscapes.serve.server import serve_model
 from streetscapes.utils.logging import logger
+from streetscapes.utils.masks import mask2poly
 
 
 def cli(
-    image_path: str | None = None,
-    run: str | None = None,
+    image_path: Optional[str] = None,
+    model_id: str = "jinfengxie/BFMS_1014",
+    run: Optional[str] = None,
     project: str = cast("str", CFG.active_project),
     overwrite: bool = False,
+    verbose: bool = False,
 ):
     """
     Segment images with BFMS.
@@ -22,23 +25,21 @@ def cli(
     Args:
         image_path: Path to the images to be segmented.
             If not provided uses all downloaded images in the project.
-        run: Model run ID.
+        model_id: BFMS model ID (Huggingface format).
+        run: Model run name.
         project: The project to use.
         overwrite: Overwrite an existing run.
+        verbose: Print verbose log to the terminal. Useful for debugging models.
     """
 
     # Open the project
     proj = Project(project)
 
-    # Save the run metadata.
-    # ==================================================
     model = "bfms"
-    model_params = {}
+    model_params = {"model_id": model_id}
 
     proj.add_run(run, model, model_params, overwrite)
 
-    # Get all images that need to be processed.
-    # ==================================================
     if image_path is not None:
         image_paths = utils.get_image_paths(image_path)
         if len(image_paths) == 0:
@@ -54,8 +55,6 @@ def cli(
         logger.info(f"Nothing to process.")
         return
 
-    # Create the archive directory.
-    # ==================================================
     archive_dir = utils.ensure_dir(
         proj.get_archive_dir_for_model(
             model,
@@ -64,10 +63,7 @@ def cli(
         / str(run)
     )
 
-    # Segment the images and save the segmentations.
-    # ==================================================
-    # Ray Serve handle.
-    handle = serve_model(model)
+    handle = serve_model(model, verbose, **model_params)
     logger.info(f"Segmenting {len(unprocessed)} images using {model}...")
 
     # NOTE: BFMS does not support a batch mode.
@@ -75,9 +71,10 @@ def cli(
 
         # Extract the paths and open the images as NumPy arrays.
         path, source = unprocessed[uid]
+        img = np.asarray(iio.imread(path))
         request = {
             "image": oj.dumps(
-                np.asarray(iio.imread(path)),
+                img,
                 option=oj.OPT_SERIALIZE_NUMPY,
             )
         }
@@ -91,6 +88,10 @@ def cli(
         sub = path.relative_to(proj.get_image_dir_for_source(source))
         instances = oj.loads(response.instances)
         utils.save_instances(archive_dir / sub, instances)
-
         # Save segmentation immediately
-        proj.add_segmentation(run, uid, response.labels)
+        proj.add_segmentation(
+            run,
+            uid,
+            response.labels,
+            polygons=mask2poly(np.array(instances), model="bfms", image=img,),
+        )

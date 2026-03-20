@@ -1,6 +1,5 @@
 """FastAPI server implementation."""
 
-import asyncio
 import webbrowser
 from datetime import datetime
 from pathlib import Path
@@ -10,6 +9,7 @@ from uuid import UUID
 import ibis
 import pandas as pd
 import uvicorn
+from cyclopts import App, Parameter
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.params import Query
@@ -30,9 +30,7 @@ from streetscapes.explorer.dummy_data import _images
 app = FastAPI()
 
 origins = [
-    "http://localhost",
-    "http://localhost:5173",
-    "https://urban-m4.github.io",
+    "*",
 ]
 
 app.add_middleware(
@@ -113,10 +111,15 @@ def _get_segmentations(uuid: UUID) -> list[Segmentation]:
             for label, poly in zip(labels, polys, strict=True)
         ]
         runinfo = runs.filter(runs.run == row["run"]).to_pandas().squeeze()
+        meta = runinfo["metadata"]
+        if isinstance(meta, str):
+            meta = meta.encode("utf8").decode("unicode_escape")
+        elif isinstance(meta, dict):
+            meta = str(meta)
         seg = Segmentation(
             model_name=runinfo["model"],
             id=row["run"],
-            run_args=runinfo["metadata"].encode("utf8").decode("unicode_escape"),
+            run_args=meta,
             instances=inst,
         )
         segmentations.append(seg)
@@ -278,27 +281,64 @@ async def segment_image(image_id, model, run_args):
     pass
 
 
-async def _start_uvicorn():
-    config = uvicorn.Config(app, host="0.0.0.0", port=5000, log_level="info")
+async def _start_uvicorn(port: int, host: str, log_info: bool):
+    config = uvicorn.Config(
+        app,
+        host=host,
+        port=port,
+        log_level="info" if log_info else "warning",
+    )
     server = uvicorn.Server(config)
     await server.serve()
 
 
-async def _serve():
-    server = _start_uvicorn()
-    print("Waiting for the streetscapes-explorer to start...")
-    await asyncio.sleep(5)
-    webbrowser.open("https://urban-m4.github.io/Urban-M5/?s=http://localhost:5000")
+async def _serve(port: int, host: str, open_webpage: bool, log_info: bool):
+    server = _start_uvicorn(port, host, log_info)
+    if open_webpage:
+        print("Waiting for the streetscapes-explorer to start...")
+        webbrowser.open(
+            f"https://urban-m4.github.io/Urban-M5/?s=http://localhost:{port}"
+        )
+        print(
+            "The streetscapes-explorer should have launched automatically.\n"
+            "To open it manually, go to https://urban-m4.github.io/Urban-M5/ and "
+        )
+    else:
+        print(
+            "Starting the streetscapes-explorer...\n\n"
+            "To open the explorer, go to https://urban-m4.github.io/Urban-M5/ and "
+        )
     print(
-        "The streetscapes-explorer should have launched automatically.\n"
-        "To open it manually, go to https://urban-m4.github.io/Urban-M5/ and "
-        "paste in https://0.0.0.0:5000 as web service.\n"
-        "You will need to disable your ad blocker (like uBlock Origin Lite)"
-        " and allow your web browser to load localhost resources."
+        f"paste in https://localhost:{port} as web service.\n"
+        "  You will need to disable your ad blocker (like uBlock Origin Lite)\n"
+        "and allow your web browser to load localhost resources."
     )
     await server
 
 
-def serve():
-    """Start the Streetscapes Explorer server."""
-    asyncio.run(_serve())
+cli = App(help="Streetscapes data explorer")
+
+@cli.default
+async def serve(
+    *,
+    port: Annotated[int, Parameter(name=["--port", "-p"])] = 5001,
+    host: Annotated[str, Parameter(name=["--host"])] = "0.0.0.0",
+    open_webpage: bool = True,
+    verbose_logs: bool = False,
+):
+    """Start the Streetscapes Explorer server.
+
+    Args:
+        port: port to host the backend on.
+        host: Bind socket to this host. Default (0.0.0.0) makes the backend available
+            to any machine that can communicate with the host. Set it to 127.0.0.1 to
+            allow only access from the local machine.
+        open_webpage: automatically open a browser window with the frontend viewer,
+            with the backend correctly configured.
+        verbose_logs: display verbose backend server logs, useful for debugging the
+            frontend.
+    """
+    await _serve(port, host, open_webpage, verbose_logs)
+
+if __name__ == "__main__":
+   cli()

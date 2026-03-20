@@ -1,6 +1,7 @@
 import os
 import re
 import sys
+from typing import TYPE_CHECKING
 import uuid
 from collections.abc import Iterable
 from datetime import datetime
@@ -8,15 +9,9 @@ from hashlib import sha256
 from pathlib import Path
 
 import filetype as ft
-import geopandas as gpd
-import numpy as np
-import pygeohash
 import seedir as sd
-import shapely
-import shapely as shp
-import skimage as ski
+
 from dotenv import load_dotenv
-from IPython import get_ipython
 
 from streetscapes.utils.metadata import ImageMeta
 
@@ -24,6 +19,12 @@ if sys.version_info >= (3, 14):
     from uuid import uuid7 as __uuid7
 else:
     from uuid7gen import uuid7 as __uuid7
+
+
+if TYPE_CHECKING:  # Delay slow imports for CLI responsiveness
+    import geopandas as gpd
+    import shapely
+    import numpy as np
 
 
 def iso_timestamp(
@@ -67,6 +68,8 @@ def is_notebook() -> bool:
             True if running in a notebook.
 
     """
+    from IPython import get_ipython
+
     try:
         shell = get_ipython().__class__.__name__
         match shell:
@@ -208,9 +211,9 @@ def make_path(
 
 
 def as_rgb(
-    image: np.ndarray,
+    image: "np.ndarray",
     greyscale: bool = False,
-) -> np.ndarray:
+) -> "np.ndarray":
     """Convert an image into an RGB version.
 
     Args:
@@ -225,6 +228,9 @@ def as_rgb(
         The RGB image.
 
     """
+    import skimage as ski
+    import numpy as np
+
     if len(image.shape) == 2:
         # The image is already greyscale.
         # Just convert it to RGB.
@@ -245,7 +251,7 @@ def as_rgb(
     return image
 
 
-def as_hsv(image: np.ndarray) -> np.ndarray:
+def as_hsv(image: "np.ndarray") -> "np.ndarray":
     """Convert an RGB image into HSV format
 
     Args:
@@ -256,6 +262,8 @@ def as_hsv(image: np.ndarray) -> np.ndarray:
         The HSV image.
 
     """
+    import skimage as ski
+
     return ski.color.rgb2hsv(as_rgb(image))
 
 
@@ -278,6 +286,7 @@ def make_colourmap(
 
     """
     import matplotlib.pyplot as plt
+    import numpy as np
 
     if len(labels) == 0:
         return {}
@@ -290,7 +299,7 @@ def make_colourmap(
 def open_image(
     path: Path,
     as_grey: bool = False,
-) -> np.ndarray:
+) -> "np.ndarray":
     """Open an image as a NumPy array.
 
     Args:
@@ -303,6 +312,7 @@ def open_image(
         A NumPy array containing the image.
 
     """
+    import skimage as ski
     return ski.io.imread(path, as_grey)
 
 
@@ -337,7 +347,7 @@ def get_env(key: str):
     raise KeyError(f"{key} not found in environment variables.")
 
 
-def plot_metadata(gdf: gpd.GeoDataFrame, ax=None):
+def plot_metadata(gdf: "gpd.GeoDataFrame", ax=None):
     """Plot the metadata from a GeoDataFrame.
 
     Args:
@@ -351,6 +361,7 @@ def plot_metadata(gdf: gpd.GeoDataFrame, ax=None):
 
     """
     import contextily as ctx
+    import geopandas as gpd
 
     if ax is None:
         import matplotlib.pyplot as plt
@@ -552,7 +563,7 @@ def get_image_metadata(image: bytes | str | Path) -> ImageMeta:
     return ImageMeta(image, _hash, _uuid, ext)
 
 
-def get_geohash_shard_path(location: shapely.Point):
+def get_geohash_shard_path(location: "shapely.Point"):
     """Get nested geo-hash path for given location given as a WKB point.
 
     Geo-hash precision from
@@ -576,6 +587,8 @@ def get_geohash_shard_path(location: shapely.Point):
     de/ --> neighbourhood scale (max 32x32 = 1024 per region)
     fg/ --> block level  (max 32x32 = 1024 per neighbourhood)
     """
+    import shapely
+    import pygeohash
     geom = shapely.from_wkb(location)
     geohash = pygeohash.encode(geom.y, geom.x, precision=7)  # 153m x 153m
     return Path(geohash[:2]) / geohash[2:4] / geohash[4:6]
@@ -595,30 +608,9 @@ def uuid7(as_str: bool = False) -> uuid.UUID | str:
     return u if not as_str else str(u)
 
 
-def seg2poly(segmentation: np.ndarray) -> shp.MultiPolygon:
-    """
-    Convert a segmentation to a Shapely MultiPolygon.
-
-    Args:
-        segmentation: An instance segmentation.
-
-    Returns:
-        A MultiPolygon defining the outlines of the instance.
-        Using a MultiPolygon in case instances consist of
-        disconnected regions that have to be described
-        with multiple polygons.
-    """
-
-    # NOTE: Stub - to be implemented
-    canvas = np.zeros_like(segmentation)
-    contour = ski.segmentation.mark_boundaries(canvas, segmentation)
-    nz = np.nonzero(contour)
-    # ...
-
-
 def save_instances(
     path: Path | str,
-    instances: np.ndarray,
+    instances: "np.ndarray",
     fmt: str = "npz",
 ):
     """
@@ -629,6 +621,7 @@ def save_instances(
         instances: NumPy array of instance masks.
         fmt: Format of the saved file.
     """
+    import numpy as np
 
     path = Path(path)
     if path.is_dir():

@@ -9,8 +9,6 @@ import typer
 
 from streetscapes import CFG, utils
 from streetscapes.cli.console import console
-from streetscapes.project import Project
-from streetscapes.sources.mapillary import MapillaryClient
 
 logger = logging.getLogger(__name__)
 
@@ -30,6 +28,8 @@ def mapillary(
         token: Mapillary OAuth token (if not set via MAPILLARY_TOKEN).
         project: An optional project to attach to.
     """
+    from streetscapes.project import Project
+    from streetscapes.sources.mapillary import MapillaryClient
 
     proj = Project(project or CFG.active_project)
 

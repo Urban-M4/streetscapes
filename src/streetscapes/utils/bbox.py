@@ -1,7 +1,6 @@
 from itertools import product
 from typing import Iterable
 
-import numpy as np
 
 Bbox = tuple[float, float, float, float]
 """west, south, easth, north"""
@@ -11,6 +10,8 @@ def split_bbox(
     bbox: Bbox, tile_size: float = 0.01
 ) -> tuple[int, Iterable[tuple[Bbox, str]]]:
     """Split bounding box into set of smaller tiles with fixed tile size."""
+    import numpy as np
+
     west, south, east, north = bbox
 
     # Decimal precision for formatting
