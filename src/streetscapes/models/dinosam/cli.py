@@ -27,6 +27,7 @@ def cli(
     run: str | None = None,
     project: str = cast("str", CFG.active_project),
     overwrite: bool = False,
+    verbose: bool = False,
 ):
     """Segment images with DinoSAM.
 
@@ -43,6 +44,7 @@ def cli(
         run: Model run ID.
         project: The project to use.
         overwrite: Overwrite an existing run.
+        verbose: Print verbose log to the terminal. Useful for debugging models.
     """
 
     # Open the project
@@ -92,7 +94,7 @@ def cli(
     # Segment the images and save the segmentations.
     # ==================================================
     # Ray Serve handle.
-    handle = serve_model(model, **model_params)
+    handle = serve_model(model, verbose, **model_params)
     logger.info(f"Segmenting {len(unprocessed)} images using {model}...")
     batches = list(batched(unprocessed, batch_size))
     for batch_idx, batch in enumerate(batches, 1):

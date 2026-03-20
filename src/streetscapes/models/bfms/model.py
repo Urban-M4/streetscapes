@@ -5,6 +5,7 @@ import numpy as np
 import torch
 from PIL import Image
 from streetscapes import utils
+from streetscapes.config import CFG
 
 
 class BFMS:
@@ -31,12 +32,16 @@ class BFMS:
             config=config,
         ).to(self.device)
 
-        processor_cfg = (  # won't load directly from BFMS ID, but does work this way;
-            "https://huggingface.co/jinfengxie/BFMS_1014/raw/main/config.json"
-            if model_id == "jinfengxie/BFMS_1014" else model_id
-        )
+        # won't load directly from BFMS ID
+        # from_pretrained should accept URL but this is broken in 
+        # transformers v5
+        tmp_model_dir = CFG.image_dir / "models"
+        tmp_model_dir.mkdir(exist_ok=True)
+        conf_path =  tmp_model_dir / "bfms-config.json"
+        config.to_json_file(conf_path)
+
         self.processor = tform.AutoImageProcessor.from_pretrained(
-            processor_cfg,
+            conf_path,
             use_fast=True,
         )
 

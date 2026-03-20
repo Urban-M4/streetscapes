@@ -46,10 +46,13 @@ def get_model_app(model: str, /, **kwargs) -> serve.Application:
     return ModelApp.bind(model, **kwargs)
 
 
-def serve_model(model: str, /, **kwargs) -> DeploymentHandle:
-    app = get_model_app(model, **kwargs)
+def serve_model(model: str, verbose: False, /, **model_kwargs) -> DeploymentHandle:
+    app = get_model_app(model, **model_kwargs)
 
-    ray.init(log_to_driver=False)
     logger = logging.getLogger("ray.serve")
-    logger.setLevel(logging.WARNING)
-    return serve.run(app, logging_config={"log_level": logging.WARNING})
+    if not verbose:
+        ray.init(log_to_driver=False)
+        logger.setLevel(logging.WARNING)
+    return serve.run(
+        app, logging_config={"log_level": logging.INFO if verbose else logging.WARNING}
+    )
