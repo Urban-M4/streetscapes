@@ -34,8 +34,6 @@ def cli(
     # ==================================================
     model = "bfms"
     model_params = {}
-    if run is None:
-        run = utils.uuid7(as_str=True)
 
     proj.add_run(run, model, model_params, overwrite)
 

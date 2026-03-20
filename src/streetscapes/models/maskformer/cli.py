@@ -55,8 +55,6 @@ def cli(
         "overlap_mask_area_threshold": overlap_threshold,
         "labels_to_fuse": fuse_labels,
     }
-    if run is None:
-        run = utils.uuid7(as_str=True)
 
     proj.add_run(run, model, model_params, overwrite)
 

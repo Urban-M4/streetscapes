@@ -104,7 +104,7 @@ class Project:
 
         # Internal attributes
         # ==================================================
-        self._timestamp_resolution = "microseconds"
+        self._timestamp_resolution = "milliseconds"
 
         # Database connection
         self._con = ibis.duckdb.connect(
@@ -349,12 +349,14 @@ class Project:
         Returns:
             The data added to the database.
         """
+        ts = utils.iso_timestamp(self._timestamp_resolution)
+
         if run is None:
-            run = utils.uuid7(True)
+            run = f"{model or 'unknown'}@{ts.replace(' ', '_')}"
 
         data = {
             "run": [run],
-            "timestamp": [utils.iso_timestamp(self._timestamp_resolution)],
+            "timestamp": [ts],
             "model": [model],
             "metadata": [oj.dumps(metadata)],
         }
@@ -378,12 +380,13 @@ class Project:
         Returns:
             The data added to the database.
         """
-
+        ts = utils.iso_timestamp(self._timestamp_resolution)
         data = {k: [] for k in self.schema("runs")}
 
         for r in runs:
-            r.setdefault("run", utils.uuid7(True))
-            r.setdefault("timestamp", utils.iso_timestamp(self._timestamp_resolution))
+            model = r.get("model", "unknown")
+            r.setdefault("run", f"{model}@{ts.replace(' ', '_')}")
+            r.setdefault("timestamp", ts)
             r["metadata"] = oj.dumps(r.get("metadata"))
             for k in data:
                 data[k].append(r.get(k))

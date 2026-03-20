@@ -56,8 +56,6 @@ def cli(
         "box_threshold": box_threshold,
         "text_threshold": text_threshold,
     }
-    if run is None:
-        run = utils.uuid7(as_str=True)
 
     proj.add_run(run, model, model_params, overwrite)
 
