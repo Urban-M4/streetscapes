@@ -1,6 +1,6 @@
 """CLI commands to view/manipulate the database."""
 from pathlib import Path
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Optional
 
 from cyclopts import App
 
@@ -10,15 +10,16 @@ if TYPE_CHECKING:
     import ibis
 
 database_cli = App(help="Get info and delete entries from the database.")
-segmentations_cli = App(help="View and/or delete segmentation data.")
+segmentations_cli = App(help="View and/or delete segmentation data in the currently active project.")
 database_cli.command(segmentations_cli, name="segmentations")
 
 
-def _get_db() -> "ibis.BaseBackend":
+def _get_db(project: Optional[str] = None) -> "ibis.BaseBackend":
     import ibis
 
     dbpath = Path(
-        f"{CFG.project_dir}/{CFG.active_project}.duckdb"
+        f"{CFG.project_dir}/"
+        f"{CFG.active_project if project is None else project}.duckdb"
     )
     return ibis.duckdb.connect(dbpath, extensions=["spatial", "json"])
 
@@ -71,3 +72,33 @@ def delete_segmentations(
     else:
         db.raw_sql(f"DELETE FROM segmentations WHERE run='{run_id}';")
         db.raw_sql(f"DELETE FROM runs WHERE run='{run_id}';")
+
+
+def _get_table_counts(db: "ibis.BaseBackend") -> tuple[int, int]:
+    return (
+        db.table("images").count().to_pandas(),
+        db.table("runs").count().to_pandas(),
+    )
+
+
+@database_cli.command(name="projects")
+def list_projects():
+    """Get an overview of all projects and their sizes."""
+    proj_dbs = list(Path(CFG.project_dir).glob("*.duckdb"))
+
+    if len(proj_dbs) > 0:
+        projects = {proj.stem: _get_table_counts(_get_db(proj.stem)) for proj in proj_dbs}
+
+        name_len = max([len(proj) for proj in projects]) + 1
+        print(
+            f"Projects stored in directory '{CFG.project_dir}':"
+        )
+        print()
+        print(f"{"Name".ljust(name_len)}| Images | Segmentation runs")
+        print("-"*name_len + "+" + "-"*8+ "+" + "-"*18)
+
+        for proj, counts in projects.items():
+            print(f"{proj.ljust(name_len)}| {counts[0]:>7}| {counts[1]:>17}")
+
+    else:
+        print(f"No projects found in directory '{CFG.project_dir}'")

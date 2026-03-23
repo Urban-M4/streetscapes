@@ -100,7 +100,9 @@ streetscapes segment_images dinosam --prompt 'building vegetation car truck road
 streetscapes database segmentations stats
 # 5.2 view the segmentations in the exporer
 streetscapes-explorer
-# 5.3 delete all segmentation runs in a project
+# 5.3 list the projects stored on this machine
+streetscapes database projects
+# 5.4 delete all segmentation runs in a project
 streetscapes database segmentations delete --run-id '*'
 ```
 
