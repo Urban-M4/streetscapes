@@ -606,39 +606,3 @@ def uuid7(as_str: bool = False) -> uuid.UUID | str:
     """
     u = __uuid7()
     return u if not as_str else str(u)
-
-
-def save_instances(
-    path: Path | str,
-    instances: "np.ndarray",
-    fmt: str = "npz",
-):
-    """
-    Save a segmentation.
-
-    Args:
-        path: The file to save instances to.
-        instances: NumPy array of instance masks.
-        fmt: Format of the saved file.
-    """
-    import numpy as np
-
-    path = Path(path)
-    if path.is_dir():
-        raise ValueError(
-            f"The provided path is a directory, please provide a file path."
-        )
-
-    fpath = path.with_suffix(f".{fmt}")
-    ensure_dir(path.parent)
-    match fmt:
-        case "npz":
-            np.savez_compressed(fpath, instances)
-        case "npy":
-            np.save(fpath, instances)
-        # TODO: Add parquet and efficient geometry storage.
-        # NOTE: Check if it's possible do do away with this step
-        # entirely by storing segmentation outlines as polygons
-        # straight into the database.
-        case _:
-            np.savez_compressed(fpath, instances)
