@@ -5,6 +5,7 @@ from datetime import datetime
 from pathlib import Path
 from typing import Annotated, Optional
 from uuid import UUID
+from itertools import chain
 
 import ibis
 import pandas as pd
@@ -14,6 +15,7 @@ from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.params import Query
 from shapely.ops import transform
+from shapely.geometry import Polygon
 
 from streetscapes import CFG
 from streetscapes.explorer.data import (
@@ -41,15 +43,11 @@ app.add_middleware(
     allow_headers=["*"],
 )
 dbpath = Path(f"{CFG.project_dir}/{CFG.active_project}.duckdb")
-con = ibis.duckdb.connect(dbpath, read_only=True, extensions=["spatial", "json"])
+con: ibis.BaseBackend = ibis.duckdb.connect(dbpath, read_only=True, extensions=["spatial", "json"])
 
 
-def _get_images():
-    data = (
-        con.table("mapillary")
-        .select("image", "thumb_original_url", "geometry")
-        .to_pandas()
-    )
+def _get_images(mapillary_table: ibis.Table):
+    data = mapillary_table.select("image", "thumb_original_url", "geometry").to_pandas()
 
     return [
         Image(*args)
@@ -172,18 +170,62 @@ def _inbounds(img: Image | ImageMetadata, bbox: Bbox) -> bool:
     return bbox.n > img.lat > bbox.s and bbox.w > img.lon > bbox.e
 
 
-def _fetch_images(bbox: Optional[Bbox]) -> list[Image]:
-    if bbox is not None:
-        return _get_images()
-    return _get_images()
+def _bbox_to_polygon(bbox: Bbox) -> Polygon:
+    return Polygon([(bbox.w,bbox.n),(bbox.e,bbox.n),(bbox.e,bbox.s),(bbox.w,bbox.s)])
 
 
-def _unknown_image(image_id, err: Optional[Exception] = None):
+def _fetch_images(filter: Optional[FilterParams]) -> list[Image]:
+    """Fetch images that conform to a filter specification."""
+    images = con.table("images")
+
+    # First filter on image table info
+    if filter is not None:
+        if len(filter.ratings) > 0:
+            match = con.table("images").rating.isin(filter.ratings)
+            images = images.filter(match)
+        if len(filter.sources) > 0:
+            match = con.table("images").source.isin(filter.sources)
+            images = images.filter(match)
+        for tag in filter.tags:
+            match = con.table("images").tags.contains(tag)
+            images = images.filter(match)
+
+    # Next filter on mapillary table info
+    mapillary = con.table("mapillary")
+    mapillary = mapillary.filter(mapillary.image.isin(images.uuid))
+
+    if filter.date_range is not None:
+        start = filter.date_range[0].timestamp() * 1000
+        end = filter.date_range[1].timestamp() * 1000
+        match_start = mapillary.captured_at >= start
+        match_end = mapillary.captured_at <= end
+        mapillary = mapillary.filter(match_start).filter(match_end)
+
+    _match = mapillary.geometry.within(_bbox_to_polygon(filter))
+    mapillary = mapillary.filter(_match)
+
+    return _get_images(mapillary)
+
+
+def _unknown_image(image_id, err: Optional[Exception]):
     msg = f"No image found with id '{image_id}'"
     print(msg)
     if err is not None:
         raise HTTPException(status_code=404, detail=msg) from err
     raise HTTPException(status_code=404, detail=msg)
+
+
+def _get_unique_tags():
+    tags = set(chain.from_iterable(con.table("images")["tags"].to_pandas().to_list()))
+    return list(tags)
+
+
+def _get_daterange() -> tuple[datetime, datetime]:
+    # Note: only implemented for mapillary
+    mapillary = con.table("mapillary")
+    start = datetime.fromtimestamp(mapillary.captured_at.min().to_pandas()/1000)
+    end = datetime.fromtimestamp(mapillary.captured_at.max().to_pandas()/1000)
+    return (start, end)
 
 
 @app.get("/")
@@ -202,7 +244,7 @@ async def project():
 async def fetch_stats(bbox: Annotated[Bbox, Query()]) -> AggregateStats:
     """Get the aggregate stats of the images."""
     return AggregateStats(
-        tags=["sunny", "shops", "crowded"],
+        tags=_get_unique_tags(),
         labels=[
             "vegetation",
             "car",
@@ -215,10 +257,8 @@ async def fetch_stats(bbox: Annotated[Bbox, Query()]) -> AggregateStats:
             "pedestrian-area",
         ],
         model_run_names=["manual"],
-        image_sources=[
-            "mapillary",
-        ],
-        date_range=(datetime(2026, 1, 19), datetime(2026, 1, 20)),
+        image_sources=list(set(con.table("images")["source"].to_pandas().to_list())),
+        date_range=_get_daterange(),
         models=["DinoSAM", "maskformer", "bfms", "manual"],
     )
 
@@ -227,7 +267,7 @@ async def fetch_stats(bbox: Annotated[Bbox, Query()]) -> AggregateStats:
 async def fetch_images(filter: Annotated[FilterParams, Query()]) -> list[Image]:
     """Fetch streetscape images corresponding to a bounding box and optionally filters."""
     # bbox = Bbox(**filter.model_dump())
-    return _fetch_images(None)
+    return _fetch_images(filter)
 
 
 @app.get("/images/{image_id}")
