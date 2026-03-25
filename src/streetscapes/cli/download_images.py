@@ -88,7 +88,7 @@ def mapillary(
         if is_pano:
             tags.append('panoramic')
         if camera_type is not None:
-            tags.append('camtype')
+            tags.append(camera_type)
 
         # Image registration
         image_data.append(
