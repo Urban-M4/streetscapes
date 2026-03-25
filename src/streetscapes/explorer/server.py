@@ -3,7 +3,7 @@
 import webbrowser
 from datetime import datetime
 from pathlib import Path
-from typing import Annotated, Optional
+from typing import Annotated, Any, Optional
 from uuid import UUID
 from itertools import chain
 
@@ -27,7 +27,6 @@ from streetscapes.explorer.data import (
     Instance,
     Segmentation,
 )
-from streetscapes.explorer.dummy_data import _images
 
 app = FastAPI()
 
@@ -42,8 +41,12 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
 dbpath = Path(f"{CFG.project_dir}/{CFG.active_project}.duckdb")
-con: ibis.BaseBackend = ibis.duckdb.connect(dbpath, read_only=True, extensions=["spatial", "json"])
+
+
+def _open_db(dbpath: Path, read_only=True) -> ibis.BaseBackend:
+    return ibis.duckdb.connect(dbpath, read_only=read_only, extensions=["spatial", "json"])
 
 
 def _get_images(mapillary_table: ibis.Table):
@@ -70,6 +73,7 @@ def _check_result_count(data: pd.DataFrame, id: str | UUID) -> None:
 
 
 def _get_source(uuid: UUID) -> str:
+    con = _open_db(dbpath)
     match = con.table("images").uuid == uuid
     matching_images = con.table("images").filter(match).select("source")
     result = matching_images.to_pandas()
@@ -82,6 +86,7 @@ def _flip(x, y):
 
 
 def _get_segmentations(uuid: UUID) -> list[Segmentation]:
+    con = _open_db(dbpath)
     runs = con.table("runs")
     segs = con.table("segmentations")
     seg_filter = segs.image == uuid
@@ -128,6 +133,7 @@ def _get_metadata(id: str) -> ImageMetadata:
     uuid = UUID(id)
     source = _get_source(uuid)
 
+    con = _open_db(dbpath)
     match = con.table(source).image == uuid
     metadata = con.table(source).filter(match).to_pandas()
     match = con.table("images").uuid == uuid
@@ -159,7 +165,7 @@ def _get_metadata(id: str) -> ImageMetadata:
         tags=imgdata["tags"],
         rating=imgdata["rating"],
         compass_angle=float(metadata["compass_angle"]),
-        notes="",
+        notes=imgdata["notes"],
         segmentation=segmentations,
     )
 
@@ -176,6 +182,8 @@ def _bbox_to_polygon(bbox: Bbox) -> Polygon:
 
 def _fetch_images(filter: Optional[FilterParams]) -> list[Image]:
     """Fetch images that conform to a filter specification."""
+    con = _open_db(dbpath)
+
     if filter is None:
         return _get_images(con.table("mapillary"))
 
@@ -233,7 +241,21 @@ def _fetch_images(filter: Optional[FilterParams]) -> list[Image]:
     return _get_images(mapillary)
 
 
-def _unknown_image(image_id, err: Optional[Exception]):
+def _update_img_prop(image_id: str, prop: str, value: Any):
+    con = _open_db(dbpath, read_only=False)
+    imgs = con.table("images")
+    img = imgs.filter(imgs.uuid == image_id).to_pandas()
+
+    if len(img) == 0:
+        _unknown_image(image_id)
+
+    imgd = img.to_dict()
+    imgd[prop][0] = value  # workaround for replacing lists
+    con.con.register("updated_df", pd.DataFrame(imgd))
+    con.raw_sql(f"INSERT OR REPLACE INTO images FROM updated_df;")
+
+
+def _unknown_image(image_id, err: Optional[Exception] = None):
     msg = f"No image found with id '{image_id}'"
     print(msg)
     if err is not None:
@@ -241,17 +263,17 @@ def _unknown_image(image_id, err: Optional[Exception]):
     raise HTTPException(status_code=404, detail=msg)
 
 
-def _get_unique_tags():
+def _get_unique_tags(con: ibis.BaseBackend):
     tags = set(chain.from_iterable(con.table("images")["tags"].to_pandas().to_list()))
     return list(tags)
 
 
-def _get_unique_labels():
+def _get_unique_labels(con: ibis.BaseBackend):
     labels = set(chain.from_iterable(con.table("segmentations").labels.to_pandas().to_list()))
     return list(labels)
 
 
-def _get_daterange() -> tuple[datetime, datetime]:
+def _get_daterange(con: ibis.BaseBackend) -> tuple[datetime, datetime]:
     # Note: only implemented for mapillary
     mapillary = con.table("mapillary")
     start = datetime.fromtimestamp(mapillary.captured_at.min().to_pandas()/1000)
@@ -274,12 +296,14 @@ async def project():
 @app.get("/stats")
 async def fetch_stats(bbox: Annotated[Bbox, Query()]) -> AggregateStats:
     """Get the aggregate stats of the images."""
+    con = _open_db(dbpath)
+
     return AggregateStats(
-        tags=_get_unique_tags(),
-        labels=_get_unique_labels(),
+        tags=_get_unique_tags(con),
+        labels=_get_unique_labels(con),
         model_run_names=list(set(con.table("runs").run.to_pandas())),
         image_sources=list(set(con.table("images")["source"].to_pandas().to_list())),
-        date_range=_get_daterange(),
+        date_range=_get_daterange(con),
         models=list(set(con.table("runs").model.to_pandas())),
     )
 
@@ -287,7 +311,6 @@ async def fetch_stats(bbox: Annotated[Bbox, Query()]) -> AggregateStats:
 @app.get("/images")
 async def fetch_images(filter: Annotated[FilterParams, Query()]) -> list[Image]:
     """Fetch streetscape images corresponding to a bounding box and optionally filters."""
-    # bbox = Bbox(**filter.model_dump())
     return _fetch_images(filter)
 
 
@@ -301,33 +324,21 @@ async def fetch_image_metadata(image_id: str) -> ImageMetadata:
 
 
 @app.post("/images/{image_id}/rating")
-async def set_rating(image_id: str, rating: int | None):
+async def set_rating(image_id: str, rating: int):
     """Set an image's rating."""
-    for img in _images:
-        if img.id == image_id:
-            img.rating = rating
-            return None
-    _unknown_image(image_id)
+    _update_img_prop(image_id, "rating", rating)
 
 
 @app.post("/images/{image_id}/tags")
 async def set_tags(image_id: str, tags: list[str]):
     """Set an image's tags."""
-    for img in _images:
-        if img.id == image_id:
-            img.tags = tags
-            return None
-    _unknown_image(image_id)
+    _update_img_prop(image_id, "tags", tags)
 
 
 @app.post("/images/{image_id}/notes")
 async def set_notes(image_id: str, notes: str):
     """Set an image's notes."""
-    for img in _images:
-        if img.id == image_id:
-            img.notes = notes
-            return None
-    _unknown_image(image_id)
+    _update_img_prop(image_id, "notes", notes)
 
 
 @app.post("/images/{image_id}/{segmentation_id}/{instance_idx}/{label}")
