@@ -37,15 +37,13 @@ def segmentation_stats():
         print(f"The '{CFG.active_project}' segmentations table is empty")
     else:
         runs = list(t_runs.select("run").to_pandas()["run"])
-        print(
-            f"Segmentation runs in project '{CFG.active_project}' database:"
-        )
-        print(f"{'Name': <37}| Entries")
-        print("-"*37 + "+" + "-"*8)
-        
+        con = Console()
+        title = f"Segmentation runs in project '{CFG.active_project}' database:"
+        tbl = Table("Run name", "Entries", title=title)
         for run in runs:
             n_items = t_segs.filter(t_segs.run==run).nunique().to_pandas()
-            print(f"{run: <37}| {n_items: >7}")
+            tbl.add_row(run, str(n_items))
+        con.print(tbl)
 
 
 @segmentations_cli.command(name="delete")
