@@ -59,10 +59,9 @@ def cli(
         "box_threshold": box_threshold,
         "text_threshold": text_threshold,
     }
-    if run is None:
-        run = utils.uuid7(as_str=True)
 
-    proj.add_run(run, model, model_params, overwrite)
+    result = proj.add_run(run, model, model_params, overwrite)
+    run = result.get("run")[0]
 
     # Get all images that need to be processed.
     # ==================================================
@@ -81,19 +80,6 @@ def cli(
         logger.info(f"Nothing to process.")
         return
 
-    # Create the archive directory.
-    # ==================================================
-    archive_dir = utils.ensure_dir(
-        proj.get_archive_dir_for_model(
-            model,
-            create=True,
-        )
-        / str(run)
-    )
-
-    # Segment the images and save the segmentations.
-    # ==================================================
-    # Ray Serve handle.
     handle = serve_model(model, verbose, **model_params)
     logger.info(f"Segmenting {len(unprocessed)} images using {model}...")
     batches = list(batched(unprocessed, batch_size))
@@ -122,12 +108,8 @@ def cli(
         # Save the instances.
         segmentations = []
         for response in responses:
-            sub = unprocessed[response.uid][0].relative_to(
-                proj.get_image_dir_for_source(unprocessed[response.uid][1])
-            )
             instances = oj.loads(response.instances)
             instances = np.array(instances) # turned 3-level nested list into 3D array
-            utils.save_instances(archive_dir / sub, instances)
             segmentations.append(
                 {
                     "run": run,

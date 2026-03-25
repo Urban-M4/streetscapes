@@ -4,7 +4,7 @@ import sys
 from typing import TYPE_CHECKING
 import uuid
 from collections.abc import Iterable
-from datetime import datetime
+from datetime import datetime, UTC
 from hashlib import sha256
 from pathlib import Path
 
@@ -30,6 +30,8 @@ if TYPE_CHECKING:  # Delay slow imports for CLI responsiveness
 def iso_timestamp(
     precision: str = "seconds",
     fmt: str | None = None,
+    sep: str = "T",
+    utc: bool = True,
 ) -> str:
     """Create a date-timestamp as a simplified ISO-formatted string.
 
@@ -44,17 +46,20 @@ def iso_timestamp(
     Args:
         precision: Precision for the timespec parameter.
         fmt: Explicit format.
+        sep: A custom separator for the default ISO format.
 
     Returns:
         The formatted timestamp.
     """
 
-    ts = datetime.now()
+    ts = datetime.now(UTC) if utc else datetime.now()
 
     if fmt is not None:
         ts = datetime.strftime(ts, fmt)
     else:
-        ts = ts.isoformat(sep=" ", timespec=precision or "seconds")
+        ts = ts.isoformat(sep=sep, timespec=precision)
+        ts = ts.split("+")[0]  # remove timezone info
+
     return ts
 
 
@@ -313,6 +318,7 @@ def open_image(
 
     """
     import skimage as ski
+
     return ski.io.imread(path, as_grey)
 
 
@@ -589,6 +595,7 @@ def get_geohash_shard_path(location: "shapely.Point"):
     """
     import shapely
     import pygeohash
+
     geom = shapely.from_wkb(location)
     geohash = pygeohash.encode(geom.y, geom.x, precision=7)  # 153m x 153m
     return Path(geohash[:2]) / geohash[2:4] / geohash[4:6]
@@ -606,39 +613,3 @@ def uuid7(as_str: bool = False) -> uuid.UUID | str:
     """
     u = __uuid7()
     return u if not as_str else str(u)
-
-
-def save_instances(
-    path: Path | str,
-    instances: "np.ndarray",
-    fmt: str = "npz",
-):
-    """
-    Save a segmentation.
-
-    Args:
-        path: The file to save instances to.
-        instances: NumPy array of instance masks.
-        fmt: Format of the saved file.
-    """
-    import numpy as np
-
-    path = Path(path)
-    if path.is_dir():
-        raise ValueError(
-            f"The provided path is a directory, please provide a file path."
-        )
-
-    fpath = path.with_suffix(f".{fmt}")
-    ensure_dir(path.parent)
-    match fmt:
-        case "npz":
-            np.savez_compressed(fpath, instances)
-        case "npy":
-            np.save(fpath, instances)
-        # TODO: Add parquet and efficient geometry storage.
-        # NOTE: Check if it's possible do do away with this step
-        # entirely by storing segmentation outlines as polygons
-        # straight into the database.
-        case _:
-            np.savez_compressed(fpath, instances)

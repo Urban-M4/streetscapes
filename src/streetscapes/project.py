@@ -45,6 +45,7 @@ class Project:
                 "curated": "BOOL NOT NULL DEFAULT FALSE",
                 "image": "UUID NOT NULL",
                 "labels": "STRING[]",
+                "rating": "INTEGER",  # 0-5
                 "polygons": "GEOMETRY",
             },
             "init": [
@@ -104,7 +105,7 @@ class Project:
 
         # Internal attributes
         # ==================================================
-        self._timestamp_resolution = "microseconds"
+        self._timestamp_resolution = "milliseconds"
 
         # Database connection
         self._con = ibis.duckdb.connect(
@@ -349,12 +350,14 @@ class Project:
         Returns:
             The data added to the database.
         """
+        ts = utils.iso_timestamp(self._timestamp_resolution, utc=False)
+
         if run is None:
-            run = utils.uuid7(True)
+            run = f"{model or 'unknown'}-{ts}"
 
         data = {
             "run": [run],
-            "timestamp": [utils.iso_timestamp(self._timestamp_resolution)],
+            "timestamp": [ts],
             "model": [model],
             "metadata": [oj.dumps(metadata)],
         }
@@ -378,12 +381,13 @@ class Project:
         Returns:
             The data added to the database.
         """
-
+        ts = utils.iso_timestamp(self._timestamp_resolution, utc=False)
         data = {k: [] for k in self.schema("runs")}
 
         for r in runs:
-            r.setdefault("run", utils.uuid7(True))
-            r.setdefault("timestamp", utils.iso_timestamp(self._timestamp_resolution))
+            model = r.get("model", "unknown")
+            r.setdefault("run", f"{model}-{ts}")
+            r.setdefault("timestamp", ts)
             r["metadata"] = oj.dumps(r.get("metadata"))
             for k in data:
                 data[k].append(r.get(k))
@@ -464,6 +468,7 @@ class Project:
         image: uuid.UUID | str,
         labels: list[str],
         curated: bool = False,
+        rating: int | None = None,
         polygons: shp.GeometryCollection | None = None,
         overwrite: bool = False,
     ):
@@ -474,6 +479,7 @@ class Project:
             image: Image ID.
             labels: A list of labels.
             curated: Curation status.
+            rating: Segmentation rating.
             polygons: A Shapely GeometryCollection.
             overwrite: Replace or ignore conflicting data.
         """
@@ -483,6 +489,7 @@ class Project:
             "curated": [curated],
             "image": [ibis.uuid(image).to_pyarrow()],
             "labels": [labels],
+            "rating": [rating],
             "polygons": [polygons],
         }
 
@@ -736,6 +743,8 @@ class Project:
                 self._con.raw_sql(f"INSERT INTO {table} FROM updated_df;")
             else:
                 self._con.raw_sql(f"INSERT OR {alt} INTO {table} FROM updated_df;")
+
+            return data
 
         except duckdb.ConstraintException as e:
             logger.error(f"Constraint violation on '{table}': {e}")

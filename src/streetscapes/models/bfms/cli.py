@@ -37,10 +37,9 @@ def cli(
 
     model = "bfms"
     model_params = {"model_id": model_id}
-    if run is None:
-        run = utils.uuid7(as_str=True)
 
-    proj.add_run(run, model, model_params, overwrite)
+    result = proj.add_run(run, model, model_params, overwrite)
+    run = result.get("run")[0]
 
     if image_path is not None:
         image_paths = utils.get_image_paths(image_path)
@@ -56,14 +55,6 @@ def cli(
     if len(unprocessed) == 0:
         logger.info(f"Nothing to process.")
         return
-
-    archive_dir = utils.ensure_dir(
-        proj.get_archive_dir_for_model(
-            model,
-            create=True,
-        )
-        / str(run)
-    )
 
     handle = serve_model(model, verbose, **model_params)
     logger.info(f"Segmenting {len(unprocessed)} images using {model}...")
@@ -87,9 +78,7 @@ def cli(
         logger.debug(f"Successfully segmented image {uid}, saving instances.")
 
         # Save the instances.
-        sub = path.relative_to(proj.get_image_dir_for_source(source))
         instances = oj.loads(response.instances)
-        utils.save_instances(archive_dir / sub, instances)
         # Save segmentation immediately
         proj.add_segmentation(
             run,
