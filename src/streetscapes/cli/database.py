@@ -4,6 +4,9 @@ from typing import TYPE_CHECKING, Optional
 
 from cyclopts import App
 
+from rich.table import Table
+from rich.console import Console
+
 from streetscapes import CFG
 
 if TYPE_CHECKING:
@@ -93,9 +96,11 @@ def list_projects():
         print(
             f"Projects stored in directory '{CFG.project_dir}':"
         )
-        print()
-        print(f"{"Name".ljust(name_len)}| Images | Segmentation runs")
-        print("-"*name_len + "+" + "-"*8+ "+" + "-"*18)
+        con = Console()
+        tbl = Table("Name", "Images", "Segmentation runs")
+        for proj, counts in projects.items():
+            tbl.add_row(proj, counts[0], counts[1])
+        con.print(tbl)
 
         for proj, counts in projects.items():
             print(f"{proj.ljust(name_len)}| {counts[0]:>7}| {counts[1]:>17}")
