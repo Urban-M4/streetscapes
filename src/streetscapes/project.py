@@ -349,7 +349,7 @@ class Project:
         Returns:
             The data added to the database.
         """
-        ts = utils.iso_timestamp(self._timestamp_resolution)
+        ts = utils.iso_timestamp(self._timestamp_resolution, utc=False)
 
         if run is None:
             run = f"{model or 'unknown'}-{ts}"
