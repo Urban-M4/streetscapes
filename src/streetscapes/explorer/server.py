@@ -131,34 +131,36 @@ def _get_metadata(id: str) -> ImageMetadata:
     source = _get_source(uuid)
 
     match = con.table(source).image == uuid
-    data = con.table(source).filter(match).to_pandas()
+    metadata = con.table(source).filter(match).to_pandas()
+    match = con.table("images").uuid == uuid
+    imgdata = con.table("images").filter(match).to_pandas()
 
-    if len(data) < 1:
+    if len(metadata) < 1:
         msg = f"No entry found with ID {id}"
         print(msg)
         raise ValueError(msg)
-    if len(data) > 1:
+    if len(metadata) > 1:
         msg = f"More than one entry found with ID {id}. Database corrupted?"
         print(msg)
         raise ValueError(msg)
-    data = data.squeeze()
+    metadata = metadata.squeeze()
+    imgdata = imgdata.squeeze()
 
     segmentations = _get_segmentations(uuid)
-
     return ImageMetadata(
-        id=str(data["image"]),
-        url=data["thumb_2048_url"],
-        lat=data["geometry"].y,
-        lon=data["geometry"].x,
-        width=int(data["width"]),
-        height=int(data["height"]),
-        altitude=data["altitude"],
-        captured_at=datetime.fromtimestamp(data["captured_at"] / 1000),
-        panoramic=bool(data["is_pano"]),
+        id=str(metadata["image"]),
+        url=metadata["thumb_2048_url"],
+        lat=metadata["geometry"].y,
+        lon=metadata["geometry"].x,
+        width=int(metadata["width"]),
+        height=int(metadata["height"]),
+        altitude=metadata["altitude"],
+        captured_at=datetime.fromtimestamp(metadata["captured_at"] / 1000),
+        panoramic=bool(metadata["is_pano"]),
         source=source,
-        tags=[],
-        rating=0,
-        compass_angle=float(data["compass_angle"]),
+        tags=imgdata["tags"],
+        rating=imgdata["rating"],
+        compass_angle=float(metadata["compass_angle"]),
         notes="",
         segmentation=segmentations,
     )
