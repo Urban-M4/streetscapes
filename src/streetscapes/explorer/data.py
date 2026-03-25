@@ -20,6 +20,7 @@ class FilterParams(Bbox):
     compass_angle: list[float] = Field(default=[0, 360])
     date_range: tuple[datetime, datetime] = Field(default=(datetime(1826,1,1),datetime.now()))
     panoramic: list[int] = Field(default=[])
+    labels: list[str] = Field(default=["fence"])
 
 
 @dataclass

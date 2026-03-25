@@ -204,6 +204,17 @@ def _fetch_images(filter: Optional[FilterParams]) -> list[Image]:
     _match = mapillary.geometry.within(_bbox_to_polygon(filter))
     mapillary = mapillary.filter(_match)
 
+    # Last filter on segmentation labels
+    if filter.labels is not None:
+        segmentations = con.table("segmentations")
+        for label in filter.labels:
+            segmentations = segmentations.filter(segmentations.labels.contains(label))
+        images_with_labels = set(segmentations.image.to_pandas())
+
+        _match = mapillary.image.isin(images_with_labels)
+        mapillary = mapillary.filter(_match)
+
+    # Now we can request the valid images
     return _get_images(mapillary)
 
 
@@ -218,6 +229,11 @@ def _unknown_image(image_id, err: Optional[Exception]):
 def _get_unique_tags():
     tags = set(chain.from_iterable(con.table("images")["tags"].to_pandas().to_list()))
     return list(tags)
+
+
+def _get_unique_labels():
+    labels = set(chain.from_iterable(con.table("segmentations").labels.to_pandas().to_list()))
+    return list(labels)
 
 
 def _get_daterange() -> tuple[datetime, datetime]:
@@ -245,21 +261,11 @@ async def fetch_stats(bbox: Annotated[Bbox, Query()]) -> AggregateStats:
     """Get the aggregate stats of the images."""
     return AggregateStats(
         tags=_get_unique_tags(),
-        labels=[
-            "vegetation",
-            "car",
-            "building",
-            "bicycle",
-            "person",
-            "sky",
-            "water",
-            "terrain",
-            "pedestrian-area",
-        ],
-        model_run_names=["manual"],
+        labels=_get_unique_labels(),
+        model_run_names=list(set(con.table("runs").run.to_pandas())),
         image_sources=list(set(con.table("images")["source"].to_pandas().to_list())),
         date_range=_get_daterange(),
-        models=["DinoSAM", "maskformer", "bfms", "manual"],
+        models=list(set(con.table("runs").model.to_pandas())),
     )
 
 
