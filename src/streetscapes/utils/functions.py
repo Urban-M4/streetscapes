@@ -31,6 +31,7 @@ def iso_timestamp(
     precision: str = "seconds",
     fmt: str | None = None,
     sep: str = "T",
+    utc: bool = True,
 ) -> str:
     """Create a date-timestamp as a simplified ISO-formatted string.
 
@@ -51,12 +52,13 @@ def iso_timestamp(
         The formatted timestamp.
     """
 
-    ts = datetime.now(UTC)
+    ts = datetime.now(UTC) if utc else datetime.now()
 
     if fmt is not None:
         ts = datetime.strftime(ts, fmt)
     else:
-        ts = ts.isoformat(sep=sep, timespec=precision)[:-6]
+        ts = ts.isoformat(sep=sep, timespec=precision)
+        ts = ts.split("+")[0]  # remove timezone info
 
     return ts
 

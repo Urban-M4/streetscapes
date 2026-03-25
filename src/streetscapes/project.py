@@ -380,7 +380,7 @@ class Project:
         Returns:
             The data added to the database.
         """
-        ts = utils.iso_timestamp(self._timestamp_resolution)
+        ts = utils.iso_timestamp(utc=False)
         data = {k: [] for k in self.schema("runs")}
 
         for r in runs:
