@@ -79,22 +79,9 @@ def cli(
         logger.info(f"Nothing to process.")
         return
 
-    # Create the archive directory.
-    # ==================================================
-    archive_dir = utils.ensure_dir(
-        proj.get_archive_dir_for_model(
-            model,
-            create=True,
-        )
-        / str(run)
-    )
-
-    # Segment the images and save the segmentations.
-    # ==================================================
     if labels is None:
         labels = list(MaskFormer.id_to_label.values())
 
-    # Ray Serve handle.
     handle = serve_model(model, verbose, **model_params)
     logger.info(f"Segmenting {len(unprocessed)} images using {model}...")
     batches = list(batched(unprocessed, batch_size))
@@ -123,11 +110,7 @@ def cli(
         # Save the instances.
         segmentations = []
         for response in responses:
-            sub = unprocessed[response.uid][0].relative_to(
-                proj.get_image_dir_for_source(unprocessed[response.uid][1])
-            )
             instances = oj.loads(response.instances)
-            utils.save_instances(archive_dir / sub, instances)
             segmentations.append(
                 {
                     "run": run,

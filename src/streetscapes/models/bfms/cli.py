@@ -57,14 +57,6 @@ def cli(
         logger.info(f"Nothing to process.")
         return
 
-    archive_dir = utils.ensure_dir(
-        proj.get_archive_dir_for_model(
-            model,
-            create=True,
-        )
-        / str(run)
-    )
-
     handle = serve_model(model, verbose, **model_params)
     logger.info(f"Segmenting {len(unprocessed)} images using {model}...")
 
@@ -87,9 +79,7 @@ def cli(
         logger.debug(f"Successfully segmented image {uid}, saving instances.")
 
         # Save the instances.
-        sub = path.relative_to(proj.get_image_dir_for_source(source))
         instances = oj.loads(response.instances)
-        utils.save_instances(archive_dir / sub, instances)
         # Save segmentation immediately
         proj.add_segmentation(
             run,
