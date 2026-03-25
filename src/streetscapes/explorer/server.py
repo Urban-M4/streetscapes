@@ -176,19 +176,20 @@ def _bbox_to_polygon(bbox: Bbox) -> Polygon:
 
 def _fetch_images(filter: Optional[FilterParams]) -> list[Image]:
     """Fetch images that conform to a filter specification."""
-    images = con.table("images")
+    if filter is None:
+        return _get_images(con.table("mapillary"))
 
     # First filter on image table info
-    if filter is not None:
-        if len(filter.ratings) > 0:
-            match = con.table("images").rating.isin(filter.ratings)
-            images = images.filter(match)
-        if len(filter.sources) > 0:
-            match = con.table("images").source.isin(filter.sources)
-            images = images.filter(match)
-        for tag in filter.tags:
-            match = con.table("images").tags.contains(tag)
-            images = images.filter(match)
+    images = con.table("images")
+    if len(filter.image_ratings) > 0:
+        match = con.table("images").rating.isin(filter.image_ratings)
+        images = images.filter(match)
+    if len(filter.sources) > 0:
+        match = con.table("images").source.isin(filter.sources)
+        images = images.filter(match)
+    for tag in filter.tags:
+        match = con.table("images").tags.contains(tag)
+        images = images.filter(match)
 
     # Next filter on mapillary table info
     mapillary = con.table("mapillary")
@@ -204,16 +205,30 @@ def _fetch_images(filter: Optional[FilterParams]) -> list[Image]:
     _match = mapillary.geometry.within(_bbox_to_polygon(filter))
     mapillary = mapillary.filter(_match)
 
-    # Last filter on segmentation labels
-    if filter.labels is not None:
+    # Last filter on segmentation properties
+    if any((filter.models, filter.labels, filter.model_runs, filter.segmentation_ratings)):
         segmentations = con.table("segmentations")
+        # optionally filter for models
+        if len(filter.models) > 0:
+            runs = con.table("runs")
+            runs = runs.filter(runs.model.isin(filter.models))
+            segmentations = segmentations.filter(segmentations.run.isin(runs.run))
+        
         for label in filter.labels:
+            print(f"filtering for label {label}")
             segmentations = segmentations.filter(segmentations.labels.contains(label))
-        images_with_labels = set(segmentations.image.to_pandas())
 
-        _match = mapillary.image.isin(images_with_labels)
+        if len(filter.model_runs) > 0:
+            segmentations = segmentations.filter(segmentations.run.isin(filter.model_runs))
+
+        if len(filter.segmentation_ratings) > 0:
+            segmentations = segmentations.filter(segmentations.run.isin(filter.segmentation_ratings))
+
+        valid_images = set(segmentations.image.to_pandas())
+
+        _match = mapillary.image.isin(valid_images)
         mapillary = mapillary.filter(_match)
-
+    
     # Now we can request the valid images
     return _get_images(mapillary)
 
