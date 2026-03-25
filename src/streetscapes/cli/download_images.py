@@ -59,9 +59,19 @@ def mapillary(
     image_data = []
     downloaded = 0
 
-    for idx, (uid, image_id, url, shard, location) in track(
+    for idx, rec in track(
         enumerate(records), "Downloading images...", total=len(records)
     ):
+
+        (
+            uid,
+            image_id,
+            url,
+            shard,
+            location,
+            is_pano,
+            camera_type,
+        ) = rec
 
         # Determine the shard
         output_dir = Path(image_dir)
@@ -73,8 +83,12 @@ def mapillary(
 
         # Download image
         meta = mapillary.download_image(url, output_dir, uid, skip_existing)
-
         meta.shard = str(shard)
+        tags = ['mapillary']
+        if is_pano:
+            tags.append('panoramic')
+        if camera_type is not None:
+            tags.append('camtype')
 
         # Image registration
         image_data.append(
@@ -82,6 +96,7 @@ def mapillary(
                 "uuid": meta.uid,
                 "source": meta.source,
                 "shard": meta.shard,
+                "tags": tags,
             }
         )
 

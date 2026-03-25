@@ -752,6 +752,8 @@ class Project:
             "url": "thumb_2048_url",
             "shard": "shard",
             "location": "geometry",
+            "is_pano": "is_pano",
+            "camera_type": "camera_type",
         }
         t_map = self.table("mapillary")
         t_img = self.table("images")
@@ -763,7 +765,7 @@ class Project:
         t = t.select(**keys)
         # images that have been downloaded have `image IS NOT NULL`,
         # so we filter those out to get the missing ones.
-        data = t.filter([t.image.isnull()]).to_pyarrow().to_pydict()
+        data = t.filter([t.image.isnull(), t.url.notnull()]).to_pyarrow().to_pydict()
         if len(data) == 0:
             return [() * len(keys)]
         return list(zip(*[data[k] for k in keys]))
