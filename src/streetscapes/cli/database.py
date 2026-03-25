@@ -91,19 +91,12 @@ def list_projects():
 
     if len(proj_dbs) > 0:
         projects = {proj.stem: _get_table_counts(_get_db(proj.stem)) for proj in proj_dbs}
-
-        name_len = max([len(proj) for proj in projects]) + 1
-        print(
-            f"Projects stored in directory '{CFG.project_dir}':"
-        )
+        title=f"Projects stored in directory '{CFG.project_dir}':"
         con = Console()
-        tbl = Table("Name", "Images", "Segmentation runs")
+        tbl = Table("Name", "Images", "Segmentation runs", title=title)
         for proj, counts in projects.items():
-            tbl.add_row(proj, counts[0], counts[1])
+            tbl.add_row(proj, str(counts[0]), str(counts[1]))
         con.print(tbl)
-
-        for proj, counts in projects.items():
-            print(f"{proj.ljust(name_len)}| {counts[0]:>7}| {counts[1]:>17}")
 
     else:
         print(f"No projects found in directory '{CFG.project_dir}'")
