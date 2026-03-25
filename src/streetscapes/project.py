@@ -45,6 +45,7 @@ class Project:
                 "curated": "BOOL NOT NULL DEFAULT FALSE",
                 "image": "UUID NOT NULL",
                 "labels": "STRING[]",
+                "rating": "INTEGER",  # 0-5
                 "polygons": "GEOMETRY",
             },
             "init": [
@@ -467,6 +468,7 @@ class Project:
         image: uuid.UUID | str,
         labels: list[str],
         curated: bool = False,
+        rating: int | None = None,
         polygons: shp.GeometryCollection | None = None,
         overwrite: bool = False,
     ):
@@ -477,6 +479,7 @@ class Project:
             image: Image ID.
             labels: A list of labels.
             curated: Curation status.
+            rating: Segmentation rating.
             polygons: A Shapely GeometryCollection.
             overwrite: Replace or ignore conflicting data.
         """
@@ -486,6 +489,7 @@ class Project:
             "curated": [curated],
             "image": [ibis.uuid(image).to_pyarrow()],
             "labels": [labels],
+            "rating": [rating],
             "polygons": [polygons],
         }
 
