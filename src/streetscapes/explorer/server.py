@@ -170,12 +170,6 @@ def _get_metadata(id: str) -> ImageMetadata:
     )
 
 
-def _inbounds(img: Image | ImageMetadata, bbox: Bbox) -> bool:
-    # Temporary implementation.
-    # Full implementation needs to account for spherical coordinates properly
-    return bbox.n > img.lat > bbox.s and bbox.w > img.lon > bbox.e
-
-
 def _bbox_to_polygon(bbox: Bbox) -> Polygon:
     return Polygon([(bbox.w,bbox.n),(bbox.e,bbox.n),(bbox.e,bbox.s),(bbox.w,bbox.s)])
 
@@ -255,6 +249,21 @@ def _update_img_prop(image_id: str, prop: str, value: Any):
     con.raw_sql(f"INSERT OR REPLACE INTO images FROM updated_df;")
 
 
+def _update_segmentation_rating(image_id: str, run_name: str, rating: int):
+    con = _open_db(dbpath, read_only=False)
+    segs = con.table("segmentations")
+    segs = segs.filter(segs.image == image_id)
+    seg = segs.filter(segs.run == run_name)
+
+    if len(seg) == 0:
+        _unknown_image(image_id)
+
+    imgd = seg.to_dict()
+    imgd["rating"][0] = rating
+    con.con.register("updated_df", pd.DataFrame(imgd))
+    con.raw_sql(f"INSERT OR REPLACE INTO images FROM updated_df;")
+
+
 def _unknown_image(image_id, err: Optional[Exception] = None):
     msg = f"No image found with id '{image_id}'"
     print(msg)
@@ -264,12 +273,18 @@ def _unknown_image(image_id, err: Optional[Exception] = None):
 
 
 def _get_unique_tags(con: ibis.BaseBackend):
-    tags = set(chain.from_iterable(con.table("images")["tags"].to_pandas().to_list()))
+    tags = con.table("images").tags.to_pandas().dropna()
+    if len(tags) == 0:
+        return []
+    tags = set(chain.from_iterable(tags.to_list()))
     return list(tags)
 
 
 def _get_unique_labels(con: ibis.BaseBackend):
-    labels = set(chain.from_iterable(con.table("segmentations").labels.to_pandas().to_list()))
+    labels = con.table("segmentations").labels.to_pandas().dropna()
+    if len(labels) == 0:
+        return []
+    labels = set(chain.from_iterable(labels))  # nested list to set of uniques
     return list(labels)
 
 
@@ -294,10 +309,9 @@ async def project():
 
 
 @app.get("/stats")
-async def fetch_stats(bbox: Annotated[Bbox, Query()]) -> AggregateStats:
+async def fetch_stats() -> AggregateStats:
     """Get the aggregate stats of the images."""
     con = _open_db(dbpath)
-
     return AggregateStats(
         tags=_get_unique_tags(con),
         labels=_get_unique_labels(con),
@@ -341,9 +355,15 @@ async def set_notes(image_id: str, notes: str):
     _update_img_prop(image_id, "notes", notes)
 
 
-@app.post("/images/{image_id}/{segmentation_id}/{instance_idx}/{label}")
+@app.post("/images/{image_id}/{run_name}/rating")
+async def set_segmentation_rating(image_id: str, run_name: str, rating: int):
+    """Rate an image's segmentation."""
+    _update_segmentation_rating(image_id, run_name, rating)
+
+
+@app.post("/images/{image_id}/{run_name}/{instance_idx}/{label}")
 async def set_instance_label(
-    image_id: str, segmentation_id: str, instance_idx: int, label: str
+    image_id: str, run_name: str, instance_idx: int, label: str
 ):
     """Set the label of a specific instance within a segmentation."""
     pass
