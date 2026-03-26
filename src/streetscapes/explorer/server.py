@@ -10,6 +10,7 @@ from itertools import chain
 import ibis
 import pandas as pd
 import uvicorn
+from brotli_asgi import BrotliMiddleware
 from cyclopts import App, Parameter
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
@@ -33,6 +34,8 @@ app = FastAPI()
 origins = [
     "*",
 ]
+
+app.add_middleware(BrotliMiddleware)
 
 app.add_middleware(
     CORSMiddleware,

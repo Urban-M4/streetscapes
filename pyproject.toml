@@ -78,7 +78,7 @@ lint.select = ["F", "E", "TYP", "B", "D", "C", "Q", "I"]
 convention = "google"
 
 [project.optional-dependencies]
-explorer = ["fastapi", "uvicorn"]
+explorer = ["fastapi", "uvicorn", "brotli-asgi"]
 dev = [
     "fastapi[standard]",
     "pytest>=8.4.2",
