@@ -168,9 +168,9 @@ def _get_metadata(id: str) -> ImageMetadata:
         panoramic=bool(metadata["is_pano"]),
         source=source,
         tags=imgdata["tags"],
-        rating=imgdata["rating"],
+        rating=0 if imgdata["rating"] is None else int(imgdata["rating"]),
         compass_angle=float(metadata["compass_angle"]),
-        notes=imgdata["notes"],
+        notes="" if imgdata["notes"] is None else imgdata["notes"],
         segmentation=segmentations,
     )
 
