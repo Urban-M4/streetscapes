@@ -411,7 +411,7 @@ async def _serve(port: int, host: str, open_webpage: bool, log_info: bool):
             "To open the explorer, go to https://urban-m4.github.io/Urban-M5/ and "
         )
     print(
-        f"paste in https://localhost:{port} as web service.\n"
+        f"paste in http://localhost:{port} as web service.\n"
         "  You will need to disable your ad blocker (like uBlock Origin Lite)\n"
         "and allow your web browser to load localhost resources."
     )
