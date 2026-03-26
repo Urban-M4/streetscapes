@@ -18,9 +18,7 @@ class FilterParams(Bbox):
     sources: list[str] = Field(default=[])
     tags: list[str] = Field(default=[])
     # metadata level filters
-    compass_angle: list[float] = Field(default=[0, 360])  # TODO: add to backend filter
     date_range: tuple[datetime, datetime] = Field(default=(datetime(1826,1,1),datetime.now()))
-    panoramic: list[int] = Field(default=[])  # TODO: add to backend filter
     # segmentation level filters
     models: list[str] = Field(default=[])
     model_runs: list[str] = Field(default=[])
