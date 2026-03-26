@@ -1,9 +1,10 @@
 """FastAPI server implementation."""
 
+from contextlib import contextmanager
 import webbrowser
 from datetime import datetime
 from pathlib import Path
-from typing import Annotated, Any, Optional
+from typing import Annotated, Any, Generator, Optional
 from uuid import UUID
 from itertools import chain
 
@@ -48,10 +49,15 @@ app.add_middleware(
 dbpath = Path(f"{CFG.project_dir}/{CFG.active_project}.duckdb")
 
 
-def _open_db(dbpath: Path, read_only=True) -> ibis.BaseBackend:
-    return ibis.duckdb.connect(
-        dbpath, read_only=read_only, extensions=["spatial", "json"]
-    )
+@contextmanager
+def _open_db(dbpath: Path, read_only=True) -> Generator[ibis.BaseBackend, None, None]:
+    db = ibis.duckdb.connect(
+            dbpath, read_only=read_only, extensions=["spatial", "json"]
+        )
+    try:
+        yield db
+    finally:
+        db.con.close()
 
 
 def _get_images(mapillary_table: ibis.Table):
@@ -78,12 +84,12 @@ def _check_result_count(data: pd.DataFrame, id: str | UUID) -> None:
 
 
 def _get_source(uuid: UUID) -> str:
-    con = _open_db(dbpath)
-    match = con.table("images").uuid == uuid
-    matching_images = con.table("images").filter(match).select("source")
-    result = matching_images.to_pandas()
-    _check_result_count(result, uuid)
-    return result.values[0][0]
+    with _open_db(dbpath) as con:    
+        match = con.table("images").uuid == uuid
+        matching_images = con.table("images").filter(match).select("source")
+        result = matching_images.to_pandas()
+        _check_result_count(result, uuid)
+        return result.values[0][0]
 
 
 def _flip(x, y):
@@ -91,46 +97,46 @@ def _flip(x, y):
 
 
 def _get_segmentations(uuid: UUID) -> list[Segmentation]:
-    con = _open_db(dbpath)
-    runs = con.table("runs")
-    segs = con.table("segmentations")
-    seg_filter = segs.image == uuid
-    seg_data = segs.filter(seg_filter).to_pandas()
+    with _open_db(dbpath) as con:
+        runs = con.table("runs")
+        segs = con.table("segmentations")
+        seg_filter = segs.image == uuid
+        seg_data = segs.filter(seg_filter).to_pandas()
 
-    if len(seg_data) < 1:
-        msg = f"No segmentations found with ID {id}"
-        print(msg)
-        return []
+        if len(seg_data) < 1:
+            msg = f"No segmentations found with ID {id}"
+            print(msg)
+            return []
 
-    segmentations = []
+        segmentations = []
 
-    for _, row in seg_data.iterrows():
-        labels = row["labels"]
-        multipoly = transform(_flip, row["polygons"])
-        polys = list(multipoly.geoms)
-        if len(polys) > len(labels):
-            polys.pop(0)
+        for _, row in seg_data.iterrows():
+            labels = row["labels"]
+            multipoly = transform(_flip, row["polygons"])
+            polys = list(multipoly.geoms)
+            if len(polys) > len(labels):
+                polys.pop(0)
 
-        inst = [
-            Instance(
-                label,
-                [list(points.exterior.coords) for points in poly.geoms],
+            inst = [
+                Instance(
+                    label,
+                    [list(points.exterior.coords) for points in poly.geoms],
+                )
+                for label, poly in zip(labels, polys, strict=True)
+            ]
+            runinfo = runs.filter(runs.run == row["run"]).to_pandas().squeeze()
+            meta = runinfo["metadata"]
+            if isinstance(meta, str):
+                meta = meta.encode("utf8").decode("unicode_escape")
+            elif isinstance(meta, dict):
+                meta = str(meta)
+            seg = Segmentation(
+                model_name=runinfo["model"],
+                id=row["run"],
+                run_args=meta,
+                instances=inst,
             )
-            for label, poly in zip(labels, polys, strict=True)
-        ]
-        runinfo = runs.filter(runs.run == row["run"]).to_pandas().squeeze()
-        meta = runinfo["metadata"]
-        if isinstance(meta, str):
-            meta = meta.encode("utf8").decode("unicode_escape")
-        elif isinstance(meta, dict):
-            meta = str(meta)
-        seg = Segmentation(
-            model_name=runinfo["model"],
-            id=row["run"],
-            run_args=meta,
-            instances=inst,
-        )
-        segmentations.append(seg)
+            segmentations.append(seg)
     return segmentations
 
 
@@ -138,11 +144,11 @@ def _get_metadata(id: str) -> ImageMetadata:
     uuid = UUID(id)
     source = _get_source(uuid)
 
-    con = _open_db(dbpath)
-    match = con.table(source).image == uuid
-    metadata = con.table(source).filter(match).to_pandas()
-    match = con.table("images").uuid == uuid
-    imgdata = con.table("images").filter(match).to_pandas()
+    with _open_db(dbpath) as con:
+        match = con.table(source).image == uuid
+        metadata = con.table(source).filter(match).to_pandas()
+        match = con.table("images").uuid == uuid
+        imgdata = con.table("images").filter(match).to_pandas()
 
     if len(metadata) < 1:
         msg = f"No entry found with ID {id}"
@@ -183,96 +189,95 @@ def _bbox_to_polygon(bbox: Bbox) -> Polygon:
 
 def _fetch_images(filter: Optional[FilterParams]) -> list[Image]:
     """Fetch images that conform to a filter specification."""
-    con = _open_db(dbpath)
+    with _open_db(dbpath) as con:
+        if filter is None:
+            return _get_images(con.table("mapillary"))
 
-    if filter is None:
-        return _get_images(con.table("mapillary"))
+        # First filter on image table info
+        images = con.table("images")
+        if len(filter.image_ratings) > 0:
+            match = con.table("images").rating.isin(filter.image_ratings)
+            images = images.filter(match)
+        if len(filter.sources) > 0:
+            match = con.table("images").source.isin(filter.sources)
+            images = images.filter(match)
+        for tag in filter.tags:
+            match = con.table("images").tags.contains(tag)
+            images = images.filter(match)
 
-    # First filter on image table info
-    images = con.table("images")
-    if len(filter.image_ratings) > 0:
-        match = con.table("images").rating.isin(filter.image_ratings)
-        images = images.filter(match)
-    if len(filter.sources) > 0:
-        match = con.table("images").source.isin(filter.sources)
-        images = images.filter(match)
-    for tag in filter.tags:
-        match = con.table("images").tags.contains(tag)
-        images = images.filter(match)
+        # Next filter on mapillary table info
+        mapillary = con.table("mapillary")
+        mapillary = mapillary.filter(mapillary.image.isin(images.uuid))
 
-    # Next filter on mapillary table info
-    mapillary = con.table("mapillary")
-    mapillary = mapillary.filter(mapillary.image.isin(images.uuid))
+        if filter.date_range is not None:
+            start = filter.date_range[0].timestamp() * 1000
+            end = filter.date_range[1].timestamp() * 1000
+            match_start = mapillary.captured_at >= start
+            match_end = mapillary.captured_at <= end
+            mapillary = mapillary.filter(match_start).filter(match_end)
 
-    if filter.date_range is not None:
-        start = filter.date_range[0].timestamp() * 1000
-        end = filter.date_range[1].timestamp() * 1000
-        match_start = mapillary.captured_at >= start
-        match_end = mapillary.captured_at <= end
-        mapillary = mapillary.filter(match_start).filter(match_end)
-
-    _match = mapillary.geometry.within(_bbox_to_polygon(filter))
-    mapillary = mapillary.filter(_match)
-
-    # Last filter on segmentation properties
-    if any(
-        (filter.models, filter.labels, filter.model_runs, filter.segmentation_ratings)
-    ):
-        segmentations = con.table("segmentations")
-        # optionally filter for models
-        if len(filter.models) > 0:
-            runs = con.table("runs")
-            runs = runs.filter(runs.model.isin(filter.models))
-            segmentations = segmentations.filter(segmentations.run.isin(runs.run))
-
-        for label in filter.labels:
-            print(f"filtering for label {label}")
-            segmentations = segmentations.filter(segmentations.labels.contains(label))
-        if len(filter.model_runs) > 0:
-            segmentations = segmentations.filter(
-                segmentations.run.isin(filter.model_runs)
-            )
-        if len(filter.segmentation_ratings) > 0:
-            segmentations = segmentations.filter(
-                segmentations.run.isin(filter.segmentation_ratings)
-            )
-
-        valid_images = set(segmentations.image.to_pandas())
-
-        _match = mapillary.image.isin(valid_images)
+        _match = mapillary.geometry.within(_bbox_to_polygon(filter))
         mapillary = mapillary.filter(_match)
 
-    # Now we can request the valid images
-    return _get_images(mapillary)
+        # Last filter on segmentation properties
+        if any(
+            (filter.models, filter.labels, filter.model_runs, filter.segmentation_ratings)
+        ):
+            segmentations = con.table("segmentations")
+            # optionally filter for models
+            if len(filter.models) > 0:
+                runs = con.table("runs")
+                runs = runs.filter(runs.model.isin(filter.models))
+                segmentations = segmentations.filter(segmentations.run.isin(runs.run))
+
+            for label in filter.labels:
+                print(f"filtering for label {label}")
+                segmentations = segmentations.filter(segmentations.labels.contains(label))
+            if len(filter.model_runs) > 0:
+                segmentations = segmentations.filter(
+                    segmentations.run.isin(filter.model_runs)
+                )
+            if len(filter.segmentation_ratings) > 0:
+                segmentations = segmentations.filter(
+                    segmentations.run.isin(filter.segmentation_ratings)
+                )
+
+            valid_images = set(segmentations.image.to_pandas())
+
+            _match = mapillary.image.isin(valid_images)
+            mapillary = mapillary.filter(_match)
+
+        # Now we can request the valid images
+        return _get_images(mapillary)
 
 
 def _update_img_prop(image_id: str, prop: str, value: Any):
-    con = _open_db(dbpath, read_only=False)
-    imgs = con.table("images")
-    img = imgs.filter(imgs.uuid == image_id).to_pandas()
+    with _open_db(dbpath, read_only=False) as con:
+        imgs = con.table("images")
+        img = imgs.filter(imgs.uuid == image_id).to_pandas()
 
-    if len(img) == 0:
-        _unknown_image(image_id)
+        if len(img) == 0:
+            _unknown_image(image_id)
 
-    imgd = img.to_dict()
-    imgd[prop][0] = value  # workaround for replacing lists
-    con.con.register("updated_df", pd.DataFrame(imgd))
-    con.raw_sql(f"INSERT OR REPLACE INTO images FROM updated_df;")
+        imgd = img.to_dict()
+        imgd[prop][0] = value  # workaround for replacing lists
+        con.con.register("updated_df", pd.DataFrame(imgd))
+        con.raw_sql(f"INSERT OR REPLACE INTO images FROM updated_df;")
 
 
 def _update_segmentation_rating(image_id: str, run_name: str, rating: int):
-    con = _open_db(dbpath, read_only=False)
-    segs = con.table("segmentations")
-    segs = segs.filter(segs.image == image_id)
-    seg = segs.filter(segs.run == run_name)
+    with _open_db(dbpath, read_only=False) as con:
+        segs = con.table("segmentations")
+        segs = segs.filter(segs.image == image_id)
+        seg = segs.filter(segs.run == run_name)
 
-    if len(seg) == 0:
-        _unknown_image(image_id)
+        if len(seg) == 0:
+            _unknown_image(image_id)
 
-    imgd = seg.to_dict()
-    imgd["rating"][0] = rating
-    con.con.register("updated_df", pd.DataFrame(imgd))
-    con.raw_sql(f"INSERT OR REPLACE INTO images FROM updated_df;")
+        imgd = seg.to_dict()
+        imgd["rating"][0] = rating
+        con.con.register("updated_df", pd.DataFrame(imgd))
+        con.raw_sql(f"INSERT OR REPLACE INTO images FROM updated_df;")
 
 
 def _unknown_image(image_id, err: Optional[Exception] = None):
@@ -301,9 +306,10 @@ def _get_unique_labels(con: ibis.BaseBackend):
 
 def _get_daterange(con: ibis.BaseBackend) -> tuple[datetime, datetime]:
     # Note: only implemented for mapillary
-    mapillary = con.table("mapillary")
-    start = datetime.fromtimestamp(mapillary.captured_at.min().to_pandas() / 1000)
-    end = datetime.fromtimestamp(mapillary.captured_at.max().to_pandas() / 1000)
+    with _open_db(dbpath) as con:
+        mapillary = con.table("mapillary")
+        start = datetime.fromtimestamp(mapillary.captured_at.min().to_pandas() / 1000)
+        end = datetime.fromtimestamp(mapillary.captured_at.max().to_pandas() / 1000)
     return (start, end)
 
 
@@ -322,15 +328,15 @@ async def project():
 @app.get("/stats")
 async def fetch_stats() -> AggregateStats:
     """Get the aggregate stats of the images."""
-    con = _open_db(dbpath)
-    return AggregateStats(
-        tags=_get_unique_tags(con),
-        labels=_get_unique_labels(con),
-        model_run_names=list(set(con.table("runs").run.to_pandas())),
-        image_sources=list(set(con.table("images")["source"].to_pandas().to_list())),
-        date_range=_get_daterange(con),
-        models=list(set(con.table("runs").model.to_pandas())),
-    )
+    with _open_db(dbpath) as con:
+        return AggregateStats(
+            tags=_get_unique_tags(con),
+            labels=_get_unique_labels(con),
+            model_run_names=list(set(con.table("runs").run.to_pandas())),
+            image_sources=list(set(con.table("images")["source"].to_pandas().to_list())),
+            date_range=_get_daterange(con),
+            models=list(set(con.table("runs").model.to_pandas())),
+        )
 
 
 @app.get("/images")
