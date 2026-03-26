@@ -46,7 +46,9 @@ dbpath = Path(f"{CFG.project_dir}/{CFG.active_project}.duckdb")
 
 
 def _open_db(dbpath: Path, read_only=True) -> ibis.BaseBackend:
-    return ibis.duckdb.connect(dbpath, read_only=read_only, extensions=["spatial", "json"])
+    return ibis.duckdb.connect(
+        dbpath, read_only=read_only, extensions=["spatial", "json"]
+    )
 
 
 def _get_images(mapillary_table: ibis.Table):
@@ -171,7 +173,9 @@ def _get_metadata(id: str) -> ImageMetadata:
 
 
 def _bbox_to_polygon(bbox: Bbox) -> Polygon:
-    return Polygon([(bbox.w,bbox.n),(bbox.e,bbox.n),(bbox.e,bbox.s),(bbox.w,bbox.s)])
+    return Polygon(
+        [(bbox.w, bbox.n), (bbox.e, bbox.n), (bbox.e, bbox.s), (bbox.w, bbox.s)]
+    )
 
 
 def _fetch_images(filter: Optional[FilterParams]) -> list[Image]:
@@ -208,29 +212,33 @@ def _fetch_images(filter: Optional[FilterParams]) -> list[Image]:
     mapillary = mapillary.filter(_match)
 
     # Last filter on segmentation properties
-    if any((filter.models, filter.labels, filter.model_runs, filter.segmentation_ratings)):
+    if any(
+        (filter.models, filter.labels, filter.model_runs, filter.segmentation_ratings)
+    ):
         segmentations = con.table("segmentations")
         # optionally filter for models
         if len(filter.models) > 0:
             runs = con.table("runs")
             runs = runs.filter(runs.model.isin(filter.models))
             segmentations = segmentations.filter(segmentations.run.isin(runs.run))
-        
+
         for label in filter.labels:
             print(f"filtering for label {label}")
             segmentations = segmentations.filter(segmentations.labels.contains(label))
-
         if len(filter.model_runs) > 0:
-            segmentations = segmentations.filter(segmentations.run.isin(filter.model_runs))
-
+            segmentations = segmentations.filter(
+                segmentations.run.isin(filter.model_runs)
+            )
         if len(filter.segmentation_ratings) > 0:
-            segmentations = segmentations.filter(segmentations.run.isin(filter.segmentation_ratings))
+            segmentations = segmentations.filter(
+                segmentations.run.isin(filter.segmentation_ratings)
+            )
 
         valid_images = set(segmentations.image.to_pandas())
 
         _match = mapillary.image.isin(valid_images)
         mapillary = mapillary.filter(_match)
-    
+
     # Now we can request the valid images
     return _get_images(mapillary)
 
@@ -291,8 +299,8 @@ def _get_unique_labels(con: ibis.BaseBackend):
 def _get_daterange(con: ibis.BaseBackend) -> tuple[datetime, datetime]:
     # Note: only implemented for mapillary
     mapillary = con.table("mapillary")
-    start = datetime.fromtimestamp(mapillary.captured_at.min().to_pandas()/1000)
-    end = datetime.fromtimestamp(mapillary.captured_at.max().to_pandas()/1000)
+    start = datetime.fromtimestamp(mapillary.captured_at.min().to_pandas() / 1000)
+    end = datetime.fromtimestamp(mapillary.captured_at.max().to_pandas() / 1000)
     return (start, end)
 
 
@@ -412,6 +420,7 @@ async def _serve(port: int, host: str, open_webpage: bool, log_info: bool):
 
 cli = App(help="Streetscapes data explorer")
 
+
 @cli.default
 async def serve(
     *,
@@ -434,5 +443,6 @@ async def serve(
     """
     await _serve(port, host, open_webpage, verbose_logs)
 
+
 if __name__ == "__main__":
-   cli()
+    cli()
