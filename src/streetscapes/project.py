@@ -468,7 +468,7 @@ class Project:
         image: uuid.UUID | str,
         labels: list[str],
         curated: bool = False,
-        rating: int | None = None,
+        rating: int = 0,
         polygons: shp.GeometryCollection | None = None,
         overwrite: bool = False,
     ):
@@ -554,9 +554,9 @@ class Project:
         uid: uuid.UUID,
         source: str | None = None,
         path: str | None = None,
-        notes: str | None = None,
-        tags: list[str] | None = None,
-        rating: int | None = None,
+        notes: str = "",
+        tags: list[str] = [],
+        rating: int = 0,
         overwrite: bool = False,
     ):
         """
