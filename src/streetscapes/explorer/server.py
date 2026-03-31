@@ -87,8 +87,6 @@ def _get_segmentations(uuid: UUID) -> list[Segmentation]:
         seg_data = segs.filter(segs.image == uuid).to_pandas()
 
         if len(seg_data) < 1:
-            msg = f"No segmentations found with ID {id}"
-            print(msg)
             return []
 
         segmentations = []
