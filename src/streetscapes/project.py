@@ -1,4 +1,5 @@
 import shutil
+from typing import Any
 import uuid
 from pathlib import Path
 
@@ -14,6 +15,39 @@ from streetscapes import CFG, logger, utils
 from streetscapes.utils.bbox import Bbox
 
 
+def _format_image(
+    uid: uuid.UUID,
+    source: str,
+    shard: str,
+    notes: str = "",
+    tags: list[str] = [],
+    rating: int = 0,
+) -> dict[str, Any]:
+    """
+    Register downloaded (local) images into the database.
+
+    Args:
+        uid: UUID of the image.
+            Should be generated automatically from the SHA-256 hash of the image.
+            See `utils.hash2uuid()`.
+        source: Image provenance.
+        shard: Shard where the image is located
+        notes: Freestyle notes.
+        tags: List of image tags descriptive of the image.
+        rating: Image quality rating.
+        overwrite: Replace or ignore conflicting data.
+    """
+
+    return {
+        "uuid": ibis.uuid(uid).to_pyarrow(),
+        "source": source,
+        "shard": shard,
+        "notes": notes,
+        "tags": tags,
+        "rating": rating,
+    }
+
+
 class Project:
     """Minimal project managing a DuckDB/Ibis connection."""
 
@@ -22,11 +56,11 @@ class Project:
         "images": {
             "schema": {
                 "uuid": "UUID PRIMARY KEY",
-                "source": "STRING",
+                "source": "STRING NOT NULL",
                 "shard": "STRING",
                 "notes": "STRING",
-                "tags": "STRING[]",
-                "rating": "INTEGER",  # 0-5
+                "tags": "STRING[] NOT NULL",
+                "rating": "INTEGER NOT NULL DEFAULT 0",  # 0-5
             },
             "init": [],
         },
@@ -549,41 +583,6 @@ class Project:
         unprocessed = self.get_image_paths_from_uuids(missing)
         return processed, unprocessed
 
-    def add_image(
-        self,
-        uid: uuid.UUID,
-        source: str | None = None,
-        path: str | None = None,
-        notes: str = "",
-        tags: list[str] = [],
-        rating: int = 0,
-        overwrite: bool = False,
-    ):
-        """
-        Register downloaded (local) images into the database.
-
-        Args:
-            uid: UUID of the image.
-                Should be generated automatically from the SHA-256 hash of the image.
-                See `utils.hash2uuid()`.
-            source: Image provenance.
-            path: Relative or absolute path to the image.
-            notes: Freestyle notes.
-            tags: List of image tags descriptive of the image.
-            rating: Image quality rating.
-            overwrite: Replace or ignore conflicting data.
-        """
-
-        data = {
-            "uuid": [ibis.uuid(uid).to_pyarrow()],
-            "source": [source],
-            "path": [path],
-            "notes": [notes],
-            "tags": [tags],
-            "rating": [rating],
-        }
-
-        return self.update_table("images", data, overwrite)
 
     def add_images(
         self,
@@ -598,15 +597,11 @@ class Project:
             overwrite: Replace or ignore conflicting data.
         """
 
-        data = {k: [] for k in self.schema("images")}
+        data = {column: [] for column in self.schema("images")}
 
         for image in images:
-            if "uuid" not in image:
-                raise KeyError(f"The 'uuid' field is mandatory.")
-            image["uuid"] = ibis.uuid(image["uuid"]).to_pyarrow()
-
-            for k in data:
-                data[k].append(image.get(k))
+            for column in data:
+                data[column].append(image.get(column))
 
         self.update_table("images", data, overwrite)
         return data
@@ -632,7 +627,6 @@ class Project:
             image_dir = utils.ensure_dir(image_dir / shard)
 
         for ip in image_paths:
-            image_data = {k: None for k in self.schema("images")}
             uid = utils.get_image_uuid(ip)
 
             new_fname = f"{uid}{ip.suffix}".lower()
@@ -641,8 +635,11 @@ class Project:
             if not new_fpath.exists() or overwrite:
                 shutil.copy2(ip, new_fpath)
 
-            image_data["uuid"] = uid
-
+            image_data = _format_image(
+                uid,
+                source="manual",
+                shard=shard if shard is not None else new_fpath,
+            )
             image_data_list.append(image_data)
 
         return self.add_images(image_data_list, overwrite)
@@ -753,7 +750,7 @@ class Project:
             logger.error(f"Error updating table '{table}': {e}")
 
     # TODO: could generalize to "get_records(table, columns, include='missing')"
-    def get_mapillary_download_records(self) -> list[tuple[str, str]]:
+    def get_mapillary_download_records(self) -> list[tuple[Any, ...]]:
         """Return list of (id, url, location) for Mapillary images to download."""
         keys = {
             "image": "image",

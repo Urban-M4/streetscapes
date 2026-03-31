@@ -83,6 +83,7 @@ class MapillaryClient:
         self,
         url: str,
         output_dir: str | Path,
+        image_id: int | None,
         uid: uuid.UUID | None = None,
         skip_existing: bool = True,
     ) -> ImageMeta:
@@ -92,6 +93,7 @@ class MapillaryClient:
         Args:
             url: The download URL.
             output_dir: Destination directory.
+            image_id: Mapillary image ID.
             uid: Image UUID (from the SHA-256 hash).
             skip_existing: Don't re-download existing images.
         Returns:
@@ -103,7 +105,6 @@ class MapillaryClient:
             output_dir = Path(output_dir)
 
         content = None
-
         if uid is not None:
             if output_dir is not None:
                 image_path = list(output_dir.glob(f"*{uid}*"))
@@ -129,6 +130,10 @@ class MapillaryClient:
             utils.ensure_dir(output_dir)
             output_path = output_dir / f"{meta.uid}.{meta.ext}"
             output_path.write_bytes(meta.content)
+            # write mapillary-id -> uuid mapping
+            if image_id is not None:
+                with (output_dir / str(image_id)).open("w") as f:
+                    f.write(str(meta.uid))
 
         meta.fpath = output_path
         meta.source = "mapillary"

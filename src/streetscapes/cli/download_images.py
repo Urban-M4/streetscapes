@@ -9,10 +9,45 @@ import typer
 
 from streetscapes import CFG, utils
 from streetscapes.cli.console import console
+from streetscapes.project import _format_image
 
 logger = logging.getLogger(__name__)
 
 download_images_cli = App(help="Download images from various sources.")
+
+
+def _validate_uuid(uid: str, output_dir: Path) -> bool:
+    img_file = (output_dir / uid).with_suffix(".jpg")
+    if img_file.exists() and uid == utils.get_image_uuid(img_file):
+        return True
+    return False
+
+
+def _existing_img_valid(
+    uid: str | None,
+    image_id: int | None,
+    output_dir: Path,
+    skip_existing: bool,
+) -> bool:
+    """Check if image exists and is valid.
+
+    Checks for;
+        - image_id to uuid mapping
+        - image file existing
+        - image file matching uuid
+    If all files exist and are correct, will return True.
+    """
+    if uid is not None:
+        return _validate_uuid(uid, output_dir)
+
+    elif image_id is not None:
+        id2uid = output_dir / str(image_id)
+        if id2uid.exists() and skip_existing:
+            with id2uid.open(mode="r") as f:
+                uid = f.readline().strip()
+            return _validate_uuid(uid, output_dir)
+
+    return False
 
 
 @download_images_cli.command(name="mapillary")
@@ -53,16 +88,13 @@ def mapillary(
 
     total = len(records)
     image_dir = proj.get_image_dir_for_source("mapillary")
-    console.print(f"Downloading {total} image(s) to {image_dir}.")
+    console.print(f"Downloading {len(records)} image(s) to {image_dir}.")
 
     # Add metadata to batch
     image_data = []
     downloaded = 0
 
-    for idx, rec in track(
-        enumerate(records), "Downloading images...", total=len(records)
-    ):
-
+    for rec in track(records, "Downloading images..."):
         (
             uid,
             image_id,
@@ -80,29 +112,21 @@ def mapillary(
             shard = utils.get_geohash_shard_path(location)
             if output_dir is not None:
                 output_dir /= shard
+        
+        if not skip_existing or not _existing_img_valid(uid, image_id, output_dir, skip_existing):
+            uid = mapillary.download_image(url, output_dir, image_id, uid, skip_existing).uid
 
-        # Download image
-        meta = mapillary.download_image(url, output_dir, uid, skip_existing)
-        meta.shard = str(shard)
         tags = ['mapillary']
         if is_pano:
             tags.append('panoramic')
         if camera_type is not None:
             tags.append(camera_type)
 
-        # Image registration
-        image_data.append(
-            {
-                "uuid": meta.uid,
-                "source": meta.source,
-                "shard": meta.shard,
-                "tags": tags,
-            }
-        )
+        image_data.append(_format_image(uid, "mapillary", str(shard), tags=tags))
 
         # Update the Mapillary table
         proj._con.raw_sql(
-            f"UPDATE mapillary SET image='{meta.uid}' WHERE id={image_id};"
+            f"UPDATE mapillary SET image='{uid}' WHERE id={image_id};"
         )
 
         downloaded += 1
