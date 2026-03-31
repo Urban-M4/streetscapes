@@ -19,7 +19,7 @@ dependencies = [
     "geopandas",
     "h3",
     "h5netcdf",
-    "huggingface_hub[cli]",
+    "huggingface_hub",
     "humanize",
     "ibis-framework[duckdb,geospatial]",
     "imageio[pyav]",
