@@ -9,6 +9,7 @@ from uuid import UUID
 from itertools import chain
 
 import ibis
+import numpy as np
 import pandas as pd
 import uvicorn
 from brotli_asgi import BrotliMiddleware
@@ -75,23 +76,6 @@ def _get_images(mapillary_table: ibis.Table):
     ]
 
 
-def _check_result_count(data: pd.DataFrame, id: str | UUID) -> None:
-    if len(data) < 1:
-        msg = f"No entry found with ID {id}"
-        raise ValueError(msg)
-    if len(data) > 1:
-        msg = f"More than one entry found with ID {id}. Database corrupted?"
-
-
-def _get_source(uuid: UUID) -> str:
-    with _open_db(dbpath) as con:    
-        match = con.table("images").uuid == uuid
-        matching_images = con.table("images").filter(match).select("source")
-        result = matching_images.to_pandas()
-        _check_result_count(result, uuid)
-        return result.values[0][0]
-
-
 def _flip(x, y):
     return y, x
 
@@ -100,8 +84,7 @@ def _get_segmentations(uuid: UUID) -> list[Segmentation]:
     with _open_db(dbpath) as con:
         runs = con.table("runs")
         segs = con.table("segmentations")
-        seg_filter = segs.image == uuid
-        seg_data = segs.filter(seg_filter).to_pandas()
+        seg_data = segs.filter(segs.image == uuid).to_pandas()
 
         if len(seg_data) < 1:
             msg = f"No segmentations found with ID {id}"
@@ -140,26 +123,20 @@ def _get_segmentations(uuid: UUID) -> list[Segmentation]:
     return segmentations
 
 
-def _get_metadata(id: str) -> ImageMetadata:
-    uuid = UUID(id)
-    source = _get_source(uuid)
 
+def _get_metadata(uuid: str) -> ImageMetadata:
     with _open_db(dbpath) as con:
-        match = con.table(source).image == uuid
-        metadata = con.table(source).filter(match).to_pandas()
-        match = con.table("images").uuid == uuid
-        imgdata = con.table("images").filter(match).to_pandas()
+        imgtable = con.table("images")
+        imgtable = imgtable.filter(imgtable.uuid == uuid)
+        if imgtable.count().to_pandas() == 0:
+            _unknown_image(uuid)
+        imgdata = imgtable.to_pandas().squeeze()
 
-    if len(metadata) < 1:
-        msg = f"No entry found with ID {id}"
-        print(msg)
-        raise ValueError(msg)
-    if len(metadata) > 1:
-        msg = f"More than one entry found with ID {id}. Database corrupted?"
-        print(msg)
-        raise ValueError(msg)
-    metadata = metadata.squeeze()
-    imgdata = imgdata.squeeze()
+        metatable = con.table(imgdata["source"])
+        metatable = metatable.filter(metatable.image == uuid)
+        if metatable.count().to_pandas() == 0:
+            _unknown_image(uuid)
+        metadata = metatable.to_pandas().squeeze()
 
     segmentations = _get_segmentations(uuid)
     return ImageMetadata(
@@ -172,11 +149,11 @@ def _get_metadata(id: str) -> ImageMetadata:
         altitude=metadata["altitude"],
         captured_at=datetime.fromtimestamp(metadata["captured_at"] / 1000),
         panoramic=bool(metadata["is_pano"]),
-        source=source,
+        source=imgdata["source"],
         tags=imgdata["tags"],
-        rating=0 if imgdata["rating"] is None else int(imgdata["rating"]),
+        rating=0 if imgdata["rating"] is [None, np.nan] else int(imgdata["rating"]),
         compass_angle=float(metadata["compass_angle"]),
-        notes="" if imgdata["notes"] is None else imgdata["notes"],
+        notes="" if imgdata["notes"] in [None, np.nan] else imgdata["notes"],
         segmentation=segmentations,
     )
 
@@ -231,7 +208,6 @@ def _fetch_images(filter: Optional[FilterParams]) -> list[Image]:
                 segmentations = segmentations.filter(segmentations.run.isin(runs.run))
 
             for label in filter.labels:
-                print(f"filtering for label {label}")
                 segmentations = segmentations.filter(segmentations.labels.contains(label))
             if len(filter.model_runs) > 0:
                 segmentations = segmentations.filter(
@@ -242,7 +218,7 @@ def _fetch_images(filter: Optional[FilterParams]) -> list[Image]:
                     segmentations.run.isin(filter.segmentation_ratings)
                 )
 
-            valid_images = set(segmentations.image.to_pandas())
+            valid_images = segmentations.distinct(on="image").image
 
             _match = mapillary.image.isin(valid_images)
             mapillary = mapillary.filter(_match)
