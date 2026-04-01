@@ -121,7 +121,6 @@ def _get_segmentations(uuid: UUID | str) -> list[Segmentation]:
     return segmentations
 
 
-
 def _get_metadata(uuid: str) -> ImageMetadata:
     with _open_db(dbpath) as con:
         imgtable = con.table("images")
@@ -134,7 +133,10 @@ def _get_metadata(uuid: str) -> ImageMetadata:
         metatable = metatable.filter(metatable.image == uuid)
         if metatable.count().to_pandas() == 0:
             raise _unknown_image(uuid)
-        metadata = metatable.to_pandas().squeeze()
+        if metatable.count().to_pandas() > 1:
+            metadata = metatable.to_pandas().iloc[0].squeeze()
+        else:
+            metadata = metatable.to_pandas().squeeze()
 
     segmentations = _get_segmentations(uuid)
     return ImageMetadata(
