@@ -70,57 +70,6 @@ class DinoSAM:
         )
         self.dino_model.eval()
 
-    # DEPRECATED
-    def _merge_masks(
-        self,
-        image: np.ndarray,
-        instance_masks: dict,
-    ) -> dict[str, tp.Any]:
-        """Merge separate instance masks.
-
-        Args:
-            image: The image being segmented.
-            instance_masks: A dictionary of instance masks.
-
-        Returns:
-            A dictionary of merged masks.
-
-        """
-        # A global mask.
-        # All instances will be accessible via this mask.
-        global_masks = np.zeros(image.shape[:2], dtype=np.uint32)
-
-        # A dictionary of merged masks for each label.
-        merged_masks = {}
-
-        # Mapping from instance ID to label
-        instance_ids = {}
-
-        # Mapping from label to instance ID
-        label_to_instances = {}
-
-        for label, instances in instance_masks.items():
-            merged_mask = np.zeros_like(global_masks, dtype=bool)
-            for instance in instances:
-                # Merge the instance
-                merged_mask |= instance > 0
-
-                # Find the outline of the instance
-                outline = ski.segmentation.find_boundaries(instance, mode="thick")
-
-                # Instance ID
-                inst_id = len(instance_ids) + 1
-
-                # Store the instance with its label and outline.
-                # This is used below for creating the global mask and outline maps.
-                instance_ids[inst_id] = [label, instance, outline]
-
-                # Create the reverse mapping (label -> list of instances)
-                label_to_instances.setdefault(label, set()).add(inst_id)
-
-            # Store the merged mask for this label
-            merged_masks[label] = merged_mask
-
     def _segment_single(
         self,
         image: np.ndarray,
@@ -140,7 +89,7 @@ class DinoSAM:
         masks, _, _ = self.sam_model.predict(box=bboxes, multimask_output=False)
         if len(masks.shape) > 3:
             masks = np.squeeze(masks, axis=1)
-        return masks
+        return masks  # type: ignore[no-any-return]
 
     def _segment_batch(
         self,
@@ -172,7 +121,7 @@ class DinoSAM:
         self,
         uids: list[uuid.UUID],
         images: list[np.ndarray],
-        prompt: dict,
+        prompt: str | list[str],
     ) -> list[dict]:
         """Segment the provided sequence of images.
 
@@ -190,7 +139,7 @@ class DinoSAM:
         import torch
 
         # Flatten the label dictionary
-        prompt = utils.extract_categories(prompt)
+        _prompt = utils.extract_categories(prompt)
 
         # Detect objects with GroundingDINO
         # ==================================================
@@ -205,7 +154,7 @@ class DinoSAM:
                 # Detect objects
                 inputs = self.dino_processor(
                     images=[image],
-                    text=prompt,
+                    text=_prompt,
                     return_tensors="pt",
                 ).to(self.device)
 

@@ -39,7 +39,7 @@ def cli(
     model_params = {"model_id": model_id}
 
     result = proj.add_run(run, model, model_params, overwrite)
-    run = result.get("run")[0]
+    run = str(result.get("run")[0])  # type: ignore[index]
 
     if image_path is not None:
         image_paths = utils.get_image_paths(image_path)
@@ -50,7 +50,7 @@ def cli(
         uids = list(map(utils.get_image_uuid, image_paths))
     else:
         uids = proj.get_image_uuids()
-    processed, unprocessed = proj.get_segmentation_status(uids, run)
+    _, unprocessed = proj.get_segmentation_status(uids, run)
 
     if len(unprocessed) == 0:
         logger.info(f"Nothing to process.")
@@ -63,7 +63,7 @@ def cli(
     for image_idx, uid in enumerate(unprocessed, 1):
 
         # Extract the paths and open the images as NumPy arrays.
-        path, source = unprocessed[uid]
+        path, _ = unprocessed[uid]
         img = np.asarray(iio.imread(path))
         request = {
             "image": oj.dumps(

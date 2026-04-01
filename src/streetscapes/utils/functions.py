@@ -25,6 +25,7 @@ if TYPE_CHECKING:  # Delay slow imports for CLI responsiveness
     import geopandas as gpd
     import shapely
     import numpy as np
+    import torch
 
 
 def iso_timestamp(
@@ -55,12 +56,9 @@ def iso_timestamp(
     ts = datetime.now(UTC) if utc else datetime.now()
 
     if fmt is not None:
-        ts = datetime.strftime(ts, fmt)
-    else:
-        ts = ts.isoformat(sep=sep, timespec=precision)
-        ts = ts.split("+")[0]  # remove timezone info
-
-    return ts
+        return datetime.strftime(ts, fmt)
+    tstr = ts.isoformat(sep=sep, timespec=precision)
+    return tstr.split("+")[0]  # remove timezone info
 
 
 def is_notebook() -> bool:
@@ -137,7 +135,7 @@ def show_dir_tree(dir: Path) -> str | None:
         files that they contain.
 
     """
-    return sd.seedir(
+    return sd.seedir(  # type: ignore[no-any-return]
         dir,
         exclude_files=r"$(\.).*",
         exclude_folders=r"$(\.).*",
@@ -269,7 +267,7 @@ def as_hsv(image: "np.ndarray") -> "np.ndarray":
     """
     import skimage as ski
 
-    return ski.color.rgb2hsv(as_rgb(image))
+    return ski.color.rgb2hsv(as_rgb(image))  # type: ignore
 
 
 def make_colourmap(
@@ -296,9 +294,9 @@ def make_colourmap(
     if len(labels) == 0:
         return {}
 
-    cmap = plt.get_cmap(cmap, len(labels))
-    cmap = cmap(np.linspace(0.0, 1.0, cmap.N))[:, :3]
-    return {label: colour for label, colour in zip(sorted(labels), cmap, strict=False)}
+    cm = plt.get_cmap(cmap, len(labels))
+    cm = cm(np.linspace(0.0, 1.0, cm.N))[:, :3]  # type: ignore
+    return {label: colour for label, colour in zip(sorted(labels), cm, strict=False)}  # type: ignore
 
 
 def open_image(
@@ -319,7 +317,7 @@ def open_image(
     """
     import skimage as ski
 
-    return ski.io.imread(path, as_grey)
+    return ski.io.imread(path, as_grey)  # type: ignore[no-any-return]
 
 
 def camel2snake(string: str) -> str:
@@ -406,7 +404,7 @@ def show_image(id: str, source: str):
     plt.show()
 
 
-def extract_categories(prompt: str | list[str]) -> dict:
+def extract_categories(prompt: str | list[str]) -> str:
     """Extract labels (object categories) to look for from a free-form prompt.
 
     Args:
@@ -418,7 +416,7 @@ def extract_categories(prompt: str | list[str]) -> dict:
         A list of labels (object categories).
     """
 
-    def flatten(xs: list):
+    def flatten(xs: Iterable):
         for x in xs:
             if isinstance(x, Iterable) and not isinstance(x, (str, bytes)):
                 yield from flatten(x)
@@ -512,12 +510,13 @@ def get_image_uuid(image: str | Path | bytes) -> uuid.UUID:
         image = Path(image).read_bytes()
 
     if not ft.is_image(image):
-        return
+        msg = "Input image type of is not supported!"
+        raise ValueError(msg)
 
     return hash2uuid(get_image_hash(image))
 
 
-def get_image_paths(path: Path) -> list[Path]:
+def get_image_paths(path: str | Path) -> list[Path]:
     """
     Get only the image paths in a directory.
 
@@ -596,7 +595,7 @@ def get_geohash_shard_path(location: "shapely.Point"):
     import shapely
     import pygeohash
 
-    geom = shapely.from_wkb(location)
+    geom = shapely.from_wkb(location)  # type: ignore[call-overload]
     geohash = pygeohash.encode(geom.y, geom.x, precision=7)  # 153m x 153m
     return Path(geohash[:2]) / geohash[2:4] / geohash[4:6]
 

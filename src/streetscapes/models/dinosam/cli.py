@@ -61,7 +61,7 @@ def cli(
     }
 
     result = proj.add_run(run, model, model_params, overwrite)
-    run = result.get("run")[0]
+    run = str(result.get("run")[0])  # type: ignore[index]
 
     # Get all images that need to be processed.
     # ==================================================
@@ -74,7 +74,7 @@ def cli(
         uids = list(map(utils.get_image_uuid, image_paths))
     else:
         uids = proj.get_image_uuids()
-    processed, unprocessed = proj.get_segmentation_status(uids, run)
+    _, unprocessed = proj.get_segmentation_status(uids, run)
 
     if len(unprocessed) == 0:
         logger.info(f"Nothing to process.")
@@ -91,14 +91,14 @@ def cli(
             "prompt": prompt,
         }
         for uid in batch:
-            path, source = unprocessed[uid]
+            path, _ = unprocessed[uid]
             img_data = {
                 "uid": uid,
                 "image": oj.dumps(
                     np.asarray(iio.imread(path)), option=oj.OPT_SERIALIZE_NUMPY
                 ),
             }
-            request["images"].append(img_data)
+            request["images"].append(img_data)  # type: ignore[attr-defined]
 
         # Process the images.
         logger.info(f"Segmenting batch [{batch_idx:>4d}/{len(batches):>4d}]...")

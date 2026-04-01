@@ -1,28 +1,19 @@
-# --------------------------------------
-# --------------------------------------
 import operator
 
-# --------------------------------------
 import typing as tp
 
-# --------------------------------------
 from abc import ABC, abstractmethod
 from pathlib import Path
+from typing import Optional
 
-# --------------------------------------
 import ibis
 
-# --------------------------------------
-# --------------------------------------
-# --------------------------------------
 from huggingface_hub import hf_hub_download, scan_cache_dir, try_to_load_from_cache
 from huggingface_hub.constants import HF_HUB_CACHE
 from huggingface_hub.file_download import repo_folder_name
 
-# --------------------------------------
 from streetscapes import logger, utils
 
-# --------------------------------------
 from streetscapes.sources.base import SourceBase
 
 
@@ -32,8 +23,8 @@ class HFSourceBase(SourceBase, ABC):
     @abstractmethod
     def load_dataset(
         self,
-        criteria: dict = None,
-        columns: list | tuple | set = None,
+        criteria: Optional[dict] = None,
+        columns: Optional[list | tuple | set] = None,
     ) -> ibis.Table:
         """Load and return a dataset.
 
@@ -54,7 +45,7 @@ class HFSourceBase(SourceBase, ABC):
         self,
         repo_id: str,
         repo_type: str,
-        root_dir: Path | None = None,
+        root_dir: Optional[Path] = None,
     ):
         """A generic interface to a HuggingFace repository.
 
@@ -158,7 +149,7 @@ class GlobalStreetscapesSource(HFSourceBase):
 
     def __init__(
         self,
-        root_dir: str | Path | None = None,
+        root_dir: Optional[Path] = None,
     ):
         """An interface to the Global Streetscapes repository.
 
@@ -175,13 +166,14 @@ class GlobalStreetscapesSource(HFSourceBase):
 
         # Paths for the Global Streetscapes cache directory and some
         # subdirectories for convenience.
-        self.csv_dir = self.root_dir / "data" or None
-        self.parquet_dir = self.csv_dir / "parquet" or None
+        if self.root_dir is not None:    
+            self.csv_dir = self.root_dir / "data"
+            self.parquet_dir = self.csv_dir / "parquet"
 
     def load_csv(
         self,
         filename: str | Path,
-        root: str | Path = None,
+        root: Optional[Path] = None,
     ) -> ibis.Table:
         """Load a CSV file from the Global Streetscapes repository.
 
@@ -207,7 +199,7 @@ class GlobalStreetscapesSource(HFSourceBase):
     def load_parquet(
         self,
         filename: str | Path,
-        root: str | Path = None,
+        root: Optional[Path] = None,
     ):
         """Load a Parquet file from the Global Streetscapes repository.
 
@@ -232,8 +224,8 @@ class GlobalStreetscapesSource(HFSourceBase):
 
     def load_dataset(
         self,
-        criteria: dict = None,
-        columns: list | tuple | set = None,
+        criteria: Optional[dict] = None,
+        columns: Optional[list | tuple | set] = None,
     ) -> ibis.Table:
         """Load and return a dataset.
 
@@ -258,7 +250,7 @@ class GlobalStreetscapesSource(HFSourceBase):
                     if len(criterion) > 2:
                         raise IndexError(f"Invalid criterion '{criterion}'")
                     op, rhs = (
-                        (operator.eq, criterion[0])
+                        (operator.eq, criterion[0])  # type: ignore[index]
                         if len(criterion) == 1
                         else criterion
                     )
@@ -266,7 +258,7 @@ class GlobalStreetscapesSource(HFSourceBase):
                 else:
                     op, rhs = operator.eq, criterion
 
-                if not isinstance(op, tp.Callable):
+                if not isinstance(op, tp.Callable):  # type: ignore
                     raise TypeError("The operator is not callable.")
 
                 subset = subset.filter(op(subset[lhs], rhs))

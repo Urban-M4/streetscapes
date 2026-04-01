@@ -12,7 +12,7 @@ def _norm_contours(contours: list[np.ndarray]):
     return [np.maximum(contour - 1, 0) for contour in contours]
 
 
-def _scale_contours(contours: list[np.ndarray], scale: tuple[float]):
+def _scale_contours(contours: list[np.ndarray], scale: tuple[float, float]):
     """Scale contour x/y to image x/y coordinates."""
     for i in range(len(contours)):
         c = contours[i]
@@ -45,7 +45,7 @@ def mask2poly(
     Returns:
         GeometryCollection: collection of all segmentations as multipolygons.   
     """
-    scale = None
+    scale: tuple[float, float] | None = None
 
     if not model in ["maskformer", "dinosam", "bfms"]:
         msg = f"Invalid segmentation, model '{model}' is not supported."
@@ -71,8 +71,7 @@ def mask2poly(
             _scale_contours(contours, scale)
         polys = [geometry.Polygon(contour) for contour in contours]
         if tolerance is not None:
-            polys = [poly.simplify(tolerance) for poly in polys]
-        poly = geometry.MultiPolygon(polys)
-        geometries.append(poly)
+            geoms = [poly.simplify(tolerance) for poly in polys]
+        geometries.append(geometry.MultiPolygon(geoms))  # type: ignore[arg-type]
 
     return GeometryCollection(geometries)

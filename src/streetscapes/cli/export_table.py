@@ -24,15 +24,15 @@ def export_table(
     """
     from streetscapes.project import Project
 
-    project = Project(project)
+    proj = Project(project)
     ext = os.path.splitext(output)[1].lower()
 
     exporters = {
-        ".csv": project.export_csv,
-        ".parquet": project.export_parquet,
-        ".json": project.export_json,
-        ".gpkg": project.export_gpkg,
-        ".geojson": project.export_geojson,
+        ".csv": proj.export_csv,
+        ".parquet": proj.export_parquet,
+        ".json": proj.export_json,
+        ".gpkg": proj.export_gpkg,
+        ".geojson": proj.export_geojson,
     }
 
     exporter = exporters.get(ext)

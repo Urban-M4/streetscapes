@@ -47,7 +47,7 @@ class MaskFormerService:
             device,
         )
 
-    def handle(self, request: dict) -> dict:
+    def handle(self, request: dict) -> list[MaskFormerResponse]:
         # Convert the request into a schema to validate it.
         schema = MaskFormerRequest(**request)
 

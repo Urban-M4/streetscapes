@@ -121,8 +121,7 @@ class MaskFormer:
         # Convert any string labels into integers
         label_ids_to_fuse = set()
         if labels_to_fuse is not None:
-            labels_to_fuse = set(labels_to_fuse)
-            for lbl in labels_to_fuse:
+            for lbl in set(labels_to_fuse):
                 if isinstance(lbl, int):
                     label_ids_to_fuse.add(lbl)
                 elif isinstance(lbl, str) and lbl in self.label_to_id:
@@ -172,11 +171,11 @@ class MaskFormer:
         if labels is None:
             labels = list(MaskFormer.id_to_label.values())
 
-        # Flatten the label dictionary
+        # Flatten the label list
         labels = utils.extract_categories(labels)
 
         # Eliminate labels that are not recognised by the model
-        labels = set(labels).intersection(MaskFormer.id_to_label)
+        labels = list(set(labels).intersection(MaskFormer.id_to_label))
         segmentations = []
 
         with torch.no_grad():

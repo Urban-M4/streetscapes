@@ -57,10 +57,10 @@ class BFMS:
             semantic_mask: np.ndarray [H, W], predicted class ids
         """
         # Convert to RGB
-        image = Image.fromarray(image).convert("RGB")
+        rgb_image = Image.fromarray(image).convert("RGB")
 
         # Preprocess
-        inputs = self.processor(images=image, return_tensors="pt").to(self.device)
+        inputs = self.processor(images=rgb_image, return_tensors="pt").to(self.device)
 
         # Forward pass
         with torch.no_grad():
@@ -83,7 +83,6 @@ class BFMS:
         # Split the segmentation into labels and instance masks.
         labels = set(np.unique(semantic_mask).tolist())
         labels.discard(0)  # Ignore background
-        labels = list(labels)
         instances = np.zeros((len(labels), *semantic_mask.shape), dtype=np.bool_)
         for idx, lbl in enumerate(labels):
             instances[idx][semantic_mask == lbl] = True
