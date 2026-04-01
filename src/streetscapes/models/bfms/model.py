@@ -30,7 +30,7 @@ class BFMS:
         self.model = tform.Mask2FormerForUniversalSegmentation.from_pretrained(
             model_id,
             config=config,
-        ).to(self.device)
+        ).to(self.device)  # type: ignore[arg-type]
 
         # won't load directly from BFMS ID
         # from_pretrained should accept URL but this is broken in 

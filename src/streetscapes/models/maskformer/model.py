@@ -140,7 +140,7 @@ class MaskFormer:
         )
         self.model = tform.Mask2FormerForUniversalSegmentation.from_pretrained(
             self.model_id
-        ).to(self.device)
+        ).to(self.device)  # type: ignore[arg-type]
         self.model.eval()
 
     @property

@@ -100,6 +100,7 @@ dev = [
     "mkdocs-autoapi>=0.4.1",
     "mkdocs-material",
     "mkdocs-jupyter",
+    "mypy",
     # type stubs for mypy;
     "pandas-stubs",
     "types-shapely",
