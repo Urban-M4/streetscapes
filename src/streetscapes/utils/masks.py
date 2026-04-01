@@ -70,8 +70,8 @@ def mask2poly(
         if scale is not None:
             _scale_contours(contours, scale)
         polys = [geometry.Polygon(contour) for contour in contours]
-        if tolerance is not None:
-            geoms = [poly.simplify(tolerance) for poly in polys]
-        geometries.append(geometry.MultiPolygon(geoms))  # type: ignore[arg-type]
+        geometries.append(
+            geometry.MultiPolygon(polys if tolerance is None else [poly.simplify(tolerance) for poly in polys])  # type: ignore[misc]
+        )
 
     return GeometryCollection(geometries)
