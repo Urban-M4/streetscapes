@@ -135,7 +135,7 @@ class MaskFormer:
 
         # Processors and models
         # ==================================================
-        self.processor = tform.Mask2FormerImageProcessorFast.from_pretrained(
+        self.processor = tform.Mask2FormerImageProcessor.from_pretrained(
             self.model_id
         )
         self.model = tform.Mask2FormerForUniversalSegmentation.from_pretrained(
