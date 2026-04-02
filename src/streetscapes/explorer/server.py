@@ -151,7 +151,7 @@ def _get_metadata(uuid: str) -> ImageMetadata:
         panoramic=bool(metadata["is_pano"]),
         source=imgdata["source"],
         tags=imgdata["tags"],
-        rating=0 if imgdata["rating"] is [None, np.nan] else int(imgdata["rating"]),
+        rating=0 if imgdata["rating"] in [None, np.nan] else int(imgdata["rating"]),
         compass_angle=float(metadata["compass_angle"]),
         notes="" if imgdata["notes"] in [None, np.nan] else imgdata["notes"],
         segmentation=segmentations,
@@ -233,6 +233,35 @@ def _update_img_prop(image_id: str, prop: str, value: Any):
         img = imgs.filter(imgs.uuid == image_id).to_pandas()
 
         if len(img) == 0:
+            _unknown_image(image_id)
+
+        imgd = img.to_dict()
+        imgd[prop][0] = value  # workaround for replacing lists
+        con.con.register("updated_df", pd.DataFrame(imgd))
+        con.raw_sql(f"INSERT OR REPLACE INTO images FROM updated_df;")
+
+
+def _update_segmentation_rating(image_id: str, run_name: str, rating: int):
+    with _open_db(dbpath, read_only=False) as con:
+        segs = con.table("segmentations")
+        segs = segs.filter(segs.image == image_id)
+        seg = segs.filter(segs.run == run_name)
+
+        if len(seg) == 0:
+            _unknown_image(image_id)
+
+        imgd = seg.to_dict()
+        imgd["rating"][0] = rating
+        con.con.register("updated_df", pd.DataFrame(imgd))
+        con.raw_sql(f"INSERT OR REPLACE INTO images FROM updated_df;")
+
+
+def _update_img_prop(image_id: str, prop: str, value: Any):
+    with _open_db(dbpath, read_only=False) as con:
+        imgs = con.table("images")
+        img = imgs.filter(imgs.uuid == image_id).to_pandas()
+
+        if len(img) == 0:
             raise _unknown_image(image_id)
 
         imgd = img.to_dict()
@@ -260,6 +289,31 @@ def _unknown_image(image_id):
     msg = f"No image found with id '{image_id}'"
     print(msg)
     return HTTPException(status_code=404, detail=msg)
+
+
+def _get_unique_tags(con: ibis.BaseBackend):
+    tags = con.table("images").tags.to_pandas().dropna()
+    if len(tags) == 0:
+        return []
+    tags = set(chain.from_iterable(tags.to_list()))
+    return list(tags)
+
+
+def _get_unique_labels(con: ibis.BaseBackend):
+    labels = con.table("segmentations").labels.to_pandas().dropna()
+    if len(labels) == 0:
+        return []
+    labels = set(chain.from_iterable(labels))  # nested list to set of uniques
+    return list(labels)
+
+
+def _get_daterange(con: ibis.BaseBackend) -> tuple[datetime, datetime]:
+    # Note: only implemented for mapillary
+    with _open_db(dbpath) as con:
+        mapillary = con.table("mapillary")
+        start = datetime.fromtimestamp(mapillary.captured_at.min().to_pandas() / 1000)
+        end = datetime.fromtimestamp(mapillary.captured_at.max().to_pandas() / 1000)
+    return (start, end)
 
 
 def _get_unique_tags(con: ibis.BaseBackend):

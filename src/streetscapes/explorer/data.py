@@ -1,7 +1,8 @@
 from dataclasses import dataclass, field
 from datetime import datetime
-from typing import Optional
+from typing import Annotated, Optional
 
+from annotated_types import Ge, Le
 from pydantic import BaseModel, Field
 
 
@@ -14,16 +15,16 @@ class Bbox(BaseModel):
 
 class FilterParams(Bbox):
     # image level filters
-    image_ratings: list[int] = Field(default=[])
-    sources: list[str] = Field(default=[])
-    tags: list[str] = Field(default=[])
+    image_ratings: list[int] = []
+    sources: list[str] = []
+    tags: list[str] = []
     # metadata level filters
     date_range: tuple[datetime, datetime] = Field(default=(datetime(1826,1,1),datetime.now()))
     # segmentation level filters
-    models: list[str] = Field(default=[])
-    model_runs: list[str] = Field(default=[])
-    labels: list[str] = Field(default=[])
-    segmentation_ratings: list[int] = Field(default=[])
+    models: list[str] = []
+    model_runs: list[str] =[]
+    labels: list[str] = []
+    segmentation_ratings: list[Annotated[int, Ge(0), Le(5)]] = Field(default=())
 
 
 @dataclass
