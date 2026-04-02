@@ -149,7 +149,7 @@ def _get_metadata(uuid: str) -> ImageMetadata:
         panoramic=bool(metadata["is_pano"]),
         source=imgdata["source"],
         tags=imgdata["tags"],
-        rating=0 if imgdata["rating"] is [None, np.nan] else int(imgdata["rating"]),
+        rating=0 if imgdata["rating"] in [None, np.nan] else int(imgdata["rating"]),
         compass_angle=float(metadata["compass_angle"]),
         notes="" if imgdata["notes"] in [None, np.nan] else imgdata["notes"],
         segmentation=segmentations,
