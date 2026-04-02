@@ -19,7 +19,7 @@ dependencies = [
     "geopandas",
     "h3",
     "h5netcdf",
-    "huggingface_hub[cli]",
+    "huggingface_hub",
     "humanize",
     "ibis-framework[duckdb,geospatial]",
     "imageio[pyav]",
@@ -62,7 +62,7 @@ authors = [
 ]
 description = "Code for downloading, segmenting and analysing images from Mapillary and KartaView, with the aim of extracting the emissivity and albedo of buildings."
 readme = "README.md"
-license = { file = "LICENCE.md" }
+license = { file = "LICENCE" }
 
 [project.scripts]
 streetscapes = "streetscapes.cli.main:app"
@@ -78,7 +78,7 @@ lint.select = ["F", "E", "TYP", "B", "D", "C", "Q", "I"]
 convention = "google"
 
 [project.optional-dependencies]
-explorer = ["fastapi", "uvicorn"]
+explorer = ["fastapi", "uvicorn", "brotli-asgi"]
 dev = [
     "fastapi[standard]",
     "pytest>=8.4.2",

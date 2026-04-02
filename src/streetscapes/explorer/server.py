@@ -1,19 +1,24 @@
 """FastAPI server implementation."""
 
+from contextlib import contextmanager
 import webbrowser
 from datetime import datetime
 from pathlib import Path
-from typing import Annotated, Optional
+from typing import Annotated, Any, Generator, Optional
 from uuid import UUID
+from itertools import chain
 
 import ibis
+import numpy as np
 import pandas as pd
 import uvicorn
+from brotli_asgi import BrotliMiddleware
 from cyclopts import App, Parameter
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.params import Query
 from shapely.ops import transform
+from shapely.geometry import Polygon
 
 from streetscapes import CFG
 from streetscapes.explorer.data import (
@@ -25,13 +30,14 @@ from streetscapes.explorer.data import (
     Instance,
     Segmentation,
 )
-from streetscapes.explorer.dummy_data import _images
 
 app = FastAPI()
 
 origins = [
     "*",
 ]
+
+app.add_middleware(BrotliMiddleware)
 
 app.add_middleware(
     CORSMiddleware,
@@ -40,16 +46,23 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
 dbpath = Path(f"{CFG.project_dir}/{CFG.active_project}.duckdb")
-con = ibis.duckdb.connect(dbpath, read_only=True, extensions=["spatial", "json"])
 
 
-def _get_images():
-    data = (
-        con.table("mapillary")
-        .select("image", "thumb_original_url", "geometry")
-        .to_pandas()
-    )
+@contextmanager
+def _open_db(dbpath: Path, read_only=True) -> Generator[ibis.BaseBackend, None, None]:
+    db = ibis.duckdb.connect(
+            dbpath, read_only=read_only, extensions=["spatial", "json"]
+        )
+    try:
+        yield db
+    finally:
+        db.con.close()
+
+
+def _get_images(mapillary_table: ibis.Table):
+    data = mapillary_table.select("image", "thumb_original_url", "geometry").to_pandas()
 
     return [
         Image(*args)
@@ -63,117 +76,182 @@ def _get_images():
     ]
 
 
-def _check_result_count(data: pd.DataFrame, id: str | UUID) -> None:
-    if len(data) < 1:
-        msg = f"No entry found with ID {id}"
-        raise ValueError(msg)
-    if len(data) > 1:
-        msg = f"More than one entry found with ID {id}. Database corrupted?"
-
-
-def _get_source(uuid: UUID) -> str:
-    match = con.table("images").uuid == uuid
-    matching_images = con.table("images").filter(match).select("source")
-    result = matching_images.to_pandas()
-    _check_result_count(result, uuid)
-    return result.values[0][0]
-
-
 def _flip(x, y):
     return y, x
 
 
 def _get_segmentations(uuid: UUID) -> list[Segmentation]:
-    runs = con.table("runs")
-    segs = con.table("segmentations")
-    seg_filter = segs.image == uuid
-    seg_data = segs.filter(seg_filter).to_pandas()
+    with _open_db(dbpath) as con:
+        runs = con.table("runs")
+        segs = con.table("segmentations")
+        seg_data = segs.filter(segs.image == uuid).to_pandas()
 
-    if len(seg_data) < 1:
-        msg = f"No segmentations found with ID {id}"
-        print(msg)
-        return []
+        if len(seg_data) < 1:
+            return []
 
-    segmentations = []
+        segmentations = []
 
-    for _, row in seg_data.iterrows():
-        labels = row["labels"]
-        multipoly = transform(_flip, row["polygons"])
-        polys = list(multipoly.geoms)
-        if len(polys) > len(labels):
-            polys.pop(0)
+        for _, row in seg_data.iterrows():
+            labels = row["labels"]
+            multipoly = transform(_flip, row["polygons"])
+            polys = list(multipoly.geoms)
+            if len(polys) > len(labels):
+                polys.pop(0)
 
-        inst = [
-            Instance(
-                label,
-                [list(points.exterior.coords) for points in poly.geoms],
+            inst = [
+                Instance(
+                    label,
+                    [list(points.exterior.coords) for points in poly.geoms],
+                )
+                for label, poly in zip(labels, polys, strict=True)
+            ]
+            runinfo = runs.filter(runs.run == row["run"]).to_pandas().squeeze()
+            meta = runinfo["metadata"]
+            if isinstance(meta, str):
+                meta = meta.encode("utf8").decode("unicode_escape")
+            elif isinstance(meta, dict):
+                meta = str(meta)
+            seg = Segmentation(
+                model_name=runinfo["model"],
+                id=row["run"],
+                run_args=meta,
+                instances=inst,
             )
-            for label, poly in zip(labels, polys, strict=True)
-        ]
-        runinfo = runs.filter(runs.run == row["run"]).to_pandas().squeeze()
-        meta = runinfo["metadata"]
-        if isinstance(meta, str):
-            meta = meta.encode("utf8").decode("unicode_escape")
-        elif isinstance(meta, dict):
-            meta = str(meta)
-        seg = Segmentation(
-            model_name=runinfo["model"],
-            id=row["run"],
-            run_args=meta,
-            instances=inst,
-        )
-        segmentations.append(seg)
+            segmentations.append(seg)
     return segmentations
 
 
-def _get_metadata(id: str) -> ImageMetadata:
-    uuid = UUID(id)
-    source = _get_source(uuid)
 
-    match = con.table(source).image == uuid
-    data = con.table(source).filter(match).to_pandas()
+def _get_metadata(uuid: str) -> ImageMetadata:
+    with _open_db(dbpath) as con:
+        imgtable = con.table("images")
+        imgtable = imgtable.filter(imgtable.uuid == uuid)
+        if imgtable.count().to_pandas() == 0:
+            _unknown_image(uuid)
+        imgdata = imgtable.to_pandas().squeeze()
 
-    if len(data) < 1:
-        msg = f"No entry found with ID {id}"
-        print(msg)
-        raise ValueError(msg)
-    if len(data) > 1:
-        msg = f"More than one entry found with ID {id}. Database corrupted?"
-        print(msg)
-        raise ValueError(msg)
-    data = data.squeeze()
+        metatable = con.table(imgdata["source"])
+        metatable = metatable.filter(metatable.image == uuid)
+        if metatable.count().to_pandas() == 0:
+            _unknown_image(uuid)
+        metadata = metatable.to_pandas().squeeze()
 
     segmentations = _get_segmentations(uuid)
-
     return ImageMetadata(
-        id=str(data["image"]),
-        url=data["thumb_2048_url"],
-        lat=data["geometry"].y,
-        lon=data["geometry"].x,
-        width=int(data["width"]),
-        height=int(data["height"]),
-        altitude=data["altitude"],
-        captured_at=datetime.fromtimestamp(data["captured_at"] / 1000),
-        panoramic=bool(data["is_pano"]),
-        source=source,
-        tags=[],
-        rating=0,
-        compass_angle=float(data["compass_angle"]),
-        notes="",
+        id=str(metadata["image"]),
+        url=metadata["thumb_2048_url"],
+        lat=metadata["geometry"].y,
+        lon=metadata["geometry"].x,
+        width=int(metadata["width"]),
+        height=int(metadata["height"]),
+        altitude=metadata["altitude"],
+        captured_at=datetime.fromtimestamp(metadata["captured_at"] / 1000),
+        panoramic=bool(metadata["is_pano"]),
+        source=imgdata["source"],
+        tags=imgdata["tags"],
+        rating=0 if imgdata["rating"] in [None, np.nan] else int(imgdata["rating"]),
+        compass_angle=float(metadata["compass_angle"]),
+        notes="" if imgdata["notes"] in [None, np.nan] else imgdata["notes"],
         segmentation=segmentations,
     )
 
 
-def _inbounds(img: Image | ImageMetadata, bbox: Bbox) -> bool:
-    # Temporary implementation.
-    # Full implementation needs to account for spherical coordinates properly
-    return bbox.n > img.lat > bbox.s and bbox.w > img.lon > bbox.e
+def _bbox_to_polygon(bbox: Bbox) -> Polygon:
+    return Polygon(
+        [(bbox.w, bbox.n), (bbox.e, bbox.n), (bbox.e, bbox.s), (bbox.w, bbox.s)]
+    )
 
 
-def _fetch_images(bbox: Optional[Bbox]) -> list[Image]:
-    if bbox is not None:
-        return _get_images()
-    return _get_images()
+def _fetch_images(filter: Optional[FilterParams]) -> list[Image]:
+    """Fetch images that conform to a filter specification."""
+    with _open_db(dbpath) as con:
+        if filter is None:
+            return _get_images(con.table("mapillary"))
+
+        # First filter on image table info
+        images = con.table("images")
+        if len(filter.image_ratings) > 0:
+            match = con.table("images").rating.isin(filter.image_ratings)
+            images = images.filter(match)
+        if len(filter.sources) > 0:
+            match = con.table("images").source.isin(filter.sources)
+            images = images.filter(match)
+        for tag in filter.tags:
+            match = con.table("images").tags.contains(tag)
+            images = images.filter(match)
+
+        # Next filter on mapillary table info
+        mapillary = con.table("mapillary")
+        mapillary = mapillary.filter(mapillary.image.isin(images.uuid))
+
+        if filter.date_range is not None:
+            start = filter.date_range[0].timestamp() * 1000
+            end = filter.date_range[1].timestamp() * 1000
+            match_start = mapillary.captured_at >= start
+            match_end = mapillary.captured_at <= end
+            mapillary = mapillary.filter(match_start).filter(match_end)
+
+        _match = mapillary.geometry.within(_bbox_to_polygon(filter))
+        mapillary = mapillary.filter(_match)
+
+        # Last filter on segmentation properties
+        if any(
+            (filter.models, filter.labels, filter.model_runs, filter.segmentation_ratings)
+        ):
+            segmentations = con.table("segmentations")
+            # optionally filter for models
+            if len(filter.models) > 0:
+                runs = con.table("runs")
+                runs = runs.filter(runs.model.isin(filter.models))
+                segmentations = segmentations.filter(segmentations.run.isin(runs.run))
+
+            for label in filter.labels:
+                segmentations = segmentations.filter(segmentations.labels.contains(label))
+            if len(filter.model_runs) > 0:
+                segmentations = segmentations.filter(
+                    segmentations.run.isin(filter.model_runs)
+                )
+            if len(filter.segmentation_ratings) > 0:
+                segmentations = segmentations.filter(
+                    segmentations.run.isin(filter.segmentation_ratings)
+                )
+
+            valid_images = segmentations.distinct(on="image").image
+
+            _match = mapillary.image.isin(valid_images)
+            mapillary = mapillary.filter(_match)
+
+        # Now we can request the valid images
+        return _get_images(mapillary)
+
+
+def _update_img_prop(image_id: str, prop: str, value: Any):
+    with _open_db(dbpath, read_only=False) as con:
+        imgs = con.table("images")
+        img = imgs.filter(imgs.uuid == image_id).to_pandas()
+
+        if len(img) == 0:
+            _unknown_image(image_id)
+
+        imgd = img.to_dict()
+        imgd[prop][0] = value  # workaround for replacing lists
+        con.con.register("updated_df", pd.DataFrame(imgd))
+        con.raw_sql(f"INSERT OR REPLACE INTO images FROM updated_df;")
+
+
+def _update_segmentation_rating(image_id: str, run_name: str, rating: int):
+    with _open_db(dbpath, read_only=False) as con:
+        segs = con.table("segmentations")
+        segs = segs.filter(segs.image == image_id)
+        seg = segs.filter(segs.run == run_name)
+
+        if len(seg) == 0:
+            _unknown_image(image_id)
+
+        imgd = seg.to_dict()
+        imgd["rating"][0] = rating
+        con.con.register("updated_df", pd.DataFrame(imgd))
+        con.raw_sql(f"INSERT OR REPLACE INTO images FROM updated_df;")
 
 
 def _unknown_image(image_id, err: Optional[Exception] = None):
@@ -182,6 +260,31 @@ def _unknown_image(image_id, err: Optional[Exception] = None):
     if err is not None:
         raise HTTPException(status_code=404, detail=msg) from err
     raise HTTPException(status_code=404, detail=msg)
+
+
+def _get_unique_tags(con: ibis.BaseBackend):
+    tags = con.table("images").tags.to_pandas().dropna()
+    if len(tags) == 0:
+        return []
+    tags = set(chain.from_iterable(tags.to_list()))
+    return list(tags)
+
+
+def _get_unique_labels(con: ibis.BaseBackend):
+    labels = con.table("segmentations").labels.to_pandas().dropna()
+    if len(labels) == 0:
+        return []
+    labels = set(chain.from_iterable(labels))  # nested list to set of uniques
+    return list(labels)
+
+
+def _get_daterange(con: ibis.BaseBackend) -> tuple[datetime, datetime]:
+    # Note: only implemented for mapillary
+    with _open_db(dbpath) as con:
+        mapillary = con.table("mapillary")
+        start = datetime.fromtimestamp(mapillary.captured_at.min().to_pandas() / 1000)
+        end = datetime.fromtimestamp(mapillary.captured_at.max().to_pandas() / 1000)
+    return (start, end)
 
 
 @app.get("/")
@@ -197,35 +300,23 @@ async def project():
 
 
 @app.get("/stats")
-async def fetch_stats(bbox: Annotated[Bbox, Query()]) -> AggregateStats:
+async def fetch_stats() -> AggregateStats:
     """Get the aggregate stats of the images."""
-    return AggregateStats(
-        tags=["sunny", "shops", "crowded"],
-        labels=[
-            "vegetation",
-            "car",
-            "building",
-            "bicycle",
-            "person",
-            "sky",
-            "water",
-            "terrain",
-            "pedestrian-area",
-        ],
-        model_run_names=["manual"],
-        image_sources=[
-            "mapillary",
-        ],
-        date_range=(datetime(2026, 1, 19), datetime(2026, 1, 20)),
-        models=["DinoSAM", "maskformer", "bfms", "manual"],
-    )
+    with _open_db(dbpath) as con:
+        return AggregateStats(
+            tags=_get_unique_tags(con),
+            labels=_get_unique_labels(con),
+            model_run_names=list(set(con.table("runs").run.to_pandas())),
+            image_sources=list(set(con.table("images")["source"].to_pandas().to_list())),
+            date_range=_get_daterange(con),
+            models=list(set(con.table("runs").model.to_pandas())),
+        )
 
 
 @app.get("/images")
 async def fetch_images(filter: Annotated[FilterParams, Query()]) -> list[Image]:
     """Fetch streetscape images corresponding to a bounding box and optionally filters."""
-    # bbox = Bbox(**filter.model_dump())
-    return _fetch_images(None)
+    return _fetch_images(filter)
 
 
 @app.get("/images/{image_id}")
@@ -238,38 +329,32 @@ async def fetch_image_metadata(image_id: str) -> ImageMetadata:
 
 
 @app.post("/images/{image_id}/rating")
-async def set_rating(image_id: str, rating: int | None):
+async def set_rating(image_id: str, rating: int):
     """Set an image's rating."""
-    for img in _images:
-        if img.id == image_id:
-            img.rating = rating
-            return None
-    _unknown_image(image_id)
+    _update_img_prop(image_id, "rating", rating)
 
 
 @app.post("/images/{image_id}/tags")
 async def set_tags(image_id: str, tags: list[str]):
     """Set an image's tags."""
-    for img in _images:
-        if img.id == image_id:
-            img.tags = tags
-            return None
-    _unknown_image(image_id)
+    _update_img_prop(image_id, "tags", tags)
 
 
 @app.post("/images/{image_id}/notes")
 async def set_notes(image_id: str, notes: str):
     """Set an image's notes."""
-    for img in _images:
-        if img.id == image_id:
-            img.notes = notes
-            return None
-    _unknown_image(image_id)
+    _update_img_prop(image_id, "notes", notes)
 
 
-@app.post("/images/{image_id}/{segmentation_id}/{instance_idx}/{label}")
+@app.post("/images/{image_id}/{run_name}/rating")
+async def set_segmentation_rating(image_id: str, run_name: str, rating: int):
+    """Rate an image's segmentation."""
+    _update_segmentation_rating(image_id, run_name, rating)
+
+
+@app.post("/images/{image_id}/{run_name}/{instance_idx}/{label}")
 async def set_instance_label(
-    image_id: str, segmentation_id: str, instance_idx: int, label: str
+    image_id: str, run_name: str, instance_idx: int, label: str
 ):
     """Set the label of a specific instance within a segmentation."""
     pass
@@ -309,7 +394,7 @@ async def _serve(port: int, host: str, open_webpage: bool, log_info: bool):
             "To open the explorer, go to https://urban-m4.github.io/Urban-M5/ and "
         )
     print(
-        f"paste in https://localhost:{port} as web service.\n"
+        f"paste in http://localhost:{port} as web service.\n"
         "  You will need to disable your ad blocker (like uBlock Origin Lite)\n"
         "and allow your web browser to load localhost resources."
     )
@@ -317,6 +402,7 @@ async def _serve(port: int, host: str, open_webpage: bool, log_info: bool):
 
 
 cli = App(help="Streetscapes data explorer")
+
 
 @cli.default
 async def serve(
@@ -340,5 +426,6 @@ async def serve(
     """
     await _serve(port, host, open_webpage, verbose_logs)
 
+
 if __name__ == "__main__":
-   cli()
+    cli()
