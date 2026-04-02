@@ -1,4 +1,5 @@
 from pprint import pp
+import sys
 
 from cyclopts import App
 from rich.table import Table
@@ -25,7 +26,7 @@ def set_config(key: str, value: str):
 
     if not hasattr(CFG, key):
         print(f"No config value for '{key}'")
-        raise SystemExit
+        sys.exit(1)
 
     # For now, this cannot be done in a Pydantic validator
     # because it triggers a circular import error.
@@ -54,7 +55,7 @@ def get_config(key: str):
         print(value)
     else:
         print(f"No config value for '{key}'")
-        raise SystemExit
+        sys.exit(1)
 
 
 @config_cli.command(name="list")
