@@ -24,7 +24,7 @@ class FilterParams(Bbox):
     models: list[str] = []
     model_runs: list[str] =[]
     labels: list[str] = []
-    segmentation_ratings: list[Annotated[int, Ge(0), Le(5)]] = Field(default=())
+    segmentation_ratings: list[Annotated[int, Ge(0), Le(5)]] = Field(default=[])
 
 
 @dataclass

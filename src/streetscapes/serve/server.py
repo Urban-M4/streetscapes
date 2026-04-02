@@ -53,6 +53,6 @@ def serve_model(model: str, verbose: bool = False, /, **model_kwargs) -> Deploym
     if not verbose:
         ray.init(log_to_driver=False)
         logger.setLevel(logging.WARNING)
-    return serve.run(
+    return serve.run(  # type: ignore[no-any-return]
         app, logging_config={"log_level": logging.INFO if verbose else logging.WARNING}
     )
