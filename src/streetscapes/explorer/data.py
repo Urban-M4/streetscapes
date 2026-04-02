@@ -1,6 +1,6 @@
 from dataclasses import dataclass, field
 from datetime import datetime
-from typing import Annotated, Optional
+from typing import Annotated
 
 from annotated_types import Ge, Le
 from pydantic import BaseModel, Field
@@ -24,7 +24,7 @@ class FilterParams(Bbox):
     models: list[str] = []
     model_runs: list[str] =[]
     labels: list[str] = []
-    segmentation_ratings: list[Annotated[int, Ge(0), Le(5)]] = Field(default=())
+    segmentation_ratings: list[Annotated[int, Ge(0), Le(5)]] = Field(default=[])
 
 
 @dataclass
@@ -54,13 +54,13 @@ class Segmentation:
 class ImageMetadata(Image):
     width: int
     height: int
-    altitude: Optional[float] = None
-    captured_at: Optional[datetime] = None
-    panoramic: Optional[int] = None
-    source: Optional[str] = None
+    altitude: float | None = None
+    captured_at: datetime | None = None
+    panoramic: int | None = None
+    source: str | None = None
     tags: list[str] = field(default_factory=list)
-    rating: Optional[int] = None
-    compass_angle: Optional[float] = None
+    rating: int | None = None
+    compass_angle: float | None = None
     notes: str = ""
     segmentation: list[Segmentation] = field(default_factory=list)
 

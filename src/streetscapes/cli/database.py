@@ -1,6 +1,6 @@
 """CLI commands to view/manipulate the database."""
 from pathlib import Path
-from typing import TYPE_CHECKING, Optional
+from typing import TYPE_CHECKING
 
 from cyclopts import App
 
@@ -17,7 +17,7 @@ segmentations_cli = App(help="View and/or delete segmentation data in the curren
 database_cli.command(segmentations_cli, name="segmentations")
 
 
-def _get_db(project: Optional[str] = None) -> "ibis.BaseBackend":
+def _get_db(project: str | None = None) -> "ibis.BaseBackend":
     import ibis
 
     dbpath = Path(

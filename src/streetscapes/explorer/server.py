@@ -4,7 +4,7 @@ from contextlib import contextmanager
 import webbrowser
 from datetime import datetime
 from pathlib import Path
-from typing import Annotated, Any, Generator, Optional
+from typing import Annotated, Any, Generator
 from uuid import UUID
 from itertools import chain
 
@@ -80,7 +80,7 @@ def _flip(x, y):
     return y, x
 
 
-def _get_segmentations(uuid: UUID) -> list[Segmentation]:
+def _get_segmentations(uuid: UUID | str) -> list[Segmentation]:
     with _open_db(dbpath) as con:
         runs = con.table("runs")
         segs = con.table("segmentations")
@@ -93,7 +93,7 @@ def _get_segmentations(uuid: UUID) -> list[Segmentation]:
 
         for _, row in seg_data.iterrows():
             labels = row["labels"]
-            multipoly = transform(_flip, row["polygons"])
+            multipoly = transform(_flip, row["polygons"])  # type: ignore[arg-type]
             polys = list(multipoly.geoms)
             if len(polys) > len(labels):
                 polys.pop(0)
@@ -121,20 +121,22 @@ def _get_segmentations(uuid: UUID) -> list[Segmentation]:
     return segmentations
 
 
-
 def _get_metadata(uuid: str) -> ImageMetadata:
     with _open_db(dbpath) as con:
         imgtable = con.table("images")
         imgtable = imgtable.filter(imgtable.uuid == uuid)
         if imgtable.count().to_pandas() == 0:
-            _unknown_image(uuid)
+            raise _unknown_image(uuid)
         imgdata = imgtable.to_pandas().squeeze()
 
         metatable = con.table(imgdata["source"])
         metatable = metatable.filter(metatable.image == uuid)
         if metatable.count().to_pandas() == 0:
-            _unknown_image(uuid)
-        metadata = metatable.to_pandas().squeeze()
+            raise _unknown_image(uuid)
+        if metatable.count().to_pandas() > 1:
+            metadata = metatable.to_pandas().iloc[0].squeeze()
+        else:
+            metadata = metatable.to_pandas().squeeze()
 
     segmentations = _get_segmentations(uuid)
     return ImageMetadata(
@@ -162,11 +164,11 @@ def _bbox_to_polygon(bbox: Bbox) -> Polygon:
     )
 
 
-def _fetch_images(filter: Optional[FilterParams]) -> list[Image]:
+def _fetch_images(filter: FilterParams | None) -> list[Image]:
     """Fetch images that conform to a filter specification."""
     with _open_db(dbpath) as con:
         if filter is None:
-            return _get_images(con.table("mapillary"))
+            return _get_images(con.table("mapillary"))  # type: ignore[no-any-return]
 
         # First filter on image table info
         images = con.table("images")
@@ -222,7 +224,7 @@ def _fetch_images(filter: Optional[FilterParams]) -> list[Image]:
             mapillary = mapillary.filter(_match)
 
         # Now we can request the valid images
-        return _get_images(mapillary)
+        return _get_images(mapillary)  # type: ignore[no-any-return]
 
 
 def _update_img_prop(image_id: str, prop: str, value: Any):
@@ -231,7 +233,7 @@ def _update_img_prop(image_id: str, prop: str, value: Any):
         img = imgs.filter(imgs.uuid == image_id).to_pandas()
 
         if len(img) == 0:
-            _unknown_image(image_id)
+            raise _unknown_image(image_id)
 
         imgd = img.to_dict()
         imgd[prop][0] = value  # workaround for replacing lists
@@ -246,7 +248,7 @@ def _update_segmentation_rating(image_id: str, run_name: str, rating: int):
         seg = segs.filter(segs.run == run_name)
 
         if len(seg) == 0:
-            _unknown_image(image_id)
+            raise _unknown_image(image_id)
 
         imgd = seg.to_dict()
         imgd["rating"][0] = rating
@@ -254,12 +256,10 @@ def _update_segmentation_rating(image_id: str, run_name: str, rating: int):
         con.raw_sql(f"INSERT OR REPLACE INTO images FROM updated_df;")
 
 
-def _unknown_image(image_id, err: Optional[Exception] = None):
+def _unknown_image(image_id):
     msg = f"No image found with id '{image_id}'"
     print(msg)
-    if err is not None:
-        raise HTTPException(status_code=404, detail=msg) from err
-    raise HTTPException(status_code=404, detail=msg)
+    return HTTPException(status_code=404, detail=msg)
 
 
 def _get_unique_tags(con: ibis.BaseBackend):
@@ -325,7 +325,7 @@ async def fetch_image_metadata(image_id: str) -> ImageMetadata:
     try:
         return _get_metadata(image_id)
     except ValueError as err:
-        _unknown_image(image_id, err)
+        raise _unknown_image(image_id) from err
 
 
 @app.post("/images/{image_id}/rating")

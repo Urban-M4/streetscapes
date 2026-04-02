@@ -33,7 +33,7 @@ class KartaView(ImageSourceBase):
     def get_image_url(
         self,
         image_id: int | str,
-    ) -> str:
+    ) -> str | None:
         """Retrieve the URL for an image with the given ID.
 
         Args:
@@ -52,10 +52,10 @@ class KartaView(ImageSourceBase):
             # Parse the response
             data = response.json()["result"]["data"][0]
             image_url = data["fileurlProc"]
-            return image_url
+            return image_url  # type: ignore[no-any-return]
 
         except Exception:
-            return
+            return None
 
     def fetch_image_ids(self, lat, lon, radius):
         """Fetch Kartaview image ids within radius of a given point.

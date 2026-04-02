@@ -1,4 +1,5 @@
 from pprint import pp
+import sys
 
 from cyclopts import App
 from rich.table import Table
@@ -24,13 +25,13 @@ def set_config(key: str, value: str):
     from streetscapes.project import Project
 
     if not hasattr(CFG, key):
-        print(f"No config value for '{key}'", err=True)
-        raise SystemExit(code=1)
+        print(f"No config value for '{key}'")
+        sys.exit(1)
 
     # For now, this cannot be done in a Pydantic validator
     # because it triggers a circular import error.
     if key == "active_project":
-        proj = Project(value)
+        _ = Project(value)
 
     setattr(CFG, key, value)
     CFG.save()
@@ -53,8 +54,8 @@ def get_config(key: str):
     if value is not None:
         print(value)
     else:
-        print(f"No config value for '{key}'", err=True)
-        raise SystemExit(code=1)
+        print(f"No config value for '{key}'")
+        sys.exit(1)
 
 
 @config_cli.command(name="list")

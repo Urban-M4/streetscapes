@@ -40,7 +40,7 @@ class SourceBase(ABC):
         if root_dir is None:
             load_dotenv()
             data_home = os.getenv("DATA_HOME")
-            root_dir = Path(data_home) / "sources" / self.name
+            root_dir = Path(data_home) / "sources" / self.name  # type: ignore
 
         self.root_dir = utils.ensure_dir(root_dir)
 
@@ -108,7 +108,7 @@ class ImageSourceBase(SourceBase, ABC):
     def get_image_url(
         self,
         image_id: int | str,
-    ) -> str:
+    ) -> str | None:
         """Retrieve the URL for an image with the given ID.
 
         Args:
@@ -154,7 +154,7 @@ class ImageSourceBase(SourceBase, ABC):
     def download_image(
         self,
         image_id: str | int,
-        url: str = None,
+        url: str | None = None,
         overwrite: bool = False,
     ) -> Path:
         """Download a single image.
@@ -192,7 +192,7 @@ class ImageSourceBase(SourceBase, ABC):
 
         # Sanity check on the URL.
         if url is None:
-            return
+            return  # type: ignore[return-value]
 
         response = self.session.get(url)
 
@@ -229,7 +229,7 @@ class ImageSourceBase(SourceBase, ABC):
         """
         # Ensure that we have URLs
         if urls is None:
-            urls = [None] * len(image_ids)
+            urls = [None] * len(image_ids)  # type: ignore
 
         if len(urls) != len(image_ids):
             raise AttributeError(

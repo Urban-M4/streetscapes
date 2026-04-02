@@ -69,7 +69,7 @@ class MapillaryClient:
 
     @property
     def db_fields(self) -> dict:
-        return Project.core_tables["mapillary"]["schema"]
+        return Project.core_tables["mapillary"]["schema"]  # type: ignore[return-value]
 
     # NOTE: could make this "fetch_metadata_id" to be similar to bbox retrieval
     def fetch_image_url(self, image_id: str) -> str:
@@ -77,7 +77,7 @@ class MapillaryClient:
         endpoint = f"https://graph.mapillary.com/{image_id}?fields=thumb_2048_url"
         response = self.session.get(endpoint)
         response.raise_for_status()
-        return response.json().get("thumb_2048_url")
+        return response.json().get("thumb_2048_url")  # type: ignore[no-any-return]
 
     def download_image(
         self,
@@ -152,9 +152,9 @@ class MapillaryClient:
 
         for attempt in range(self.retries):
             try:
-                res = self.session.get(self.BASE_URL, params=params, timeout=20)
+                res = self.session.get(self.BASE_URL, params=params, timeout=20)  # type: ignore[arg-type]
                 res.raise_for_status()
-                return res.json().get("data", [])
+                return res.json().get("data", [])  # type: ignore[no-any-return]
             except (requests.RequestException, ValueError):
                 sleep_time = 0.5 * (attempt + 1)
                 logger.info(f"Request failed for {bbox=} - retrying in {sleep_time}")

@@ -162,12 +162,12 @@ class Project:
 
     @property
     def tables(self) -> list[str]:
-        return self._con.tables
+        return self._con.tables  # type: ignore[no-any-return]
 
     def table(
         self,
         name: str,
-    ) -> ibis.Table | None:
+    ) -> ibis.Table:
         """
         Return an Ibis table for the requested name.
 
@@ -179,11 +179,13 @@ class Project:
         """
         if name in self._con.tables:
             return self._con.table(name)
+        msg = f"Table '{name}' not found in tables: {self._con.tables}"
+        raise TableNotFoundError(msg)
 
     def schema(
         self,
         name: str,
-    ) -> dict | None:
+    ) -> dict:
         """Return the schema for a table.
 
         Args:
@@ -193,12 +195,14 @@ class Project:
             An optional table schema.
         """
         if name in self.core_tables:
-            return self.core_tables[name]["schema"]
+            return self.core_tables[name]["schema"]  # type: ignore[return-value]
+        msg = f"Table schema '{name}' not found in core tables: {self.core_tables}"
+        raise TableNotFoundError(msg)
 
     def bootstrap(
         self,
         overwrite: bool = False,
-    ):
+    ) -> None:
         """Bootstrap the project with the core tables.
 
         Tables are specified in the `core_tables` attribute.
@@ -242,7 +246,7 @@ class Project:
             sql = f"CREATE TABLE IF NOT EXISTS {name}"
 
         fields = ", ".join(
-            [f"{fname} {definition}" for fname, definition in schema.items()]
+            [f"{fname} {definition}" for fname, definition in schema.items()]  # type: ignore[union-attr]
         )
         sql = f"{sql} ({fields})"
 
@@ -273,7 +277,7 @@ class Project:
     def get_image_paths_from_uuids(
         self,
         uids: uuid.UUID | list[uuid.UUID],
-    ) -> Path:
+    ) -> dict[uuid.UUID, tuple[Path, str]]:
         """
         Get image paths from UUIDs.
 
@@ -290,13 +294,13 @@ class Project:
         uids = [uuid.UUID(u) if isinstance(u, str) else u for u in uids]
 
         t = self.table("images")
-        results = t.filter([t.uuid.isin(uids)]).to_pyarrow().to_pylist()
+        results = t.filter([t.uuid.isin(uids)]).select(["uuid", "source", "shard"]).to_pyarrow().to_pylist()
 
-        paths = {}
+        paths: dict[uuid.UUID, tuple[Path, str]] = {}
         for result in results:
             uid, source, shard = (
                 uuid.UUID(result["uuid"]),
-                result["source"],
+                str(result["source"]),
                 result["shard"],
             )
 
@@ -306,9 +310,8 @@ class Project:
 
             fpath = list(src_dir.glob(f"*{uid}*"))
             if len(fpath) > 0:
-                fpath = fpath[0]
-                if fpath.is_file():
-                    paths[uid] = fpath, source
+                if fpath[0].is_file():
+                    paths[uid] = fpath[0], source
 
         return paths
 
@@ -352,6 +355,7 @@ class Project:
         """
 
         t = self.table("runs")
+
         t = t.filter([t.run == result])
 
         if segmentations:
@@ -361,13 +365,11 @@ class Project:
             if curated is not None:
                 t = t.filter([t.curated == curated])
 
-        result = t.to_pyarrow().to_pylist()
-
-        return result
+        return t.to_pyarrow().to_pylist()  # type: ignore[no-any-return]
 
     def add_run(
         self,
-        run: uuid.UUID | None = None,
+        run: str | None = None,
         model: str | None = None,
         metadata: dict | None = None,
         overwrite: bool = False,
@@ -396,9 +398,7 @@ class Project:
             "metadata": [oj.dumps(metadata)],
         }
 
-        result = self.update_table("runs", data, overwrite)
-
-        return result
+        return self.update_table("runs", data, overwrite)  # type: ignore[no-any-return]
 
     def add_runs(
         self,
@@ -416,7 +416,7 @@ class Project:
             The data added to the database.
         """
         ts = utils.iso_timestamp(self._timestamp_resolution, utc=False)
-        data = {k: [] for k in self.schema("runs")}
+        data: dict[str, list] = {k: [] for k in self.schema("runs")}
 
         for r in runs:
             model = r.get("model", "unknown")
@@ -426,9 +426,7 @@ class Project:
             for k in data:
                 data[k].append(r.get(k))
 
-        result = self.update_table("runs", data, overwrite)
-
-        return result
+        return self.update_table("runs", data, overwrite)  # type: ignore[no-any-return]
 
     def get_segmentation(
         self,
@@ -449,12 +447,16 @@ class Project:
         """
 
         t = self.table("segmentations")
+        if t is None:
+            raise ValueError
+    
         t = t.filter([t.run == run, t.curated == curated, t.image == image])
 
         result = t.to_pyarrow().to_pylist()
 
         if len(result) > 0:
-            return result[0]
+            return result[0]  # type: ignore[no-any-return]
+        return []
 
     def get_segmentations(
         self,
@@ -492,9 +494,7 @@ class Project:
 
         t = t.filter(flt)
 
-        result = t.to_pyarrow().to_pylist()
-
-        return result
+        return t.to_pyarrow().to_pylist()  # type: ignore[no-any-return]
 
     def add_segmentation(
         self,
@@ -543,7 +543,7 @@ class Project:
             segmentations: A list of dictionaries containing segmentation data.
             overwrite: Replace or ignore conflicting data.
         """
-        data = {k: [] for k in self.schema("segmentations")}
+        data: dict[str, list] = {k: [] for k in self.schema("segmentations")}
 
         for s in segmentations:
             s["image"] = ibis.uuid(s["image"]).to_pyarrow()
@@ -555,9 +555,9 @@ class Project:
 
     def get_segmentation_status(
         self,
-        uids: uuid.UUID | str | list[uuid.UUID | str],
+        uids: list[uuid.UUID] | list[str],
         run: str,
-    ) -> tuple[set[uuid.UUID], dict[uuid.UUID, Path]]:
+    ) -> tuple[set[uuid.UUID], dict[uuid.UUID, tuple[Path, str]]]:
         """
         Filter out processed images.
 
@@ -568,9 +568,6 @@ class Project:
         Returns:
             Sets of UUIDs for processed and unprocessed images.
         """
-
-        if isinstance(uids, uuid.UUID | str):
-            uids = [uids]
         uids = [uuid.UUID(u) if isinstance(u, str) else u for u in uids]
 
         t_seg = self.table("segmentations")
@@ -597,7 +594,7 @@ class Project:
             overwrite: Replace or ignore conflicting data.
         """
 
-        data = {column: [] for column in self.schema("images")}
+        data: dict[str, list] = {column: [] for column in self.schema("images")}
 
         for image in images:
             for column in data:
@@ -638,7 +635,7 @@ class Project:
             image_data = _format_image(
                 uid,
                 source="manual",
-                shard=shard if shard is not None else new_fpath,
+                shard=shard if shard is not None else str(new_fpath),
             )
             image_data_list.append(image_data)
 
@@ -710,9 +707,9 @@ class Project:
             An Ibis table.
         """
 
-        table = self.table(table)
+        t = self.table(table)
         envelope_expr = ibis.literal(box(*bbox).wkt, type="geospatial:geometry")
-        return table.filter(table.geometry.within(envelope_expr))
+        return t.filter(t.geometry.within(envelope_expr))
 
     def update_table(
         self,
@@ -813,3 +810,7 @@ class Project:
         """Ensure table has a geometry column before geospatial export."""
         if "geometry" not in self.table(table).columns:
             raise ValueError(f"{fmt} export requires a 'geometry' column in '{table}'.")
+
+
+class TableNotFoundError(Exception):
+    pass

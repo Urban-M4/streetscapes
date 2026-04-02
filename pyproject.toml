@@ -77,6 +77,15 @@ lint.select = ["F", "E", "TYP", "B", "D", "C", "Q", "I"]
 [tool.ruff.lint.pydocstyle]
 convention = "google"
 
+[tool.mypy]
+python_version = "3.12"
+warn_return_any = true
+warn_unused_configs = true
+ignore_missing_imports = true
+exclude = '''(?x)(
+    streetview/
+)'''
+
 [project.optional-dependencies]
 explorer = ["fastapi", "uvicorn", "brotli-asgi"]
 dev = [
@@ -91,4 +100,9 @@ dev = [
     "mkdocs-autoapi>=0.4.1",
     "mkdocs-material",
     "mkdocs-jupyter",
+    "mypy",
+    # type stubs for mypy;
+    "pandas-stubs",
+    "types-shapely",
+    "types-requests",
 ]
