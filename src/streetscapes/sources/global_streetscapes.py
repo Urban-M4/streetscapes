@@ -4,7 +4,6 @@ import typing as tp
 
 from abc import ABC, abstractmethod
 from pathlib import Path
-from typing import Optional
 
 import ibis
 
@@ -23,8 +22,8 @@ class HFSourceBase(SourceBase, ABC):
     @abstractmethod
     def load_dataset(
         self,
-        criteria: Optional[dict] = None,
-        columns: Optional[list | tuple | set] = None,
+        criteria: dict | None = None,
+        columns: list | tuple | set | None = None,
     ) -> ibis.Table:
         """Load and return a dataset.
 
@@ -45,7 +44,7 @@ class HFSourceBase(SourceBase, ABC):
         self,
         repo_id: str,
         repo_type: str,
-        root_dir: Optional[Path] = None,
+        root_dir: Path | None = None,
     ):
         """A generic interface to a HuggingFace repository.
 
@@ -149,7 +148,7 @@ class GlobalStreetscapesSource(HFSourceBase):
 
     def __init__(
         self,
-        root_dir: Optional[Path] = None,
+        root_dir: Path | None = None,
     ):
         """An interface to the Global Streetscapes repository.
 
@@ -173,7 +172,7 @@ class GlobalStreetscapesSource(HFSourceBase):
     def load_csv(
         self,
         filename: str | Path,
-        root: Optional[Path] = None,
+        root: Path | None = None,
     ) -> ibis.Table:
         """Load a CSV file from the Global Streetscapes repository.
 
@@ -199,7 +198,7 @@ class GlobalStreetscapesSource(HFSourceBase):
     def load_parquet(
         self,
         filename: str | Path,
-        root: Optional[Path] = None,
+        root: Path | None = None,
     ):
         """Load a Parquet file from the Global Streetscapes repository.
 
@@ -224,8 +223,8 @@ class GlobalStreetscapesSource(HFSourceBase):
 
     def load_dataset(
         self,
-        criteria: Optional[dict] = None,
-        columns: Optional[list | tuple | set] = None,
+        criteria: dict | None = None,
+        columns: list | tuple | set | None = None,
     ) -> ibis.Table:
         """Load and return a dataset.
 

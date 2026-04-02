@@ -1,7 +1,6 @@
 import typing as tp
 from functools import reduce
 from pathlib import Path
-from typing import Optional
 
 import ibis
 import numpy as np
@@ -166,7 +165,7 @@ class SVSegmentation:
     def get_instances(
         self,
         label: str,
-        exclude: Optional[str | list[str]] = None,
+        exclude: str | list[str] | None = None,
         merge: bool = False,
     ) -> list[SVInstance]:
         """Return an array of instances corresponding to label.
@@ -208,9 +207,9 @@ class SVSegmentation:
 
     def visualise(
         self,
-        labels: Optional[str | list[str]] = None,
+        labels: str | list[str] | None = None,
         opacity: float = 0.5,
-        title: Optional[str] = None,
+        title: str | None = None,
         figsize: tuple[int, int] = (16, 6),
     ) -> tuple:
         """Visualise the instances of different objects in an image.

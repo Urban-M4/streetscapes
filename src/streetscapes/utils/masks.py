@@ -1,6 +1,6 @@
 """Segmentation mask utils."""
 
-from typing import Literal, Optional
+from typing import Literal
 
 import numpy as np
 from shapely import GeometryCollection, geometry
@@ -30,8 +30,8 @@ def _get_boolean_masks(data: np.ndarray):
 def mask2poly(
     data: np.ndarray,
     model: Literal["maskformer", "dinosam", "bfms"],
-    image: Optional[np.ndarray] = None,
-    tolerance: Optional[float] = None
+    image: np.ndarray | None = None,
+    tolerance: float | None = None
 ) -> GeometryCollection:
     """Convert segmentation masks to a collection of (multi-)polygons.
 

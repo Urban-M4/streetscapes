@@ -1,6 +1,5 @@
 import typing as tp
 from pathlib import Path
-from typing import Optional
 
 import numpy as np
 
@@ -55,9 +54,9 @@ class SVInstance:
 
     def visualise(
         self,
-        title: Optional[str] = None,
+        title: str | None = None,
         figsize: tuple[int, int] = (16, 6),
-        channel: Optional[int] = None,
+        channel: int | None = None,
     ):
         """Visualise this instance isolated, with everything else blacked out."""
         import matplotlib.pyplot as plt

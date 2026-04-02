@@ -4,7 +4,6 @@ import os
 import re
 from abc import ABC, abstractmethod
 from pathlib import Path
-from typing import Optional
 
 import requests
 from dotenv import load_dotenv
@@ -155,7 +154,7 @@ class ImageSourceBase(SourceBase, ABC):
     def download_image(
         self,
         image_id: str | int,
-        url: Optional[str] = None,
+        url: str | None = None,
         overwrite: bool = False,
     ) -> Path:
         """Download a single image.

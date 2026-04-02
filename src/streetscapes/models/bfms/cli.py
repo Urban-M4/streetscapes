@@ -1,4 +1,4 @@
-from typing import Optional, cast
+from typing import cast
 
 import imageio.v3 as iio
 import numpy as np
@@ -12,9 +12,9 @@ from streetscapes.utils.masks import mask2poly
 
 
 def cli(
-    image_path: Optional[str] = None,
+    image_path: str | None = None,
     model_id: str = "jinfengxie/BFMS_1014",
-    run: Optional[str] = None,
+    run: str | None = None,
     project: str = cast("str", CFG.active_project),
     overwrite: bool = False,
     verbose: bool = False,

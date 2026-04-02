@@ -4,7 +4,7 @@ from contextlib import contextmanager
 import webbrowser
 from datetime import datetime
 from pathlib import Path
-from typing import Annotated, Any, Generator, Optional
+from typing import Annotated, Any, Generator
 from uuid import UUID
 from itertools import chain
 
@@ -164,7 +164,7 @@ def _bbox_to_polygon(bbox: Bbox) -> Polygon:
     )
 
 
-def _fetch_images(filter: Optional[FilterParams]) -> list[Image]:
+def _fetch_images(filter: FilterParams | None) -> list[Image]:
     """Fetch images that conform to a filter specification."""
     with _open_db(dbpath) as con:
         if filter is None:
