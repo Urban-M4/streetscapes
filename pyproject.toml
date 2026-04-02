@@ -62,7 +62,7 @@ authors = [
 ]
 description = "Code for downloading, segmenting and analysing images from Mapillary and KartaView, with the aim of extracting the emissivity and albedo of buildings."
 readme = "README.md"
-license = { file = "LICENCE.md" }
+license = { file = "LICENCE" }
 
 [project.scripts]
 streetscapes = "streetscapes.cli.main:app"
