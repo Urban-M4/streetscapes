@@ -254,11 +254,8 @@ class Project:
 
         # Run init clauses, if any
         inits = table.get("init", [])
-        print(f"==[ {name=} | inits: {inits}")
         for sql in inits:
             self._con.raw_sql(sql)
-
-
 
     def get_image_dir_for_source(
         self,
