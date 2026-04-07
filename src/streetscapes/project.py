@@ -228,9 +228,6 @@ class Project:
             name: Table name.
             schema: Schema to use for the table if it doesn't exist.
             overwrite: Overwrite the table if it exists.
-
-        Returns:
-            An Ibis table.
         """
         if name in self.tables and not overwrite:
             return self.table(name)
