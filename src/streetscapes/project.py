@@ -230,12 +230,15 @@ class Project:
             overwrite: Overwrite the table if it exists.
         """
         if name in self.tables and not overwrite:
-            return self.table(name)
+            return
 
+        table = self.core_tables.get(name)
+        if table is None:
+            raise ValueError(f"Invalid table '{name}'.")
+
+        schema = schema or self.schema(name)
         if schema is None:
-            table = self.core_tables.get(name)
-            if table is None or (schema := self.schema(name)) is None:
-                raise ValueError(f"Please provide a valid schema for table '{name}'.")
+            raise ValueError(f"Please provide a valid schema for table '{name}'.")
 
         if overwrite:
             sql = f"CREATE OR REPLACE TABLE {name}"
