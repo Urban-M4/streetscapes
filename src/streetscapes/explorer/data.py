@@ -46,6 +46,7 @@ class Segmentation:
     model_name: str
     id: str  # archive
     run_args: str
+    rating: int
     instances: list[Instance] = field(default_factory=list)
     notes: str = ""
 

@@ -115,6 +115,7 @@ def _get_segmentations(uuid: UUID | str) -> list[Segmentation]:
                 model_name=runinfo["model"],
                 id=row["run"],
                 run_args=meta,
+                rating=row["rating"],
                 instances=inst,
             )
             segmentations.append(seg)
@@ -245,7 +246,7 @@ def _update_segmentation_rating(image_id: str, run_name: str, rating: int):
     with _open_db(dbpath, read_only=False) as con:
         segs = con.table("segmentations")
         segs = segs.filter(segs.image == image_id)
-        seg = segs.filter(segs.run == run_name)
+        seg = segs.filter(segs.run == run_name).to_pandas()
 
         if len(seg) == 0:
             raise _unknown_image(image_id)
@@ -253,7 +254,7 @@ def _update_segmentation_rating(image_id: str, run_name: str, rating: int):
         imgd = seg.to_dict()
         imgd["rating"][0] = rating
         con.con.register("updated_df", pd.DataFrame(imgd))
-        con.raw_sql(f"INSERT OR REPLACE INTO images FROM updated_df;")
+        con.raw_sql(f"INSERT OR REPLACE INTO segmentations FROM updated_df;")
 
 
 def _unknown_image(image_id):
