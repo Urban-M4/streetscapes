@@ -80,6 +80,12 @@ def _flip(x, y):
     return y, x
 
 
+def _validate_rating(rating: Any) -> int:
+    if rating is None or np.isnan(rating):
+        return 0
+    return int(rating)
+
+
 def _get_segmentations(uuid: UUID | str) -> list[Segmentation]:
     with _open_db(dbpath) as con:
         runs = con.table("runs")
@@ -115,7 +121,7 @@ def _get_segmentations(uuid: UUID | str) -> list[Segmentation]:
                 model_name=runinfo["model"],
                 id=row["run"],
                 run_args=meta,
-                rating=row["rating"],
+                rating=_validate_rating(row["rating"]),
                 instances=inst,
             )
             segmentations.append(seg)
@@ -152,7 +158,7 @@ def _get_metadata(uuid: str) -> ImageMetadata:
         panoramic=bool(metadata["is_pano"]),
         source=imgdata["source"],
         tags=imgdata["tags"],
-        rating=0 if imgdata["rating"] in [None, np.nan] else int(imgdata["rating"]),
+        rating=_validate_rating(imgdata["rating"]),
         compass_angle=float(metadata["compass_angle"]),
         notes="" if imgdata["notes"] in [None, np.nan] else imgdata["notes"],
         segmentation=segmentations,
@@ -323,10 +329,7 @@ async def fetch_images(filter: Annotated[FilterParams, Query()]) -> list[Image]:
 @app.get("/images/{image_id}")
 async def fetch_image_metadata(image_id: str) -> ImageMetadata:
     """Get all metadata associated with a certain image, including segmentations."""
-    try:
-        return _get_metadata(image_id)
-    except ValueError as err:
-        raise _unknown_image(image_id) from err
+    return _get_metadata(image_id)
 
 
 @app.post("/images/{image_id}/rating")
