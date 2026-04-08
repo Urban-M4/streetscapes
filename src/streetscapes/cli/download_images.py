@@ -81,7 +81,7 @@ def mapillary(
 
     token = token or CFG.mapillary_token
     if not token:
-        logger.error("Error: token not provided and MAPILLARY_TOKEN not set in .env.")
+        logger.error("Error: 'mapillary_token' missing, set with `streetscapes config set mapillary_token <your token>`")
         raise typer.Exit(code=1)
 
     mapillary = MapillaryClient(token)
