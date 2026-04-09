@@ -66,7 +66,7 @@ class Project:
         },
         "runs": {
             "schema": {
-                "run": "STRING NOT NULL PRIMARY KEY",
+                "run": "STRING PRIMARY KEY",
                 "timestamp": "TIMESTAMP NOT NULL",
                 "model": "STRING",
                 "metadata": "JSON",
@@ -113,6 +113,21 @@ class Project:
                 "thumb_original_url": "STRING",
                 "width": "UBIGINT",
                 "camera_parameters": "FLOAT8[]",
+            },
+            "init": [],
+        },
+        "local": {
+            "schema": {
+                "image": "UUID PRIMARY KEY",
+                "make": "STRING",
+                "model": "STRING",
+                "orientation": "UBIGINT",
+                "timestamp": "TIMESTAMP",
+                "width": "UBIGINT",
+                "height": "UBIGINT",
+                "altitude": "FLOAT8",
+                "geometry": "GEOMETRY",
+                "is_pano": "BOOL DEFAULT FALSE",
             },
             "init": [],
         },
@@ -449,7 +464,7 @@ class Project:
         t = self.table("segmentations")
         if t is None:
             raise ValueError
-    
+
         t = t.filter([t.run == run, t.curated == curated, t.image == image])
 
         result = t.to_pyarrow().to_pylist()
@@ -579,7 +594,6 @@ class Project:
         missing = list(set(uids).difference(processed))
         unprocessed = self.get_image_paths_from_uuids(missing)
         return processed, unprocessed
-
 
     def add_images(
         self,
