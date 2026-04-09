@@ -222,7 +222,7 @@ def _fetch_images(filter: FilterParams | None) -> list[Image]:
                 )
             if len(filter.segmentation_ratings) > 0:
                 segmentations = segmentations.filter(
-                    segmentations.run.isin(filter.segmentation_ratings)
+                    segmentations.rating.isin(filter.segmentation_ratings)
                 )
 
             valid_images = segmentations.distinct(on="image").image
