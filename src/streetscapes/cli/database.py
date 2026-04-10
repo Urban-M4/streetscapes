@@ -59,7 +59,7 @@ def delete_segmentations(
     t_runs = db.table("runs")
 
     runs = list(t_runs.select("run").to_pandas()["run"])
-    
+
     if run_id == "*":
         reply = input(
             "This will remove all segmentation runs from the "
@@ -98,3 +98,4 @@ def list_projects():
 
     else:
         print(f"No projects found in directory '{CFG.project_dir}'")
+

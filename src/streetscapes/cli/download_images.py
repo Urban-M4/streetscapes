@@ -112,7 +112,7 @@ def mapillary(
             shard = utils.get_geohash_shard_path(location)
             if output_dir is not None:
                 output_dir /= shard
-        
+
         if not skip_existing or not _existing_img_valid(uid, image_id, output_dir, skip_existing):
             uid = mapillary.download_image(url, output_dir, image_id, uid, skip_existing).uid
 
