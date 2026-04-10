@@ -20,7 +20,7 @@ from rich.progress import track
 def _format_image(
     uid: uuid.UUID,
     source: str,
-    shard: str,
+    shard: str | None,
     notes: str = "",
     tags: str | list[str] | None = None,
     rating: int = 0,
