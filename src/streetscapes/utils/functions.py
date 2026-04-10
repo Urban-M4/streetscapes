@@ -1,3 +1,4 @@
+from typing import Any
 import os
 import re
 import sys
@@ -12,6 +13,8 @@ import filetype as ft
 import seedir as sd
 
 from dotenv import load_dotenv
+import exifread
+import shapely
 
 from streetscapes.utils.metadata import ImageMeta
 
@@ -612,3 +615,74 @@ def uuid7(as_str: bool = False) -> uuid.UUID | str:
     """
     u = __uuid7()
     return u if not as_str else str(u)
+
+
+def to_deg(dms: list[int | float], sign: int = 1) -> float:
+    """
+    Convert [deg, min, s] to degrees.
+
+    Args:
+        dms: A list containing degrees, minutes and seconds.
+
+    Returns:
+        A single float.
+    """
+    deg = dms[0] + dms[1] / 60 + float(dms[2]) / 3600
+    return sign * deg
+
+
+def extract_exif_data(impath: Path) -> dict[str, Any]:
+    """
+    Extract EXIF metadata from an image file.
+
+    Args:
+        impath: Path to an image.
+    """
+    with open(impath, "rb") as file_handle:
+        tags = exifread.process_file(file_handle)
+
+    # Extract the tags that we are interested in
+    lon = tags.get("GPS GPSLongitude")
+    lon_ref = tags.get("GPS GPSLongitudeRef")
+    sign = -1 if lon_ref == "W" else 1
+    lon = 0.0 if lon is None else to_deg(lon.values, sign)
+
+    lat = tags.get("GPS GPSLatitude")
+    lat_ref = tags.get("GPS GPSLatitudeRef")
+    sign = -1 if lat_ref == "S" else 1
+    lat = 0.0 if lat is None else to_deg(lat.values, sign)
+
+    mapping = {
+        "make": ("Image Make", str),
+        "model": ("Image Model", str),
+        "orientation": ("Image Orientation", int),
+        "timestamp": (
+            "Image DateTime",
+            lambda x: datetime.strptime(x, "%Y:%m:%d %H:%M:%S"),
+        ),
+        "width": ("EXIF ExifImageWidth", int),
+        "height": ("EXIF ExifImageLength", int),
+        "altitude": ("GPS GPSAltitude", float),
+        "geometry": (shapely.Point([lon, lat]), None),
+        "is_pano": (None, None),
+        "iso": ("EXIF ISOSpeedRatings", int),
+        "focal_length": ("EXIF FocalLength", float),
+        "exposure": ("EXIF ExposureTime", float),
+        "fstop": ("EXIF FNumber", float),
+    }
+
+    data = {k: None for k in mapping}
+
+    for k, (val, caster) in mapping.items():
+
+        if isinstance(val, str):
+            val = tags.get(val)
+            if val is not None:
+                val = val.values
+
+            if isinstance(val, list):
+                val = val[-1]
+
+        data[k] = val if caster is None else caster(val)  # type: ignore[operator, assignment]
+
+    return data
