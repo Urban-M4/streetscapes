@@ -14,17 +14,19 @@ from shapely.geometry import box
 from streetscapes import CFG, logger, utils
 from streetscapes.utils.bbox import Bbox
 
+from rich.progress import track
+
 
 def _format_image(
     uid: uuid.UUID,
     source: str,
     shard: str,
     notes: str = "",
-    tags: list[str] = [],
+    tags: str | list[str] | None = None,
     rating: int = 0,
 ) -> dict[str, Any]:
     """
-    Register downloaded (local) images into the database.
+    Prepare image metadata for entry into for the database.
 
     Args:
         uid: UUID of the image.
@@ -38,12 +40,15 @@ def _format_image(
         overwrite: Replace or ignore conflicting data.
     """
 
+    if isinstance(tags, str):
+        tags = [tags]
+
     return {
         "uuid": ibis.uuid(uid).to_pyarrow(),
         "source": source,
         "shard": shard,
         "notes": notes,
-        "tags": tags,
+        "tags": tags if tags is not None else [],
         "rating": rating,
     }
 
@@ -127,7 +132,7 @@ class Project:
                 "height": "UBIGINT",
                 "altitude": "FLOAT4",
                 "geometry": "GEOMETRY",
-                "is_pano": "BOOL DEFAULT FALSE",
+                "is_pano": "BOOL",
                 "iso": "UBIGINT",
                 "focal_length": "FLOAT4",
                 "exposure": "FLOAT4",
@@ -313,7 +318,12 @@ class Project:
         uids = [uuid.UUID(u) if isinstance(u, str) else u for u in uids]
 
         t = self.table("images")
-        results = t.filter([t.uuid.isin(uids)]).select(["uuid", "source", "shard"]).to_pyarrow().to_pylist()
+        results = (
+            t.filter([t.uuid.isin(uids)])
+            .select(["uuid", "source", "shard"])
+            .to_pyarrow()
+            .to_pylist()
+        )
 
         paths: dict[uuid.UUID, tuple[Path, str]] = {}
         for result in results:
@@ -602,26 +612,36 @@ class Project:
     def add_images(
         self,
         images: list[dict],
+        exif_data: list[dict] | None = None,
         overwrite: bool = False,
     ):
         """
         Register downloaded (local) images into the database.
 
         Args:
-            data: A dictionary of image information.
+            images: A list of dictionaries containing image information.
+            exif_data: Metadata extracted from the images' EXIF tags.
             overwrite: Replace or ignore conflicting data.
         """
-
-        data: dict[str, list] = {column: [] for column in self.schema("images")}
+        # Entries for the `images` table.
+        img_data: dict[str, list] = {column: [] for column in self.schema("images")}
 
         for image in images:
-            for column in data:
-                data[column].append(image.get(column))
+            for column in img_data:
+                img_data[column].append(image.get(column))
+        self.update_table("images", img_data, overwrite)
 
-        self.update_table("images", data, overwrite)
-        return data
+        # Entries for the `local` table.
+        if exif_data is not None:
+            metadata: dict[str, list] = {column: [] for column in self.schema("local")}
+            for exif in exif_data:
+                for column in metadata:
+                    metadata[column].append(exif.get(column))
+            self.update_table("local", metadata, overwrite)
 
-    def ingest_image_dir(
+        return img_data
+
+    def add_local_images(
         self,
         path: Path | str,
         shard: str | None = None,
@@ -632,17 +652,27 @@ class Project:
 
         Args:
             path: A directory containing images.
+            shard: An optional shard (=subdirectory) to use.
+            overwrite: Overwrite existing entries.
         """
 
         path = Path(path)
         image_paths = utils.get_image_paths(path)
-        image_data_list = []
+        image_data = []
+        exif_data = []
         image_dir = self.get_image_dir_for_source(CFG.local_cache_dir_name, create=True)
         if shard is not None:
             image_dir = utils.ensure_dir(image_dir / shard)
 
-        for ip in image_paths:
+        ti = self.table('images')
+
+        # Iterate over all images and copy them to the local directory.
+        # Any EXIF metadata in the images themselves can be used to
+        # populate the `local` table.
+        for ip in track(image_paths, description="Adding local images..."):
             uid = utils.get_image_uuid(ip)
+            if (ti.filter(ti.uuid == uid).count().to_pandas() > 0) and not overwrite:
+                continue
 
             new_fname = f"{uid}{ip.suffix}".lower()
             new_fpath = image_dir / new_fname
@@ -650,14 +680,18 @@ class Project:
             if not new_fpath.exists() or overwrite:
                 shutil.copy2(ip, new_fpath)
 
-            image_data = _format_image(
+            #
+            entry = _format_image(
                 uid,
-                source="manual",
-                shard=shard if shard is not None else str(new_fpath),
+                source="local",
+                shard=shard,
             )
-            image_data_list.append(image_data)
+            image_data.append(entry)
+            exif = utils.extract_exif_data(ip)
+            exif["image"] = uid
+            exif_data.append(exif)
 
-        return self.add_images(image_data_list, overwrite)
+        return self.add_images(image_data, exif_data, overwrite)
 
     def ingest_mapillary(self, df: DataFrame, table: str = "mapillary"):
         """Ingest a DataFrame of Mapillary metadata."""
