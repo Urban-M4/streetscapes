@@ -1,6 +1,7 @@
 import typing as tp
 import numpy as np
 import skimage as ski
+from PIL import Image
 import uuid
 from tqdm import tqdm
 from streetscapes import utils
@@ -85,7 +86,7 @@ class DinoSAM:
             A mask.
 
         """
-        self.sam_model.set_image(image)
+        self.sam_model.set_image(Image.fromarray(image))
         masks, _, _ = self.sam_model.predict(box=bboxes, multimask_output=False)
         masks = np.squeeze(masks)
         return masks  # type: ignore[no-any-return]
@@ -105,7 +106,7 @@ class DinoSAM:
             A list of masks.
 
         """
-        self.sam_model.set_image_batch(images)
+        self.sam_model.set_image_batch([Image.fromarray(im) for im in images])
 
         masks, _, _ = self.sam_model.predict_batch(
             box_batch=bboxes, multimask_output=False
