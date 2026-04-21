@@ -83,7 +83,7 @@ class Project:
                 "polygons": "GEOMETRY",
             },
             "init": [
-                "ALTER TABLE segmentations ADD PRIMARY KEY (run, curated, image);"
+                "ALTER TABLE segmentations ADD PRIMARY KEY (run, curated, image)"
             ],
         },
         "mapillary": {
@@ -221,24 +221,24 @@ class Project:
         name: str,
         schema: dict | ibis.Schema | None = None,
         overwrite: bool = False,
-    ) -> ibis.Table:
+    ) -> None:
         """Ensure that a table exists with the given schema.
 
         Args:
             name: Table name.
             schema: Schema to use for the table if it doesn't exist.
             overwrite: Overwrite the table if it exists.
-
-        Returns:
-            An Ibis table.
         """
         if name in self.tables and not overwrite:
-            return self.table(name)
+            return
 
+        table = self.core_tables.get(name)
+        if table is None:
+            raise ValueError(f"Invalid table '{name}'.")
+
+        schema = schema or self.schema(name)
         if schema is None:
-            table = self.core_tables.get(name)
-            if table is None or (schema := self.schema(name)) is None:
-                raise ValueError(f"Please provide a valid schema for table '{name}'.")
+            raise ValueError(f"Please provide a valid schema for table '{name}'.")
 
         if overwrite:
             sql = f"CREATE OR REPLACE TABLE {name}"
@@ -250,7 +250,12 @@ class Project:
         )
         sql = f"{sql} ({fields})"
 
-        return self._con.raw_sql(sql)
+        self._con.raw_sql(sql)
+
+        # Run init clauses, if any
+        inits = table.get("init", [])
+        for sql in inits:
+            self._con.raw_sql(sql)
 
     def get_image_dir_for_source(
         self,
@@ -294,7 +299,12 @@ class Project:
         uids = [uuid.UUID(u) if isinstance(u, str) else u for u in uids]
 
         t = self.table("images")
-        results = t.filter([t.uuid.isin(uids)]).select(["uuid", "source", "shard"]).to_pyarrow().to_pylist()
+        results = (
+            t.filter([t.uuid.isin(uids)])
+            .select(["uuid", "source", "shard"])
+            .to_pyarrow()
+            .to_pylist()
+        )
 
         paths: dict[uuid.UUID, tuple[Path, str]] = {}
         for result in results:
@@ -449,7 +459,7 @@ class Project:
         t = self.table("segmentations")
         if t is None:
             raise ValueError
-    
+
         t = t.filter([t.run == run, t.curated == curated, t.image == image])
 
         result = t.to_pyarrow().to_pylist()
@@ -579,7 +589,6 @@ class Project:
         missing = list(set(uids).difference(processed))
         unprocessed = self.get_image_paths_from_uuids(missing)
         return processed, unprocessed
-
 
     def add_images(
         self,

@@ -338,10 +338,7 @@ def camel2snake(string: str) -> str:
 
 
 def get_env(key: str):
-    """Read the value of `key` from the environment variables.
-
-    Environment variables may be set in .env or defined in current shell.
-    """
+    """Read the value of `key` from the environment variables."""
     load_dotenv()
     value = os.getenv(key, None)
 

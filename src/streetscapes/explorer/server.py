@@ -80,6 +80,12 @@ def _flip(x, y):
     return y, x
 
 
+def _validate_rating(rating: Any) -> int:
+    if rating is None or np.isnan(rating):
+        return 0
+    return int(rating)
+
+
 def _get_segmentations(uuid: UUID | str) -> list[Segmentation]:
     with _open_db(dbpath) as con:
         runs = con.table("runs")
@@ -115,6 +121,7 @@ def _get_segmentations(uuid: UUID | str) -> list[Segmentation]:
                 model_name=runinfo["model"],
                 id=row["run"],
                 run_args=meta,
+                rating=_validate_rating(row["rating"]),
                 instances=inst,
             )
             segmentations.append(seg)
@@ -151,7 +158,7 @@ def _get_metadata(uuid: str) -> ImageMetadata:
         panoramic=bool(metadata["is_pano"]),
         source=imgdata["source"],
         tags=imgdata["tags"],
-        rating=0 if imgdata["rating"] in [None, np.nan] else int(imgdata["rating"]),
+        rating=_validate_rating(imgdata["rating"]),
         compass_angle=float(metadata["compass_angle"]),
         notes="" if imgdata["notes"] in [None, np.nan] else imgdata["notes"],
         segmentation=segmentations,
@@ -215,7 +222,7 @@ def _fetch_images(filter: FilterParams | None) -> list[Image]:
                 )
             if len(filter.segmentation_ratings) > 0:
                 segmentations = segmentations.filter(
-                    segmentations.run.isin(filter.segmentation_ratings)
+                    segmentations.rating.isin(filter.segmentation_ratings)
                 )
 
             valid_images = segmentations.distinct(on="image").image
@@ -245,7 +252,7 @@ def _update_segmentation_rating(image_id: str, run_name: str, rating: int):
     with _open_db(dbpath, read_only=False) as con:
         segs = con.table("segmentations")
         segs = segs.filter(segs.image == image_id)
-        seg = segs.filter(segs.run == run_name)
+        seg = segs.filter(segs.run == run_name).to_pandas()
 
         if len(seg) == 0:
             raise _unknown_image(image_id)
@@ -253,7 +260,7 @@ def _update_segmentation_rating(image_id: str, run_name: str, rating: int):
         imgd = seg.to_dict()
         imgd["rating"][0] = rating
         con.con.register("updated_df", pd.DataFrame(imgd))
-        con.raw_sql(f"INSERT OR REPLACE INTO images FROM updated_df;")
+        con.raw_sql(f"INSERT OR REPLACE INTO segmentations FROM updated_df;")
 
 
 def _unknown_image(image_id):
@@ -322,10 +329,7 @@ async def fetch_images(filter: Annotated[FilterParams, Query()]) -> list[Image]:
 @app.get("/images/{image_id}")
 async def fetch_image_metadata(image_id: str) -> ImageMetadata:
     """Get all metadata associated with a certain image, including segmentations."""
-    try:
-        return _get_metadata(image_id)
-    except ValueError as err:
-        raise _unknown_image(image_id) from err
+    return _get_metadata(image_id)
 
 
 @app.post("/images/{image_id}/rating")
