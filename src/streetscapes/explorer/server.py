@@ -386,16 +386,16 @@ async def _serve(port: int, host: str, open_webpage: bool, log_info: bool):
     if open_webpage:
         print("Waiting for the streetscapes-explorer to start...")
         webbrowser.open(
-            f"https://urban-m4.github.io/Urban-M5/?s=http://localhost:{port}"
+            f"https://urban-m4.github.io/streetscapes-explorer/?s=http://localhost:{port}"
         )
         print(
             "The streetscapes-explorer should have launched automatically.\n"
-            "To open it manually, go to https://urban-m4.github.io/Urban-M5/ and "
+            "To open it manually, go to https://urban-m4.github.io/streetscapes-explorer/ and "
         )
     else:
         print(
             "Starting the streetscapes-explorer...\n\n"
-            "To open the explorer, go to https://urban-m4.github.io/Urban-M5/ and "
+            "To open the explorer, go to https://urban-m4.github.io/streetscapes-explorer/ and "
         )
     print(
         f"paste in http://localhost:{port} as web service.\n"
