@@ -614,17 +614,21 @@ def uuid7(as_str: bool = False) -> uuid.UUID | str:
     return u if not as_str else str(u)
 
 
-def to_deg(dms: list[int | float], reference: Literal["N", "E", "S", "W"]) -> float:
+def to_deg(
+    dms: list[int | float] | None,
+    reference: Literal["N", "E", "S", "W"] | None = None,
+) -> float:
     """
     Convert [deg, min, s] to degrees.
 
     Args:
         dms: A list containing degrees, minutes and seconds.
-        reference: Coordinate reference (N, E, S, or W).
+        reference: Optional coordinate reference (N, E, S, or W).
 
     Returns:
         Latitude or longitude coordinate in decimal degrees.
     """
+
     if dms is None:
         return 0.0
 
@@ -645,12 +649,20 @@ def extract_exif_data(impath: Path) -> dict[str, Any]:
 
     # Extract the tags that we are interested in
     lon = tags.get("GPS GPSLongitude")
+    if lon is not None:
+        lon = lon.values
     lon_ref = tags.get("GPS GPSLongitudeRef")
-    lon = to_deg(lon.values, lon_ref)
+    if lon_ref is not None:
+        lon_ref = lon_ref.values
+    lon = to_deg(lon, lon_ref)
 
     lat = tags.get("GPS GPSLatitude")
+    if lat is not None:
+        lat = lat.values
     lat_ref = tags.get("GPS GPSLatitudeRef")
-    lat = to_deg(lat.values, lat_ref)
+    if lat_ref is not None:
+        lat_ref = lat_ref.values
+    lat = to_deg(lat, lat_ref)
 
     mapping = {
         "make": ("Image Make", str),
@@ -682,6 +694,9 @@ def extract_exif_data(impath: Path) -> dict[str, Any]:
 
             if isinstance(val, list):
                 val = val[-1]
+
+        if val is None:
+            continue
 
         data[k] = val if caster is None else caster(val)  # type: ignore[operator, assignment]
 
