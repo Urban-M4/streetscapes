@@ -23,5 +23,6 @@ from streetscapes.utils.functions import (
     iso_timestamp,
     uuid7,
     get_geohash_shard_path,
+    extract_exif_data,
 )
 from streetscapes.utils.logging import logger

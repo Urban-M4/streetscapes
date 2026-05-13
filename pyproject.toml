@@ -16,6 +16,7 @@ dependencies = [
     "filetype",
     "fiona",
     "geodatasets",
+    "exifread",
     "geopandas",
     "h3",
     "h5netcdf",
