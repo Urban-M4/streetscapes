@@ -625,9 +625,10 @@ class Project:
 
         Args:
             images: A list of dictionaries containing image information.
-            exif_data: Metadata extracted from the images' EXIF tags.
+            exif_data: Metadata extracted from the images' EXIF tags. Note: only used for locally imported images.
             overwrite: Replace or ignore conflicting data.
         """
+
         # Entries for the `images` table.
         img_data: dict[str, list] = {column: [] for column in self.schema("images")}
 
