@@ -13,7 +13,16 @@ def add_images(
     shard: str | None = None,
     overwrite: bool = False,
 ):
-    """Add images from a local directory."""
+    """
+    Add images from a local directory.
+
+    Args:
+        path: A path to a local directory containing images.
+        project: The name of the project to use for these images.
+        shard: Optional path shard (to a subpath for the images).
+        overwrite: Overwrite images that have already been added.
+    """
+
     from streetscapes.project import Project
 
     proj = Project(project)
