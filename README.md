@@ -153,9 +153,9 @@ streetscapes.vis.plot_dinosam_segments(segments.iloc[0])
 streetscapes.vis.plot_materials(materials.iloc[0])
 ```
 
-For advanced processing, we can leverage DuckDB spatial via Ibis. 
-For example, once we have image-derived material estimates for building facades, 
-we can map each material to literature-based albedo and emissivity values and 
+For advanced processing, we can leverage DuckDB spatial via Ibis.
+For example, once we have image-derived material estimates for building facades,
+we can map each material to literature-based albedo and emissivity values and
 aggregate these properties per building:
 
 ```py
@@ -217,6 +217,19 @@ output/
 - Images can be sharded by hash or ID for scalability
 - Segmentation outputs are grouped by type/model
 - The base directory is always configurable via `.env` (`DATA_HOME`) or CLI options.
+
+## Adding local images to a project
+
+You can use the CLI to add custom images to a project. This could be useful if you have acquired images independently (e.g., as part of an observational study). The command syntax is `streetscapes images add` (see below for the full list of options). This will add the images to a project, and the images will be copied to a directory named `local` under the configured default image directory.
+
+```sh
+streetscapes images add <directory> [--shard <subpath>] [--project <project name>] [--overwrite]
+```
+
+The CLI options are as follows:
+- `--shard <subpath>`: You can optionally specify a shard (a subdirectory of the `local` image directory) where the images should be copied. For instance, if the default image directory is `~/.cache/streetscapes/images`, the above command would copy local images under `~/.cache/streetscapes/images/local`. The `--shard` option allows you to specify an additional subpath, so `--shard amsterdam/centre` would copy your images to `~/.cache/streetscapes/images/local/amsterdam/centre`. Subdirectories are created automatically if they don't exist.
+- `--project <project name>`: Specify a project to add these images to.
+- `--overwrite`: Overwrite existing images in the destination directory.
 
 ## Design Philosophy
 
