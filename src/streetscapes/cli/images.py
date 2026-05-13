@@ -1,17 +1,7 @@
 """CLI commands to view/manipulate the database."""
 
 from pathlib import Path
-from typing import TYPE_CHECKING
-
 from cyclopts import App
-
-from rich.table import Table
-from rich.console import Console
-
-from streetscapes import CFG
-
-if TYPE_CHECKING:
-    import ibis
 
 image_cli = App(help="Perform various operations on local collections of images.")
 
