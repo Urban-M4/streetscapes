@@ -16,6 +16,9 @@ def add_images(
     """
     Add images from a local directory.
 
+    This could be useful if you have a collection of images that have been
+    acquired manually (not from an online source such as Mapillary or Kartaview).
+
     Args:
         path: A path to a local directory containing images.
         project: The name of the project to use for these images.
