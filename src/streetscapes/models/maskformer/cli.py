@@ -74,7 +74,7 @@ def cli(
 
         uids = list(map(utils.get_image_uuid, image_paths))
         if register:
-            proj.ingest_image_dir(image_path)
+            proj.ingest_image_dir(image_path, overwrite=overwrite)
     else:
         uids = proj.get_image_uuids()
     _, unprocessed = proj.get_segmentation_status(uids, run)

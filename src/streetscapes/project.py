@@ -537,7 +537,7 @@ class Project:
             "polygons": [polygons],
         }
 
-        result = self.update_table("segmentations", data, overwrite=True)
+        result = self.update_table("segmentations", data, overwrite=overwrite)
 
         return result
 
