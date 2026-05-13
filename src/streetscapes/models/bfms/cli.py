@@ -15,6 +15,7 @@ def cli(
     image_path: str | None = None,
     model_id: str = "jinfengxie/BFMS_1014",
     run: str | None = None,
+    register: bool = False,
     project: str = cast("str", CFG.active_project),
     overwrite: bool = False,
     verbose: bool = False,
@@ -27,6 +28,7 @@ def cli(
             If not provided uses all downloaded images in the project.
         model_id: BFMS model ID (Huggingface format).
         run: Model run name.
+        register: Register missing images (there is no source by default).
         project: The project to use.
         overwrite: Overwrite an existing run.
         verbose: Print verbose log to the terminal. Useful for debugging models.

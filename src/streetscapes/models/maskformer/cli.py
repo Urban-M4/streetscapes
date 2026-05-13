@@ -23,6 +23,7 @@ def cli(
     overlap_threshold: float = 0.8,
     fuse_labels: list[str] | None = None,
     run: str | None = None,
+    register: bool = False,
     project: str = cast("str", CFG.active_project),
     overwrite: bool = False,
     verbose: bool = False,
