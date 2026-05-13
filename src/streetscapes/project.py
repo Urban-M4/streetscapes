@@ -88,7 +88,7 @@ class Project:
                 "polygons": "GEOMETRY",
             },
             "init": [
-                "ALTER TABLE segmentations ADD PRIMARY KEY (run, curated, image);"
+                "ALTER TABLE segmentations ADD PRIMARY KEY (run, curated, image)"
             ],
         },
         "mapillary": {
@@ -245,24 +245,24 @@ class Project:
         name: str,
         schema: dict | ibis.Schema | None = None,
         overwrite: bool = False,
-    ) -> ibis.Table:
+    ) -> None:
         """Ensure that a table exists with the given schema.
 
         Args:
             name: Table name.
             schema: Schema to use for the table if it doesn't exist.
             overwrite: Overwrite the table if it exists.
-
-        Returns:
-            An Ibis table.
         """
         if name in self.tables and not overwrite:
-            return self.table(name)
+            return
 
+        table = self.core_tables.get(name)
+        if table is None:
+            raise ValueError(f"Invalid table '{name}'.")
+
+        schema = schema or self.schema(name)
         if schema is None:
-            table = self.core_tables.get(name)
-            if table is None or (schema := self.schema(name)) is None:
-                raise ValueError(f"Please provide a valid schema for table '{name}'.")
+            raise ValueError(f"Please provide a valid schema for table '{name}'.")
 
         if overwrite:
             sql = f"CREATE OR REPLACE TABLE {name}"
@@ -274,7 +274,12 @@ class Project:
         )
         sql = f"{sql} ({fields})"
 
-        return self._con.raw_sql(sql)
+        self._con.raw_sql(sql)
+
+        # Run init clauses, if any
+        inits = table.get("init", [])
+        for sql in inits:
+            self._con.raw_sql(sql)
 
     def get_image_dir_for_source(
         self,
