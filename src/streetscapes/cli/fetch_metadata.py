@@ -1,15 +1,11 @@
 import logging
-import os
 
-import ibis
 from cyclopts import App
 from rich.progress import track
 import typer
 
-from streetscapes import config
+from streetscapes import CFG
 from streetscapes.cli.console import console
-from streetscapes.project import Project
-from streetscapes.sources.mapillary import MapillaryClient
 from streetscapes.utils.bbox import Bbox, split_bbox
 
 logger = logging.getLogger(__name__)
@@ -34,16 +30,19 @@ def mapillary(
         token: Mapillary OAuth token (if not set via MAPILLARY_TOKEN).
         project: An optional project to attach to.
     """
+    from streetscapes.project import Project
+    from streetscapes.sources.mapillary import MapillaryClient
+    import ibis
 
     logger.info(f"Fetching metadata for {bbox=}")
 
-    token = token or os.getenv("MAPILLARY_TOKEN")
+    token = token or CFG.mapillary_token
     if not token:
-        logger.error("Error: token not provided and MAPILLARY_TOKEN not set in .env.")
+        logger.error("Error: 'mapillary_token' missing, set with `streetscapes config set mapillary_token <your token>`")
         raise typer.Exit(code=1)
 
     m = MapillaryClient(token)
-    aproject = Project(project or config.get("active_project"))
+    proj = Project(project)
 
     ntiles, tiles = split_bbox(bbox, tile_size)
     logger.info(f"Splitting bbox in {ntiles} tiles with {tile_size=}")
@@ -56,11 +55,11 @@ def mapillary(
         if len(df) == 0:
             continue
 
-        aproject.ingest_mapillary(df)
+        proj.ingest_mapillary(df)
 
     # Inform user about result
     ibis.options.interactive = True
-    filtered = aproject.filter_bbox("mapillary", bbox)
+    filtered = proj.filter_bbox("mapillary", bbox)
     logger.info(f"Total images in bbox: {filtered.count().execute()}, first 5 rows:")
     console.print(filtered.limit(5))  # console print gives nicer table than logger
     logger.info("Ready.")

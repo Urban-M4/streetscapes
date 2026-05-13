@@ -22,10 +22,10 @@ class BFMSService:
     interface usable by Ray Serve.
     """
 
-    def __init__(self):
-        self.model = BFMS()
+    def __init__(self, model_id: str):
+        self.model = BFMS(model_id=model_id)
 
-    def handle(self, request: dict) -> dict:
+    def handle(self, request: dict) -> BFMSResponse:
         req = BFMSRequest(**request)
 
         image = np.array(oj.loads(req.image), dtype=np.uint8)

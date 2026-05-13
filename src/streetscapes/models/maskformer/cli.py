@@ -5,7 +5,7 @@ import imageio as iio
 import numpy as np
 import orjson as oj
 
-from streetscapes import config, utils
+from streetscapes import CFG, utils
 from streetscapes.models.maskformer.model import MaskFormer
 from streetscapes.project import Project
 from streetscapes.serve.server import serve_model
@@ -23,9 +23,9 @@ def cli(
     overlap_threshold: float = 0.8,
     fuse_labels: list[str] | None = None,
     run: str | None = None,
-    register: bool = False,
-    project: str = cast("str", config.get("active_project", "streetscapes")),
+    project: str = cast("str", CFG.active_project),
     overwrite: bool = False,
+    verbose: bool = False,
 ):
     """Segment images with MaskFormer.
 
@@ -43,6 +43,7 @@ def cli(
         run: Model run ID.
         project: The project to use. Uses the active project by default.
         overwrite: Overwrite an existing run.
+        verbose: Print verbose log to the terminal. Useful for debugging models.
     """
 
     # Open the project
@@ -58,10 +59,9 @@ def cli(
         "overlap_mask_area_threshold": overlap_threshold,
         "labels_to_fuse": fuse_labels,
     }
-    if run is None:
-        run = utils.uuid7(as_str=True)
 
-    proj.add_run(run, model, model_params, overwrite)
+    result = proj.add_run(run, model, model_params, overwrite)
+    run = str(result.get("run")[0])  # type: ignore[index]
 
     # Get all images that need to be processed.
     # ==================================================
@@ -76,29 +76,16 @@ def cli(
             proj.ingest_image_dir(image_path)
     else:
         uids = proj.get_image_uuids()
-    processed, unprocessed = proj.get_segmentation_status(uids, run)
+    _, unprocessed = proj.get_segmentation_status(uids, run)
 
     if len(unprocessed) == 0:
         logger.info(f"Nothing to process.")
         return
 
-    # Create the archive directory.
-    # ==================================================
-    archive_dir = utils.ensure_dir(
-        proj.get_archive_dir_for_model(
-            model,
-            create=True,
-        )
-        / str(run)
-    )
-
-    # Segment the images and save the segmentations.
-    # ==================================================
     if labels is None:
         labels = list(MaskFormer.id_to_label.values())
 
-    # Ray Serve handle.
-    handle = serve_model(model, **model_params)
+    handle = serve_model(model, verbose, **model_params)
     logger.info(f"Segmenting {len(unprocessed)} images using {model}...")
     batches = list(batched(unprocessed, batch_size))
     for batch_idx, batch in enumerate(batches, 1):
@@ -109,14 +96,14 @@ def cli(
             "labels": labels,
         }
         for uid in batch:
-            path, source = unprocessed[uid]
+            path, _ = unprocessed[uid]
             img_data = {
                 "uid": uid,
                 "image": oj.dumps(
                     np.asarray(iio.imread(path)), option=oj.OPT_SERIALIZE_NUMPY
                 ),
             }
-            request["images"].append(img_data)
+            request["images"].append(img_data)  # type: ignore[arg-type]
 
         # Process the images.
         logger.info(f"Segmenting batch [{batch_idx:>4d}/{len(batches):>4d}]...")
@@ -126,11 +113,7 @@ def cli(
         # Save the instances.
         segmentations = []
         for response in responses:
-            sub = unprocessed[response.uid][0].relative_to(
-                proj.get_image_dir_for_source(unprocessed[response.uid][1])
-            )
             instances = oj.loads(response.instances)
-            utils.save_instances(archive_dir / sub, instances)
             segmentations.append(
                 {
                     "run": run,

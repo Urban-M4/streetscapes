@@ -19,7 +19,7 @@ dependencies = [
     "geopandas",
     "h3",
     "h5netcdf",
-    "huggingface_hub[cli]",
+    "huggingface_hub",
     "humanize",
     "ibis-framework[duckdb,geospatial]",
     "imageio[pyav]",
@@ -34,6 +34,7 @@ dependencies = [
     "pandas",
     "pillow>=11.3.0",
     "pyarrow",
+    "pydantic-settings",
     "pygeohash>=3.2.0",
     "pyproj",
     "rasterio",
@@ -57,15 +58,15 @@ authors = [
     { name = "Claire Donnelly", email = "c.donnelly@esciencecenter.nl" },
     { name = "Alexander Hadjiivanov", email = "a.hadjiivanov@esciencecenter.nl" },
     { name = "Peter Kalverla", email = "p.kalverla@esciencecenter.nl" },
-    { name = "Bart Schilperoort", email = "b.schilperoort@esciencecenter.nl" }
+    { name = "Bart Schilperoort", email = "b.schilperoort@esciencecenter.nl" },
 ]
 description = "Code for downloading, segmenting and analysing images from Mapillary and KartaView, with the aim of extracting the emissivity and albedo of buildings."
 readme = "README.md"
-license = { file = "LICENCE.md" }
+license = { file = "LICENCE" }
 
 [project.scripts]
 streetscapes = "streetscapes.cli.main:app"
-streetscapes-explorer = "streetscapes.explorer.server:serve"
+streetscapes-explorer = "streetscapes.explorer.server:cli"
 
 [tool.ruff]
 lint.select = ["F", "E", "TYP", "B", "D", "C", "Q", "I"]
@@ -76,11 +77,17 @@ lint.select = ["F", "E", "TYP", "B", "D", "C", "Q", "I"]
 [tool.ruff.lint.pydocstyle]
 convention = "google"
 
+[tool.mypy]
+python_version = "3.12"
+warn_return_any = true
+warn_unused_configs = true
+ignore_missing_imports = true
+exclude = '''(?x)(
+    streetview/
+)'''
+
 [project.optional-dependencies]
-explorer = [
-    "fastapi",
-    "uvicorn",
-]
+explorer = ["fastapi", "uvicorn", "brotli-asgi"]
 dev = [
     "fastapi[standard]",
     "pytest>=8.4.2",
@@ -93,4 +100,9 @@ dev = [
     "mkdocs-autoapi>=0.4.1",
     "mkdocs-material",
     "mkdocs-jupyter",
+    "mypy",
+    # type stubs for mypy;
+    "pandas-stubs",
+    "types-shapely",
+    "types-requests",
 ]

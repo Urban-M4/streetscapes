@@ -1,9 +1,11 @@
+import logging
 import os
 from typing import Any
 
 from ray import serve
 from ray.serve.handle import DeploymentHandle
 from rich.console import Console  # TODO: import from cli.console, or just use logger?
+import ray
 
 from streetscapes.models.bfms.service import BFMSService
 from streetscapes.models.maskformer.service import MaskFormerService
@@ -41,10 +43,16 @@ class ModelApp:
 
 
 def get_model_app(model: str, /, **kwargs) -> serve.Application:
-    return ModelApp.bind(model, **kwargs)
+    return ModelApp.bind(model, **kwargs)  # type: ignore[attr-defined,no-any-return]
 
 
-def serve_model(model: str, /, **kwargs) -> DeploymentHandle:
+def serve_model(model: str, verbose: bool = False, /, **model_kwargs) -> DeploymentHandle:
+    app = get_model_app(model, **model_kwargs)
 
-    app = get_model_app(model, **kwargs)
-    return serve.run(app)
+    logger = logging.getLogger("ray.serve")
+    if not verbose:
+        ray.init(log_to_driver=False)
+        logger.setLevel(logging.WARNING)
+    return serve.run(  # type: ignore[no-any-return]
+        app, logging_config={"log_level": logging.INFO if verbose else logging.WARNING}
+    )

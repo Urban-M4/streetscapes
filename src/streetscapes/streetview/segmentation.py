@@ -44,7 +44,7 @@ class SVSegmentation:
         # Path to the image file
         # TODO: Handle different image types (resp. extensions).
         image_name = self._get_value("image_name")
-        self.image_path = path.parent.parent.parent / image_name
+        self.image_path = self.path.parent.parent.parent / image_name
 
     def __repr__(self):
         return f"SVSegmentation(path={utils.hide_home(self.path)!r}"
@@ -209,7 +209,7 @@ class SVSegmentation:
         self,
         labels: str | list[str] | None = None,
         opacity: float = 0.5,
-        title: str = None,
+        title: str | None = None,
         figsize: tuple[int, int] = (16, 6),
     ) -> tuple:
         """Visualise the instances of different objects in an image.

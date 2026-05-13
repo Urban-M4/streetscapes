@@ -20,4 +20,4 @@ log_config = {
     ]
 }
 
-logger.configure(**log_config)
+logger.configure(**log_config)  # type: ignore

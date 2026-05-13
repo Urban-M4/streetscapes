@@ -69,7 +69,7 @@ class MapillaryClient:
 
     @property
     def db_fields(self) -> dict:
-        return Project.core_tables["mapillary"]["schema"]
+        return Project.core_tables["mapillary"]["schema"]  # type: ignore[return-value]
 
     # NOTE: could make this "fetch_metadata_id" to be similar to bbox retrieval
     def fetch_image_url(self, image_id: str) -> str:
@@ -77,12 +77,13 @@ class MapillaryClient:
         endpoint = f"https://graph.mapillary.com/{image_id}?fields=thumb_2048_url"
         response = self.session.get(endpoint)
         response.raise_for_status()
-        return response.json().get("thumb_2048_url")
+        return response.json().get("thumb_2048_url")  # type: ignore[no-any-return]
 
     def download_image(
         self,
         url: str,
         output_dir: str | Path,
+        image_id: int | None,
         uid: uuid.UUID | None = None,
         skip_existing: bool = True,
     ) -> ImageMeta:
@@ -92,6 +93,7 @@ class MapillaryClient:
         Args:
             url: The download URL.
             output_dir: Destination directory.
+            image_id: Mapillary image ID.
             uid: Image UUID (from the SHA-256 hash).
             skip_existing: Don't re-download existing images.
         Returns:
@@ -103,7 +105,6 @@ class MapillaryClient:
             output_dir = Path(output_dir)
 
         content = None
-
         if uid is not None:
             if output_dir is not None:
                 image_path = list(output_dir.glob(f"*{uid}*"))
@@ -129,6 +130,10 @@ class MapillaryClient:
             utils.ensure_dir(output_dir)
             output_path = output_dir / f"{meta.uid}.{meta.ext}"
             output_path.write_bytes(meta.content)
+            # write mapillary-id -> uuid mapping
+            if image_id is not None:
+                with (output_dir / str(image_id)).open("w") as f:
+                    f.write(str(meta.uid))
 
         meta.fpath = output_path
         meta.source = "mapillary"
@@ -147,9 +152,9 @@ class MapillaryClient:
 
         for attempt in range(self.retries):
             try:
-                res = self.session.get(self.BASE_URL, params=params, timeout=20)
+                res = self.session.get(self.BASE_URL, params=params, timeout=20)  # type: ignore[arg-type]
                 res.raise_for_status()
-                return res.json().get("data", [])
+                return res.json().get("data", [])  # type: ignore[no-any-return]
             except (requests.RequestException, ValueError):
                 sleep_time = 0.5 * (attempt + 1)
                 logger.info(f"Request failed for {bbox=} - retrying in {sleep_time}")

@@ -8,9 +8,10 @@ import imageio.v3 as iio
 import numpy as np
 import orjson as oj
 
-from streetscapes import config, utils
+from streetscapes import CFG, utils
 from streetscapes.project import Project
 from streetscapes.serve.server import serve_model
+from streetscapes.utils.masks import mask2poly
 
 logger = logging.getLogger(__name__)
 
@@ -25,8 +26,9 @@ def cli(
     text_threshold: float = 0.3,
     register: bool = False,
     run: str | None = None,
-    project: str = cast("str", config.get("active_project", "streetscapes")),
+    project: str = cast("str", CFG.active_project),
     overwrite: bool = False,
+    verbose: bool = False,
 ):
     """Segment images with DinoSAM.
 
@@ -44,6 +46,7 @@ def cli(
         run: Model run ID.
         project: The project to use.
         overwrite: Overwrite an existing run.
+        verbose: Print verbose log to the terminal. Useful for debugging models.
     """
 
     # Open the project
@@ -58,10 +61,9 @@ def cli(
         "box_threshold": box_threshold,
         "text_threshold": text_threshold,
     }
-    if run is None:
-        run = utils.uuid7(as_str=True)
 
-    proj.add_run(run, model, model_params, overwrite)
+    result = proj.add_run(run, model, model_params, overwrite)
+    run = str(result.get("run")[0])  # type: ignore[index]
 
     # Get all images that need to be processed.
     # ==================================================
@@ -76,26 +78,13 @@ def cli(
             proj.ingest_image_dir(image_path)
     else:
         uids = proj.get_image_uuids()
-    processed, unprocessed = proj.get_segmentation_status(uids, run)
+    _, unprocessed = proj.get_segmentation_status(uids, run)
 
     if len(unprocessed) == 0:
         logger.info(f"Nothing to process.")
         return
 
-    # Create the archive directory.
-    # ==================================================
-    archive_dir = utils.ensure_dir(
-        proj.get_archive_dir_for_model(
-            model,
-            create=True,
-        )
-        / str(run)
-    )
-
-    # Segment the images and save the segmentations.
-    # ==================================================
-    # Ray Serve handle.
-    handle = serve_model(model, **model_params)
+    handle = serve_model(model, verbose, **model_params)
     logger.info(f"Segmenting {len(unprocessed)} images using {model}...")
     batches = list(batched(unprocessed, batch_size))
     for batch_idx, batch in enumerate(batches, 1):
@@ -106,14 +95,14 @@ def cli(
             "prompt": prompt,
         }
         for uid in batch:
-            path, source = unprocessed[uid]
+            path, _ = unprocessed[uid]
             img_data = {
                 "uid": uid,
                 "image": oj.dumps(
                     np.asarray(iio.imread(path)), option=oj.OPT_SERIALIZE_NUMPY
                 ),
             }
-            request["images"].append(img_data)
+            request["images"].append(img_data)  # type: ignore[attr-defined]
 
         # Process the images.
         logger.info(f"Segmenting batch [{batch_idx:>4d}/{len(batches):>4d}]...")
@@ -123,16 +112,14 @@ def cli(
         # Save the instances.
         segmentations = []
         for response in responses:
-            sub = unprocessed[response.uid][0].relative_to(
-                proj.get_image_dir_for_source(unprocessed[response.uid][1])
-            )
             instances = oj.loads(response.instances)
-            utils.save_instances(archive_dir / sub, instances)
+            instances = np.array(instances) # turned 3-level nested list into 3D array
             segmentations.append(
                 {
                     "run": run,
                     "image": response.uid,
                     "labels": response.labels,
+                    "polygons": mask2poly(instances, model="dinosam"),
                 }
             )
 

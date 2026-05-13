@@ -28,7 +28,7 @@ class ImageDownloader:
                 )
             """)
 
-    def _shard_path(self, image_id: str, index: int = None) -> Path:
+    def _shard_path(self, image_id: str, index: int | None = None) -> Path:
         # Use sequential sharding: group images into folders of shard_size
         if index is not None:
             shard_folder = f"{index // self.shard_size:04d}"

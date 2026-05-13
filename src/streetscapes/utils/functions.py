@@ -1,22 +1,17 @@
 import os
 import re
 import sys
+from typing import TYPE_CHECKING
 import uuid
 from collections.abc import Iterable
-from datetime import datetime
+from datetime import datetime, UTC
 from hashlib import sha256
 from pathlib import Path
 
 import filetype as ft
-import geopandas as gpd
-import numpy as np
-import pygeohash
 import seedir as sd
-import shapely
-import shapely as shp
-import skimage as ski
+
 from dotenv import load_dotenv
-from IPython import get_ipython
 
 from streetscapes.utils.metadata import ImageMeta
 
@@ -26,9 +21,18 @@ else:
     from uuid7gen import uuid7 as __uuid7
 
 
+if TYPE_CHECKING:  # Delay slow imports for CLI responsiveness
+    import geopandas as gpd
+    import shapely
+    import numpy as np
+    import torch
+
+
 def iso_timestamp(
     precision: str = "seconds",
     fmt: str | None = None,
+    sep: str = "T",
+    utc: bool = True,
 ) -> str:
     """Create a date-timestamp as a simplified ISO-formatted string.
 
@@ -43,18 +47,18 @@ def iso_timestamp(
     Args:
         precision: Precision for the timespec parameter.
         fmt: Explicit format.
+        sep: A custom separator for the default ISO format.
 
     Returns:
         The formatted timestamp.
     """
 
-    ts = datetime.now()
+    ts = datetime.now(UTC) if utc else datetime.now()
 
     if fmt is not None:
-        ts = datetime.strftime(ts, fmt)
-    else:
-        ts = ts.isoformat(sep=" ", timespec=precision or "seconds")
-    return ts
+        return datetime.strftime(ts, fmt)
+    tstr = ts.isoformat(sep=sep, timespec=precision)
+    return tstr.split("+")[0]  # remove timezone info
 
 
 def is_notebook() -> bool:
@@ -67,6 +71,8 @@ def is_notebook() -> bool:
             True if running in a notebook.
 
     """
+    from IPython import get_ipython
+
     try:
         shell = get_ipython().__class__.__name__
         match shell:
@@ -129,7 +135,7 @@ def show_dir_tree(dir: Path) -> str | None:
         files that they contain.
 
     """
-    return sd.seedir(
+    return sd.seedir(  # type: ignore[no-any-return]
         dir,
         exclude_files=r"$(\.).*",
         exclude_folders=r"$(\.).*",
@@ -208,9 +214,9 @@ def make_path(
 
 
 def as_rgb(
-    image: np.ndarray,
+    image: "np.ndarray",
     greyscale: bool = False,
-) -> np.ndarray:
+) -> "np.ndarray":
     """Convert an image into an RGB version.
 
     Args:
@@ -225,6 +231,9 @@ def as_rgb(
         The RGB image.
 
     """
+    import skimage as ski
+    import numpy as np
+
     if len(image.shape) == 2:
         # The image is already greyscale.
         # Just convert it to RGB.
@@ -245,7 +254,7 @@ def as_rgb(
     return image
 
 
-def as_hsv(image: np.ndarray) -> np.ndarray:
+def as_hsv(image: "np.ndarray") -> "np.ndarray":
     """Convert an RGB image into HSV format
 
     Args:
@@ -256,7 +265,9 @@ def as_hsv(image: np.ndarray) -> np.ndarray:
         The HSV image.
 
     """
-    return ski.color.rgb2hsv(as_rgb(image))
+    import skimage as ski
+
+    return ski.color.rgb2hsv(as_rgb(image))  # type: ignore
 
 
 def make_colourmap(
@@ -278,19 +289,20 @@ def make_colourmap(
 
     """
     import matplotlib.pyplot as plt
+    import numpy as np
 
     if len(labels) == 0:
         return {}
 
-    cmap = plt.get_cmap(cmap, len(labels))
-    cmap = cmap(np.linspace(0.0, 1.0, cmap.N))[:, :3]
-    return {label: colour for label, colour in zip(sorted(labels), cmap, strict=False)}
+    cm = plt.get_cmap(cmap, len(labels))
+    cm = cm(np.linspace(0.0, 1.0, cm.N))[:, :3]  # type: ignore
+    return {label: colour for label, colour in zip(sorted(labels), cm, strict=False)}  # type: ignore
 
 
 def open_image(
     path: Path,
     as_grey: bool = False,
-) -> np.ndarray:
+) -> "np.ndarray":
     """Open an image as a NumPy array.
 
     Args:
@@ -303,7 +315,9 @@ def open_image(
         A NumPy array containing the image.
 
     """
-    return ski.io.imread(path, as_grey)
+    import skimage as ski
+
+    return ski.io.imread(path, as_grey)  # type: ignore[no-any-return]
 
 
 def camel2snake(string: str) -> str:
@@ -324,10 +338,7 @@ def camel2snake(string: str) -> str:
 
 
 def get_env(key: str):
-    """Read the value of `key` from the environment variables.
-
-    Environment variables may be set in .env or defined in current shell.
-    """
+    """Read the value of `key` from the environment variables."""
     load_dotenv()
     value = os.getenv(key, None)
 
@@ -337,7 +348,7 @@ def get_env(key: str):
     raise KeyError(f"{key} not found in environment variables.")
 
 
-def plot_metadata(gdf: gpd.GeoDataFrame, ax=None):
+def plot_metadata(gdf: "gpd.GeoDataFrame", ax=None):
     """Plot the metadata from a GeoDataFrame.
 
     Args:
@@ -351,6 +362,7 @@ def plot_metadata(gdf: gpd.GeoDataFrame, ax=None):
 
     """
     import contextily as ctx
+    import geopandas as gpd
 
     if ax is None:
         import matplotlib.pyplot as plt
@@ -389,7 +401,7 @@ def show_image(id: str, source: str):
     plt.show()
 
 
-def extract_categories(prompt: str | list[str]) -> dict:
+def extract_categories(prompt: str | list[str]) -> str:
     """Extract labels (object categories) to look for from a free-form prompt.
 
     Args:
@@ -401,7 +413,7 @@ def extract_categories(prompt: str | list[str]) -> dict:
         A list of labels (object categories).
     """
 
-    def flatten(xs: list):
+    def flatten(xs: Iterable):
         for x in xs:
             if isinstance(x, Iterable) and not isinstance(x, (str, bytes)):
                 yield from flatten(x)
@@ -495,12 +507,13 @@ def get_image_uuid(image: str | Path | bytes) -> uuid.UUID:
         image = Path(image).read_bytes()
 
     if not ft.is_image(image):
-        return
+        msg = "Input image type of is not supported!"
+        raise ValueError(msg)
 
     return hash2uuid(get_image_hash(image))
 
 
-def get_image_paths(path: Path) -> list[Path]:
+def get_image_paths(path: str | Path) -> list[Path]:
     """
     Get only the image paths in a directory.
 
@@ -552,7 +565,7 @@ def get_image_metadata(image: bytes | str | Path) -> ImageMeta:
     return ImageMeta(image, _hash, _uuid, ext)
 
 
-def get_geohash_shard_path(location: shapely.Point):
+def get_geohash_shard_path(location: "shapely.Point"):
     """Get nested geo-hash path for given location given as a WKB point.
 
     Geo-hash precision from
@@ -576,7 +589,10 @@ def get_geohash_shard_path(location: shapely.Point):
     de/ --> neighbourhood scale (max 32x32 = 1024 per region)
     fg/ --> block level  (max 32x32 = 1024 per neighbourhood)
     """
-    geom = shapely.from_wkb(location)
+    import shapely
+    import pygeohash
+
+    geom = shapely.from_wkb(location)  # type: ignore[call-overload]
     geohash = pygeohash.encode(geom.y, geom.x, precision=7)  # 153m x 153m
     return Path(geohash[:2]) / geohash[2:4] / geohash[4:6]
 
@@ -593,59 +609,3 @@ def uuid7(as_str: bool = False) -> uuid.UUID | str:
     """
     u = __uuid7()
     return u if not as_str else str(u)
-
-
-def seg2poly(segmentation: np.ndarray) -> shp.MultiPolygon:
-    """
-    Convert a segmentation to a Shapely MultiPolygon.
-
-    Args:
-        segmentation: An instance segmentation.
-
-    Returns:
-        A MultiPolygon defining the outlines of the instance.
-        Using a MultiPolygon in case instances consist of
-        disconnected regions that have to be described
-        with multiple polygons.
-    """
-
-    # NOTE: Stub - to be implemented
-    canvas = np.zeros_like(segmentation)
-    contour = ski.segmentation.mark_boundaries(canvas, segmentation)
-    nz = np.nonzero(contour)
-    # ...
-
-
-def save_instances(
-    path: Path | str,
-    instances: np.ndarray,
-    fmt: str = "npz",
-):
-    """
-    Save a segmentation.
-
-    Args:
-        path: The file to save instances to.
-        instances: NumPy array of instance masks.
-        fmt: Format of the saved file.
-    """
-
-    path = Path(path)
-    if path.is_dir():
-        raise ValueError(
-            f"The provided path is a directory, please provide a file path."
-        )
-
-    fpath = path.with_suffix(f".{fmt}")
-    ensure_dir(path.parent)
-    match fmt:
-        case "npz":
-            np.savez_compressed(fpath, instances)
-        case "npy":
-            np.save(fpath, instances)
-        # TODO: Add parquet and efficient geometry storage.
-        # NOTE: Check if it's possible do do away with this step
-        # entirely by storing segmentation outlines as polygons
-        # straight into the database.
-        case _:
-            np.savez_compressed(fpath, instances)

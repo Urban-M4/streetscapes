@@ -1,7 +1,8 @@
 from dataclasses import dataclass, field
 from datetime import datetime
-from typing import Optional
+from typing import Annotated
 
+from annotated_types import Ge, Le
 from pydantic import BaseModel, Field
 
 
@@ -13,13 +14,17 @@ class Bbox(BaseModel):
 
 
 class FilterParams(Bbox):
-    ratings: list[int] = Field(default=[])
-    model_runs: list[str] = Field(default=[])
-    sources: list[str] = Field(default=[])
-    tags: list[str] = Field(default=[])
-    compass_angle: list[float] = Field(default=[0, 360])
+    # image level filters
+    image_ratings: list[int] = []
+    sources: list[str] = []
+    tags: list[str] = []
+    # metadata level filters
     date_range: tuple[datetime, datetime] = Field(default=(datetime(1826,1,1),datetime.now()))
-    panoramic: list[int] = Field(default=[])
+    # segmentation level filters
+    models: list[str] = []
+    model_runs: list[str] =[]
+    labels: list[str] = []
+    segmentation_ratings: list[Annotated[int, Ge(0), Le(5)]] = Field(default=[])
 
 
 @dataclass
@@ -41,6 +46,7 @@ class Segmentation:
     model_name: str
     id: str  # archive
     run_args: str
+    rating: int
     instances: list[Instance] = field(default_factory=list)
     notes: str = ""
 
@@ -49,13 +55,13 @@ class Segmentation:
 class ImageMetadata(Image):
     width: int
     height: int
-    altitude: Optional[float] = None
-    captured_at: Optional[datetime] = None
-    panoramic: Optional[int] = None
-    source: Optional[str] = None
+    altitude: float | None = None
+    captured_at: datetime | None = None
+    panoramic: int | None = None
+    source: str | None = None
     tags: list[str] = field(default_factory=list)
-    rating: Optional[int] = None
-    compass_angle: Optional[float] = None
+    rating: int | None = None
+    compass_angle: float | None = None
     notes: str = ""
     segmentation: list[Segmentation] = field(default_factory=list)
 

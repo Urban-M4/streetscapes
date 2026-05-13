@@ -40,7 +40,7 @@ class DinoSAMService:
             sam_model_id, dino_model_id, box_threshold, text_threshold, *args, **kwargs
         )
 
-    def handle(self, request: dict) -> dict:
+    def handle(self, request: dict) -> list[DinoSAMResponse]:
         req = DinoSAMRequest(**request)
 
         uids = []
