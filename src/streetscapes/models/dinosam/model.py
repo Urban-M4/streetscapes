@@ -91,32 +91,6 @@ class DinoSAM:
         masks = np.squeeze(masks)
         return masks  # type: ignore[no-any-return]
 
-    def _segment_batch(
-        self,
-        images: list[np.ndarray],
-        bboxes: list[np.ndarray],
-    ) -> list[np.ndarray]:
-        """Segment a batch of images.
-
-        Args:
-            images: Images to process.
-            bboxes: Bounding boxes for all images in XYXY format.
-
-        Returns:
-            A list of masks.
-
-        """
-        self.sam_model.set_image_batch([Image.fromarray(im) for im in images])
-
-        masks, _, _ = self.sam_model.predict_batch(
-            box_batch=bboxes, multimask_output=False
-        )
-
-        masks = [
-            np.squeeze(mask, axis=1) if len(mask.shape) > 3 else mask for mask in masks
-        ]
-        return masks
-
     def segment_images(
         self,
         uids: list[uuid.UUID],
@@ -147,7 +121,9 @@ class DinoSAM:
 
         with torch.no_grad():
 
-            for idx, (uid, image) in tqdm(enumerate(zip(uids, images)), total=len(images)):
+            for idx, (uid, image) in tqdm(
+                enumerate(zip(uids, images)), total=len(images)
+            ):
                 # Dictionary that will hold all the information about the segmentation
                 segmentation = {"uid": uid}
 
