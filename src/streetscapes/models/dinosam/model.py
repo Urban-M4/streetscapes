@@ -1,6 +1,7 @@
 import typing as tp
 import numpy as np
 import skimage as ski
+from PIL import Image
 import uuid
 from tqdm import tqdm
 from streetscapes import utils
@@ -61,7 +62,7 @@ class DinoSAM:
         # GroundingDINO model.
         self.dino_processor = transformers.AutoProcessor.from_pretrained(
             self.dino_model_id,
-            use_fast=True,
+            backend="torchvision",
         )
         self.dino_model = (
             transformers.AutoModelForZeroShotObjectDetection.from_pretrained(
@@ -85,37 +86,10 @@ class DinoSAM:
             A mask.
 
         """
-        self.sam_model.set_image(image)
+        self.sam_model.set_image(Image.fromarray(image.astype(np.uint8)))
         masks, _, _ = self.sam_model.predict(box=bboxes, multimask_output=False)
-        if len(masks.shape) > 3:
-            masks = np.squeeze(masks, axis=1)
+        masks = np.squeeze(masks)
         return masks  # type: ignore[no-any-return]
-
-    def _segment_batch(
-        self,
-        images: list[np.ndarray],
-        bboxes: list[np.ndarray],
-    ) -> list[np.ndarray]:
-        """Segment a batch of images.
-
-        Args:
-            images: Images to process.
-            bboxes: Bounding boxes for all images in XYXY format.
-
-        Returns:
-            A list of masks.
-
-        """
-        self.sam_model.set_image_batch(images)
-
-        masks, _, _ = self.sam_model.predict_batch(
-            box_batch=bboxes, multimask_output=False
-        )
-
-        masks = [
-            np.squeeze(mask, axis=1) if len(mask.shape) > 3 else mask for mask in masks
-        ]
-        return masks
 
     def segment_images(
         self,
@@ -147,7 +121,9 @@ class DinoSAM:
 
         with torch.no_grad():
 
-            for idx, (uid, image) in tqdm(enumerate(zip(uids, images)), total=len(images)):
+            for idx, (uid, image) in tqdm(
+                enumerate(zip(uids, images)), total=len(images)
+            ):
                 # Dictionary that will hold all the information about the segmentation
                 segmentation = {"uid": uid}
 
@@ -175,7 +151,7 @@ class DinoSAM:
 
                 if not dino_results["text_labels"]:
                     # No objects found, move on...
-                    logger.debug(f"Image")
+                    logger.debug(f"No objects found in image '{uid}'.")
                     continue
 
                 # Bounding boxes
@@ -184,7 +160,7 @@ class DinoSAM:
                 # Segment the objects with SAM
                 # ==================================================
                 # Use SAM to segment any images that contain objects.
-                sam_masks = self._segment_single(image.astype(np.float32), bboxes=bboxes)
+                sam_masks = self._segment_single(image, bboxes=bboxes)
 
                 # Instance labels from GroundingDINO
                 instance_labels = dino_results["text_labels"]
