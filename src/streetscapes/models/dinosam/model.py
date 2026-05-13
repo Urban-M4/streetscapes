@@ -86,7 +86,7 @@ class DinoSAM:
             A mask.
 
         """
-        self.sam_model.set_image(Image.fromarray(image))
+        self.sam_model.set_image(Image.fromarray(image.astype(np.uint8)))
         masks, _, _ = self.sam_model.predict(box=bboxes, multimask_output=False)
         masks = np.squeeze(masks)
         return masks  # type: ignore[no-any-return]
