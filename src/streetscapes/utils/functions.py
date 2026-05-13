@@ -1,4 +1,4 @@
-from typing import Any
+from typing import Any, Literal
 import os
 import re
 import sys
@@ -614,16 +614,21 @@ def uuid7(as_str: bool = False) -> uuid.UUID | str:
     return u if not as_str else str(u)
 
 
-def to_deg(dms: list[int | float], sign: int = 1) -> float:
+def to_deg(dms: list[int | float], reference: Literal["N", "E", "S", "W"]) -> float:
     """
     Convert [deg, min, s] to degrees.
 
     Args:
         dms: A list containing degrees, minutes and seconds.
+        reference: Coordinate reference (N, E, S, or W).
 
     Returns:
-        A single float.
+        Latitude or longitude coordinate in decimal degrees.
     """
+    if dms is None:
+        return 0.0
+
+    sign = -1 if reference in ("W", "S") else 1
     deg = dms[0] + dms[1] / 60 + float(dms[2]) / 3600
     return sign * deg
 
@@ -641,13 +646,11 @@ def extract_exif_data(impath: Path) -> dict[str, Any]:
     # Extract the tags that we are interested in
     lon = tags.get("GPS GPSLongitude")
     lon_ref = tags.get("GPS GPSLongitudeRef")
-    sign = -1 if lon_ref == "W" else 1
-    lon = 0.0 if lon is None else to_deg(lon.values, sign)
+    lon = to_deg(lon.values, lon_ref)
 
     lat = tags.get("GPS GPSLatitude")
     lat_ref = tags.get("GPS GPSLatitudeRef")
-    sign = -1 if lat_ref == "S" else 1
-    lat = 0.0 if lat is None else to_deg(lat.values, sign)
+    lat = to_deg(lat.values, lat_ref)
 
     mapping = {
         "make": ("Image Make", str),
