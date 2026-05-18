@@ -8,6 +8,7 @@ from typing import Annotated, Any, Generator
 from uuid import UUID
 from itertools import chain
 
+from fastapi.responses import FileResponse
 import ibis
 import numpy as np
 import pandas as pd
@@ -128,7 +129,7 @@ def _get_segmentations(uuid: UUID | str) -> list[Segmentation]:
     return segmentations
 
 
-def _get_image(uuid: str) -> bytes:
+def _get_image(uuid: str) -> Path:
     with _open_db(dbpath) as con:
         imgtable = con.table("images")
         imgtable = imgtable.filter(imgtable.uuid == uuid)
@@ -152,9 +153,7 @@ def _get_image(uuid: str) -> bytes:
         msg = f"Cannot find file at path {file}[.jpg/.jpeg]"
         raise HTTPException(status_code=404, detail=msg)
 
-    with file.open("rb") as f:
-        img = f.read()
-    return img
+    return file
 
 
 def _get_metadata(uuid: str) -> ImageMetadata:
@@ -364,11 +363,15 @@ async def fetch_image_metadata(image_id: str) -> ImageMetadata:
 @app.get(
     "/images/{image_id}/img",
     responses = {200: {"content": {"image/jpeg": {}}}},
-    response_class=Response
+    response_class=FileResponse,
 )
-async def fetch_image(image_id: str) -> Response:
+async def fetch_image(image_id: str) -> FileResponse:
     """Get all metadata associated with a certain image, including segmentations."""
-    return Response(_get_image(image_id), media_type="image/jpeg")
+    return FileResponse(
+        _get_image(image_id),
+        media_type="image/jpeg",
+        headers={"Cache-Control": "public, max-age=31536000, immutable"},
+    )
 
 
 @app.post("/images/{image_id}/rating")
