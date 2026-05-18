@@ -15,7 +15,7 @@ import pandas as pd
 import uvicorn
 from brotli_asgi import BrotliMiddleware
 from cyclopts import App, Parameter
-from fastapi import FastAPI, HTTPException, Response
+from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.params import Query
 from shapely.ops import transform
