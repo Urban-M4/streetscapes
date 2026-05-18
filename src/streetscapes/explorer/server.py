@@ -14,7 +14,7 @@ import pandas as pd
 import uvicorn
 from brotli_asgi import BrotliMiddleware
 from cyclopts import App, Parameter
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, Response
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.params import Query
 from shapely.ops import transform
@@ -126,6 +126,35 @@ def _get_segmentations(uuid: UUID | str) -> list[Segmentation]:
             )
             segmentations.append(seg)
     return segmentations
+
+
+def _get_image(uuid: str) -> bytes:
+    with _open_db(dbpath) as con:
+        imgtable = con.table("images")
+        imgtable = imgtable.filter(imgtable.uuid == uuid)
+        if imgtable.count().to_pandas() == 0:
+            raise _unknown_image(uuid)
+        imgdata = imgtable.to_pandas().squeeze()
+        file_shard = imgdata["shard"]
+        source = imgdata["source"]
+
+    if file_shard is None:
+        msg = "File shard not defined. Cannot find image"
+        raise HTTPException(status_code=404, detail=msg)
+
+    file = CFG.image_dir / "images" / str(source) / str(file_shard) / uuid
+
+    if file.with_suffix(".jpg").exists():
+        file = file.with_suffix(".jpg")
+    elif file.with_suffix(".jpeg").exists():
+        file = file.with_suffix(".jpeg")
+    else:
+        msg = f"Cannot find file at path {file}[.jpg/.jpeg]"
+        raise HTTPException(status_code=404, detail=msg)
+
+    with file.open("rb") as f:
+        img = f.read()
+    return img
 
 
 def _get_metadata(uuid: str) -> ImageMetadata:
@@ -330,6 +359,16 @@ async def fetch_images(filter: Annotated[FilterParams, Query()]) -> list[Image]:
 async def fetch_image_metadata(image_id: str) -> ImageMetadata:
     """Get all metadata associated with a certain image, including segmentations."""
     return _get_metadata(image_id)
+
+
+@app.get(
+    "/images/{image_id}/img",
+    responses = {200: {"content": {"image/jpeg": {}}}},
+    response_class=Response
+)
+async def fetch_image(image_id: str) -> Response:
+    """Get all metadata associated with a certain image, including segmentations."""
+    return Response(_get_image(image_id), media_type="image/jpeg")
 
 
 @app.post("/images/{image_id}/rating")
