@@ -675,6 +675,7 @@ def extract_exif_data(impath: Path) -> dict[str, Any]:
         "width": ("EXIF ExifImageWidth", int),
         "height": ("EXIF ExifImageLength", int),
         "altitude": ("GPS GPSAltitude", float),
+        "compass_angle": ("GPS GPSTrack", float),
         "geometry": (shapely.Point([lon, lat]), None),
         "is_pano": (None, None),
         "iso": ("EXIF ISOSpeedRatings", int),
