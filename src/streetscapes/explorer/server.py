@@ -324,7 +324,7 @@ def _get_unique_labels(con: ibis.BaseBackend):
 
 
 def _get_img_sources(con: ibis.BaseBackend) -> list[str]:
-    return con.table("images").distinct(on="source").source.to_pandas().to_list()
+    return con.table("images").distinct(on="source").source.to_pandas().to_list()  # type: ignore[no-any-return]
 
 
 def _get_daterange(con: ibis.BaseBackend) -> tuple[datetime, datetime]:
