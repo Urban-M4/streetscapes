@@ -5,6 +5,8 @@ from typing import Annotated
 from annotated_types import Ge, Le
 from pydantic import BaseModel, Field
 
+from streetscapes.utils.data_structures import Segmentation
+
 
 class Bbox(BaseModel):
     n: float = Field(default=90, ge=-90, le=90)
@@ -33,22 +35,6 @@ class Image:
     url: str
     lat: float
     lon: float
-
-
-@dataclass
-class Instance:
-    label: str
-    polygon: list[list[tuple[float, float]]] = field(default_factory=list)
-
-
-@dataclass
-class Segmentation:
-    model_name: str
-    id: str  # archive
-    run_args: str
-    rating: int
-    instances: list[Instance] = field(default_factory=list)
-    notes: str = ""
 
 
 @dataclass

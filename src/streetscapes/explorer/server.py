@@ -1,11 +1,8 @@
 """FastAPI server implementation."""
 
-from contextlib import contextmanager
 import webbrowser
 from datetime import datetime
-from pathlib import Path
-from typing import Annotated, Any, Generator
-from uuid import UUID
+from typing import Annotated, Any
 from itertools import chain
 
 from fastapi.responses import FileResponse
@@ -18,7 +15,6 @@ from cyclopts import App, Parameter
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.params import Query
-from shapely.ops import transform
 from shapely.geometry import Polygon
 
 from streetscapes import CFG
@@ -28,9 +24,10 @@ from streetscapes.explorer.data import (
     FilterParams,
     Image,
     ImageMetadata,
-    Instance,
-    Segmentation,
 )
+from streetscapes.utils.db_access import get_image_path, get_segmentations
+from streetscapes.utils.db_access import _validate_rating
+from streetscapes.utils.db_access import _open_db
 
 app = FastAPI()
 
@@ -48,18 +45,8 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-dbpath = Path(f"{CFG.project_dir}/{CFG.active_project}.duckdb")
 
-
-@contextmanager
-def _open_db(dbpath: Path, read_only=True) -> Generator[ibis.BaseBackend, None, None]:
-    db = ibis.duckdb.connect(
-            dbpath, read_only=read_only, extensions=["spatial", "json"]
-        )
-    try:
-        yield db
-    finally:
-        db.con.close()
+PROJECT = CFG.active_project
 
 
 def _get_images(mapillary_table: ibis.Table):
@@ -77,87 +64,12 @@ def _get_images(mapillary_table: ibis.Table):
     ]
 
 
-def _flip(x, y):
-    return y, x
-
-
-def _validate_rating(rating: Any) -> int:
-    if rating is None or np.isnan(rating):
-        return 0
-    return int(rating)
-
-
-def _get_segmentations(uuid: UUID | str) -> list[Segmentation]:
-    with _open_db(dbpath) as con:
-        runs = con.table("runs")
-        segs = con.table("segmentations")
-        seg_data = segs.filter(segs.image == uuid).to_pandas()
-
-        if len(seg_data) < 1:
-            return []
-
-        segmentations = []
-
-        for _, row in seg_data.iterrows():
-            labels = row["labels"]
-            multipoly = transform(_flip, row["polygons"])  # type: ignore[arg-type]
-            polys = list(multipoly.geoms)
-            if len(polys) > len(labels):
-                polys.pop(0)
-
-            inst = [
-                Instance(
-                    label,
-                    [list(points.exterior.coords) for points in poly.geoms],
-                )
-                for label, poly in zip(labels, polys, strict=True)
-            ]
-            runinfo = runs.filter(runs.run == row["run"]).to_pandas().squeeze()
-            meta = runinfo["metadata"]
-            if isinstance(meta, str):
-                meta = meta.encode("utf8").decode("unicode_escape")
-            elif isinstance(meta, dict):
-                meta = str(meta)
-            seg = Segmentation(
-                model_name=runinfo["model"],
-                id=row["run"],
-                run_args=meta,
-                rating=_validate_rating(row["rating"]),
-                instances=inst,
-            )
-            segmentations.append(seg)
-    return segmentations
-
-
-def _get_image(uuid: str) -> Path:
-    with _open_db(dbpath) as con:
-        imgtable = con.table("images")
-        imgtable = imgtable.filter(imgtable.uuid == uuid)
-        if imgtable.count().to_pandas() == 0:
-            raise _unknown_image(uuid)
-        imgdata = imgtable.to_pandas().squeeze()
-        file_shard = imgdata["shard"]
-        source = imgdata["source"]
-
-    if file_shard is None:
-        msg = "File shard not defined. Cannot find image"
-        raise HTTPException(status_code=404, detail=msg)
-
-    file = CFG.image_dir / "images" / str(source) / str(file_shard) / uuid
-
-    if file.with_suffix(".jpg").exists():
-        file = file.with_suffix(".jpg")
-    elif file.with_suffix(".jpeg").exists():
-        file = file.with_suffix(".jpeg")
-    else:
-        msg = f"Cannot find file at path {file}[.jpg/.jpeg]"
-        raise HTTPException(status_code=404, detail=msg)
-
-    return file
+def raise_httpexception(msg: str) -> None:
+    HTTPException(status_code=404, detail=msg)
 
 
 def _get_metadata(uuid: str) -> ImageMetadata:
-    with _open_db(dbpath) as con:
+    with _open_db(PROJECT) as con:
         imgtable = con.table("images")
         imgtable = imgtable.filter(imgtable.uuid == uuid)
         if imgtable.count().to_pandas() == 0:
@@ -173,7 +85,7 @@ def _get_metadata(uuid: str) -> ImageMetadata:
         else:
             metadata = metatable.to_pandas().squeeze()
 
-    segmentations = _get_segmentations(uuid)
+    segmentations = get_segmentations(uuid)
     return ImageMetadata(
         id=str(metadata["image"]),
         url=metadata["thumb_2048_url"],
@@ -201,7 +113,7 @@ def _bbox_to_polygon(bbox: Bbox) -> Polygon:
 
 def _fetch_images(filter: FilterParams | None) -> list[Image]:
     """Fetch images that conform to a filter specification."""
-    with _open_db(dbpath) as con:
+    with _open_db(PROJECT) as con:
         if filter is None:
             return _get_images(con.table("mapillary"))  # type: ignore[no-any-return]
 
@@ -263,7 +175,7 @@ def _fetch_images(filter: FilterParams | None) -> list[Image]:
 
 
 def _update_img_prop(image_id: str, prop: str, value: Any):
-    with _open_db(dbpath, read_only=False) as con:
+    with _open_db(PROJECT, read_only=False) as con:
         imgs = con.table("images")
         img = imgs.filter(imgs.uuid == image_id).to_pandas()
 
@@ -277,7 +189,7 @@ def _update_img_prop(image_id: str, prop: str, value: Any):
 
 
 def _update_segmentation_rating(image_id: str, run_name: str, rating: int):
-    with _open_db(dbpath, read_only=False) as con:
+    with _open_db(PROJECT, read_only=False) as con:
         segs = con.table("segmentations")
         segs = segs.filter(segs.image == image_id)
         seg = segs.filter(segs.run == run_name).to_pandas()
@@ -315,7 +227,7 @@ def _get_unique_labels(con: ibis.BaseBackend):
 
 def _get_daterange(con: ibis.BaseBackend) -> tuple[datetime, datetime]:
     # Note: only implemented for mapillary
-    with _open_db(dbpath) as con:
+    with _open_db(PROJECT) as con:
         mapillary = con.table("mapillary")
         start = datetime.fromtimestamp(mapillary.captured_at.min().to_pandas() / 1000)
         end = datetime.fromtimestamp(mapillary.captured_at.max().to_pandas() / 1000)
@@ -337,7 +249,7 @@ async def project():
 @app.get("/stats")
 async def fetch_stats() -> AggregateStats:
     """Get the aggregate stats of the images."""
-    with _open_db(dbpath) as con:
+    with _open_db(PROJECT) as con:
         return AggregateStats(
             tags=_get_unique_tags(con),
             labels=_get_unique_labels(con),
@@ -368,7 +280,7 @@ async def fetch_image_metadata(image_id: str) -> ImageMetadata:
 async def fetch_image(image_id: str) -> FileResponse:
     """Get all metadata associated with a certain image, including segmentations."""
     return FileResponse(
-        _get_image(image_id),
+        get_image_path(image_id, err=raise_httpexception),
         media_type="image/jpeg",
         headers={"Cache-Control": "public, max-age=31536000, immutable"},
     )
