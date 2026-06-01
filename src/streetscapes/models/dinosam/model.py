@@ -67,7 +67,7 @@ class DinoSAM:
             self.sam_model_id
         )
         self.sam_model = transformers.Sam2Model.from_pretrained(self.sam_model_id).to(
-            self.device
+            self.device  # type: ignore[arg-type]
         )
         self.sam_model.eval()
 
