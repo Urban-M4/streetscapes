@@ -715,6 +715,15 @@ class Project:
 
         df.insert(loc=0, column="uuid", value=None)
 
+        expected_colcount = len(self.core_tables["mapillary"]["schema"])
+        if df.columns.size != expected_colcount:
+            msg = (
+                "Missing columns in image. Skipping..."
+                f"Image is available at {df.get("thumb_2048_url")}"
+            )
+            logger.error(msg)
+            return None
+
         self._con.con.register("metadata_tile", df)
 
         # TODO: consider configurable duplicate behaviour (REPLACE or IGNORE)
