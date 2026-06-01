@@ -1,8 +1,6 @@
-import typing as tp
 import numpy as np
-import skimage as ski
-from PIL import Image
 import uuid
+from PIL import Image
 from tqdm import tqdm
 from streetscapes import utils
 from streetscapes.utils import logger
@@ -40,7 +38,6 @@ class DinoSAM:
 
         """
         import transformers
-        from sam2.sam2_image_predictor import SAM2ImagePredictor
 
         self.device = utils.get_device(device)
 
@@ -53,12 +50,6 @@ class DinoSAM:
 
         # Processors and models
         # ==================================================
-        # SAM2 model.
-        # Thre is no image processor for SAM.
-        self.sam_model = SAM2ImagePredictor.from_pretrained(
-            self.sam_model_id, device=self.device
-        )
-
         # GroundingDINO model.
         self.dino_processor = transformers.AutoProcessor.from_pretrained(
             self.dino_model_id,
@@ -71,25 +62,14 @@ class DinoSAM:
         )
         self.dino_model.eval()
 
-    def _segment_single(
-        self,
-        image: np.ndarray,
-        bboxes: np.ndarray,
-    ) -> np.ndarray:
-        """Segment a single image.
-
-        Args:
-            image: Image as a NumPy array.
-            bbox: A bounding box in XYXY format.
-
-        Returns:
-            A mask.
-
-        """
-        self.sam_model.set_image(Image.fromarray(image.astype(np.uint8)))
-        masks, _, _ = self.sam_model.predict(box=bboxes, multimask_output=False)
-        masks = np.squeeze(masks)
-        return masks  # type: ignore[no-any-return]
+        # SAM2 model.
+        self.sam_processor = transformers.Sam2Processor.from_pretrained(
+            self.sam_model_id
+        )
+        self.sam_model = transformers.Sam2Model.from_pretrained(self.sam_model_id).to(
+            self.device
+        )
+        self.sam_model.eval()
 
     def segment_images(
         self,
@@ -119,63 +99,75 @@ class DinoSAM:
         # ==================================================
         segmentations = []
 
-        with torch.no_grad():
+        for idx, (uid, image) in tqdm(enumerate(zip(uids, images)), total=len(images)):
+            # Dictionary that will hold all the information about the segmentation
+            segmentation = {"uid": uid}
 
-            for idx, (uid, image) in tqdm(
-                enumerate(zip(uids, images)), total=len(images)
-            ):
-                # Dictionary that will hold all the information about the segmentation
-                segmentation = {"uid": uid}
+            # # Detect objects with GroundingDINO
+            # ==================================================
+            dino_inputs = self.dino_processor(
+                images=[image],
+                text=_prompt,
+                return_tensors="pt",
+            ).to(self.device)
 
-                # Detect objects
-                inputs = self.dino_processor(
-                    images=[image],
-                    text=_prompt,
-                    return_tensors="pt",
-                ).to(self.device)
+            # Run the model on the processed images
+            with torch.no_grad():
+                dino_outputs = self.dino_model(**dino_inputs)
 
-                # Run the model on the processed images
-                with torch.no_grad():
-                    outputs = self.dino_model(**inputs)
+            # Process the results to detect objects and bounding boxes
+            dino_results = self.dino_processor.post_process_grounded_object_detection(
+                dino_outputs,
+                dino_inputs["input_ids"],
+                threshold=self.box_threshold,
+                text_threshold=self.text_threshold,
+                target_sizes=[image.shape[:2]],
+            )[0]
 
-                # Process the results to detect objects and bounding boxes
-                dino_results = (
-                    self.dino_processor.post_process_grounded_object_detection(
-                        outputs,
-                        inputs["input_ids"],
-                        threshold=self.box_threshold,
-                        text_threshold=self.text_threshold,
-                        target_sizes=[image.shape[:2]],
-                    )[0]
-                )
+            if not dino_results["text_labels"]:
+                # No objects found, move on...
+                logger.debug(f"No objects found in image '{uid}'.")
+                continue
 
-                if not dino_results["text_labels"]:
-                    # No objects found, move on...
-                    logger.debug(f"No objects found in image '{uid}'.")
-                    continue
+            # Bounding boxes
+            bboxes = dino_results["boxes"].cpu().numpy()
 
-                # Bounding boxes
-                bboxes = dino_results["boxes"].cpu().numpy()
+            # Segment the objects with SAM
+            # ==================================================
+            # Use SAM to segment objects based on bounding boxes.
+            logger.info(f"{image.shape=}")
+            sam_inputs = self.sam_processor(
+                images=[Image.fromarray(image).convert("RGB")],
+                input_boxes=[bboxes],
+                return_tensors="pt",
+            ).to(self.device)
 
-                # Segment the objects with SAM
-                # ==================================================
-                # Use SAM to segment any images that contain objects.
-                sam_masks = self._segment_single(image, bboxes=bboxes)
+            with torch.no_grad():
+                sam_outputs = self.sam_model(**sam_inputs, multimask_output=False)
 
-                # Instance labels from GroundingDINO
-                instance_labels = dino_results["text_labels"]
+            # Process the model outputs
+            masks = self.sam_processor.post_process_masks(
+                sam_outputs.pred_masks.cpu(),
+                sam_inputs["original_sizes"],
+            )[0]
 
-                # A new dictionary of instances for this image
-                instances = np.zeros(
-                    (len(instance_labels), *image.shape[:2]),
-                    dtype=np.bool_,
-                )
-                for mask_idx, sam_mask in enumerate(sam_masks):
-                    instances[mask_idx][sam_mask > 0] = True
+            # Extract the instance-level object masks
+            sam_masks = masks.numpy().squeeze(1)
 
-                # Extract and store the segmentations.
-                segmentation["labels"] = instance_labels
-                segmentation["instances"] = instances
-                segmentations.append(segmentation)
+            # Instance labels from GroundingDINO
+            instance_labels = dino_results["text_labels"]
+
+            # Populate the instance masks.
+            instances = np.zeros(
+                (len(instance_labels), *image.shape[:2]),
+                dtype=np.bool_,
+            )
+            for mask_idx, sam_mask in enumerate(sam_masks):
+                instances[mask_idx][sam_mask > 0] = True
+
+            # Extract and store the segmentations.
+            segmentation["labels"] = instance_labels
+            segmentation["instances"] = instances
+            segmentations.append(segmentation)
 
         return segmentations
