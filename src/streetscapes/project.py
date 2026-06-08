@@ -127,7 +127,8 @@ class Project:
                 "make": "STRING",
                 "model": "STRING",
                 "orientation": "UBIGINT",
-                "timestamp": "TIMESTAMP",
+                "captured_at": "UBIGINT",
+                "compass_angle": "FLOAT8",
                 "width": "UBIGINT",
                 "height": "UBIGINT",
                 "altitude": "FLOAT4",
@@ -694,6 +695,7 @@ class Project:
             )
             image_data.append(entry)
             exif = utils.extract_exif_data(ip)
+            exif["captured_at"] = int(exif["timestamp"].timestamp() * 1000)
             exif["image"] = uid
             exif_data.append(exif)
 
