@@ -47,10 +47,13 @@ def plot_multipolygon(poly: shapely.MultiPolygon, ax: matplotlib.axes.Axes = Non
 def mask_image(img: Image, mask: np.ndarray) -> np.ma.MaskedArray:
     """Mask an Image object with a binary mask
 
+    Note: numpy masks away values under the mask. As we're interested in the values
+    under the mask we need to invert the mask her.
+
     Returns:
         Masked numpy array
     """
-    return np.ma.masked_array(img, mask.repeat(3, axis=np.newaxis), ndmin=2)
+    return np.ma.masked_array(img, (1 - mask).repeat(3, axis=np.newaxis), ndmin=2)
 
 
 def display_color(rgb: tuple[float, float, float]) -> None:
