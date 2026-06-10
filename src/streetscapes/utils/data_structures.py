@@ -1,17 +1,21 @@
 from dataclasses import dataclass, field
+from typing import TypeVar
 
+from shapely import Polygon
+
+T = TypeVar("T", tuple[float, float], Polygon)
 
 @dataclass
-class Instance:
+class Instance[T]:
     label: str
-    polygon: list[list[tuple[float, float]]] = field(default_factory=list)
+    polygon: list[T] = field(default_factory=list)
 
 
 @dataclass
-class Segmentation:
+class Segmentation[T]:
     model_name: str
     id: str  # archive
     run_args: str
     rating: int
-    instances: list[Instance] = field(default_factory=list)
+    instances: list[Instance[T]] = field(default_factory=list)
     notes: str = ""

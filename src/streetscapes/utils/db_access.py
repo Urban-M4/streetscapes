@@ -1,12 +1,13 @@
 from contextlib import contextmanager
 from pathlib import Path
-from typing import Any, Callable, Generator
+from typing import Any, Callable, Generator, Type, overload
 
 from PIL import Image
 import ibis
 import numpy as np
 from uuid import UUID
 
+from shapely import Polygon
 from shapely.ops import transform
 
 from streetscapes.config import CFG
@@ -103,9 +104,28 @@ def get_image(uuid: str) -> Image.Image:
     return image
 
 
+@overload
+def get_segmentations(
+    uuid: UUID | str,
+    project: str | None,
+    poly_fmt: Type[str],
+) -> list[Segmentation[tuple[float, float]]]:
+    ...
+
+
+@overload
+def get_segmentations(
+    uuid: UUID | str,
+    project: str | None,
+    poly_fmt: Type[Polygon],
+) -> list[Segmentation[Polygon]]:
+    ...
+
+
 def get_segmentations(
     uuid: UUID | str,
     project: str | None = None,
+    poly_fmt: Type[str] | Type[Polygon] = Polygon,
 ) -> list[Segmentation]:
     """Get the segmentations of a specific image.
 
@@ -125,17 +145,16 @@ def get_segmentations(
             return []
 
         segmentations = []
-
         for _, row in seg_data.iterrows():
             labels = row["labels"]
             multipoly = transform(_flip, row["polygons"])  # type: ignore[arg-type]
             polys = list(multipoly.geoms)
             if len(polys) > len(labels):
                 polys.pop(0)
-
             inst = [
                 Instance(
                     label,
+                    poly if poly_fmt == Polygon else 
                     [list(points.exterior.coords) for points in poly.geoms],
                 )
                 for label, poly in zip(labels, polys, strict=True)

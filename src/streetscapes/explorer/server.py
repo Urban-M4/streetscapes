@@ -85,7 +85,7 @@ def _get_metadata(uuid: str) -> ImageMetadata:
         else:
             metadata = metatable.to_pandas().squeeze()
 
-    segmentations = get_segmentations(uuid)
+    segmentations = get_segmentations(uuid, poly_fmt=str)
     return ImageMetadata(
         id=str(metadata["image"]),
         url=metadata["thumb_2048_url"],
