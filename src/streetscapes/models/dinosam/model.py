@@ -124,20 +124,20 @@ class DinoSAM:
                 target_sizes=[image.shape[:2]],
             )[0]
 
-            if not dino_results["text_labels"]:
+            bboxes = dino_results["boxes"]
+            if bboxes.numel() == 0 or bboxes.size()[0] == 0:
                 # No objects found, move on...
                 logger.debug(f"No objects found in image '{uid}'.")
                 continue
 
             # Bounding boxes
-            bboxes = dino_results["boxes"].cpu().numpy()
+            bboxes = bboxes.cpu().numpy()
 
             # Segment the objects with SAM
             # ==================================================
             # Use SAM to segment objects based on bounding boxes.
-            logger.info(f"{image.shape=}")
             sam_inputs = self.sam_processor(
-                images=[Image.fromarray(image).convert("RGB")],
+                images=[Image.fromarray(image.astype(np.uint8)).convert("RGB")],
                 input_boxes=[bboxes],
                 return_tensors="pt",
             ).to(self.device)
