@@ -95,6 +95,7 @@ dev = [
     "mimesis",
     "ruff",
     "py-spy",
+    "piexif",
     "mike",
     "mkdocs",
     "mkdocstrings[python]",

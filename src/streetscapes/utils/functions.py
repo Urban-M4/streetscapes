@@ -9,6 +9,8 @@ from datetime import datetime, UTC
 from hashlib import sha256
 from pathlib import Path
 
+from PIL import Image
+import numpy as np
 import filetype as ft
 import seedir as sd
 
@@ -474,13 +476,15 @@ def get_image_hash(image: str | Path | bytes) -> bytes:
         SHA-256 digest.
     """
 
-    if isinstance(image, str | Path):
-        image = Path(image).read_bytes()
-
     if not ft.is_image(image):
         raise ValueError("The provided file is not an image.")
 
-    return sha256(image).digest()
+    if isinstance(image, bytes):
+        import io
+
+        image = io.BytesIO(image)  # type: ignore[assignment]
+
+    return sha256(np.asarray(Image.open(image))).digest()
 
 
 def hash2uuid(ihash: bytes) -> uuid.UUID:
@@ -505,9 +509,6 @@ def get_image_uuid(image: str | Path | bytes) -> uuid.UUID:
     Returns:
         Image UUID.
     """
-
-    if isinstance(image, str | Path):
-        image = Path(image).read_bytes()
 
     if not ft.is_image(image):
         msg = "Input image type of is not supported!"
@@ -555,15 +556,15 @@ def get_image_metadata(image: bytes | str | Path) -> ImageMeta:
         image: Binary content or a path to an existing image.
 
     Returns:
-        A tuple contiaining the image metadata.
+        An object contiaining the image metadata.
     """
-
-    if isinstance(image, str | Path):
-        image = Path(image).read_bytes()
 
     _hash = get_image_hash(image)
     _uuid = hash2uuid(_hash)
     ext = ft.guess_extension(image).lower()
+
+    if isinstance(image, (str, Path)):
+        image = Path(image).read_bytes()
 
     return ImageMeta(image, _hash, _uuid, ext)
 
