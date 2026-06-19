@@ -483,7 +483,7 @@ def get_image_hash(image: str | Path | bytes) -> bytes:
     if isinstance(image, bytes):
         import io
 
-        image = io.BytesIO(image)
+        image = io.BytesIO(image)  # type: ignore[assignment]
 
     return sha256(np.asarray(Image.open(image))).digest()
 
@@ -563,6 +563,9 @@ def get_image_metadata(image: bytes | str | Path) -> ImageMeta:
     _hash = get_image_hash(image)
     _uuid = hash2uuid(_hash)
     ext = ft.guess_extension(image).lower()
+
+    if isinstance(image, (str, Path)):
+        image = Path(image).read_bytes()
 
     return ImageMeta(image, _hash, _uuid, ext)
 
