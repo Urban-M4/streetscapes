@@ -1,10 +1,12 @@
+from PIL import Image
+import io
+import numpy as np
+import piexif as exif
+
 def test_reproducible_uuids():
     """Test if images with different metadata produce the same hash / UUID"""
-    import piexif as exif
-    import numpy as np
+
     from streetscapes.utils import functions as F
-    from PIL import Image
-    import io
 
     # Create some EXIF data.
     # Example based on the PiExif documentation.

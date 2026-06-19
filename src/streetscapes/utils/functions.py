@@ -9,6 +9,8 @@ from datetime import datetime, UTC
 from hashlib import sha256
 from pathlib import Path
 
+from PIL import Image
+import numpy as np
 import filetype as ft
 import seedir as sd
 
@@ -476,9 +478,6 @@ def get_image_hash(image: str | Path | bytes) -> bytes:
 
     if not ft.is_image(image):
         raise ValueError("The provided file is not an image.")
-
-    from PIL import Image
-    import numpy as np
 
     if isinstance(image, bytes):
         import io
