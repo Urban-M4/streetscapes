@@ -3,7 +3,7 @@ from streetscapes.utils.bbox import split_bbox
 
 def test_split_bbox_basic():
     bbox = (0.0, 0.0, 0.02, 0.02)
-    total, tiles = split_bbox(bbox, tile_size=0.01)
+    total, tiles = split_bbox(bbox, tile_size=0.001)
 
     tiles = list(tiles)
     assert total == len(tiles)

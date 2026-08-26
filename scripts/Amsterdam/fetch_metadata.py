@@ -11,7 +11,7 @@ area = dict(name="amsterdam", bbox=[4.7, 52.25, 5.1, 52.5])
 
 # Fetch image ids in area of interest
 mp = Mapillary()
-metadata = mp.fetch_metadata_bbox(bbox=area["bbox"], tile_size=0.01, limit=500)
+metadata = mp.fetch_metadata_bbox(bbox=area["bbox"], tile_size=0.001, limit=500)
 
 # Store metadata in a workspace
 ws = SVWorkspace(area["name"])
