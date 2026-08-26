@@ -1,3 +1,5 @@
+from typing import Optional
+
 import numpy as np
 
 import shapely
@@ -6,7 +8,7 @@ import matplotlib.axes
 import rasterio.features
 import matplotlib.pyplot as plt
 import matplotlib.patches as patches
-from PIL import Image
+from PIL.Image import Image
 
 
 def poly_to_mask(
@@ -23,12 +25,12 @@ def poly_to_mask(
         2-D numpy array containing the image mask.
     """
     h, w, _ = np.asarray(img).shape
-    return rasterio.features.rasterize(
+    return rasterio.features.rasterize(  # type: ignore[no-any-return]
         [poly], out_shape=(h,w),
     )
 
 
-def plot_multipolygon(poly: shapely.MultiPolygon, ax: matplotlib.axes.Axes = None, color = "r"):
+def plot_multipolygon(poly: shapely.MultiPolygon, ax: Optional[matplotlib.axes.Axes] = None, color = "r"):
     """Plot a MultiPolygon with Matplotlib, e.g. to overlay on an image.
 
     Args:
@@ -40,8 +42,8 @@ def plot_multipolygon(poly: shapely.MultiPolygon, ax: matplotlib.axes.Axes = Non
     for geom in poly.geoms:    
         xs, ys = geom.exterior.xy
         if ax is None:
-            ax = plt
-        ax.fill(xs, ys, alpha=0.5, fc=color, ec='none')
+            ax = plt  # type: ignore
+        ax.fill(xs, ys, alpha=0.5, fc=color, ec='none')  # type: ignore
 
 
 def mask_image(img: Image, mask: np.ndarray) -> np.ma.MaskedArray:
@@ -58,7 +60,7 @@ def mask_image(img: Image, mask: np.ndarray) -> np.ma.MaskedArray:
 
 def display_color(rgb: tuple[float, float, float]) -> None:
     """Display an RGB color as a rectangle, for debugging and testing."""
-    rgb = tuple([c / 255 for c in rgb])
+    rgb = tuple([c / 255 for c in rgb])  # type: ignore
     rect = patches.Rectangle((0, 0), 1, 1, edgecolor='none', facecolor=rgb)
     _, ax = plt.subplots(1,1, figsize=(1,1))
     ax.add_patch(rect)

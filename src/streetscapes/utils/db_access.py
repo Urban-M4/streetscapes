@@ -107,7 +107,8 @@ def get_image(uuid: str) -> Image.Image:
 @overload
 def get_segmentations(
     uuid: UUID | str,
-    project: str | None,
+    project: str | None = None,
+    *,
     poly_fmt: Type[str],
 ) -> list[Segmentation[tuple[float, float]]]:
     ...
@@ -116,7 +117,8 @@ def get_segmentations(
 @overload
 def get_segmentations(
     uuid: UUID | str,
-    project: str | None,
+    project: str | None = None,
+    *,
     poly_fmt: Type[Polygon],
 ) -> list[Segmentation[Polygon]]:
     ...
@@ -125,7 +127,7 @@ def get_segmentations(
 def get_segmentations(
     uuid: UUID | str,
     project: str | None = None,
-    poly_fmt: Type[str] | Type[Polygon] = Polygon,
+    poly_fmt: Type[str | Polygon] = Polygon,
 ) -> list[Segmentation]:
     """Get the segmentations of a specific image.
 
