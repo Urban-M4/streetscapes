@@ -7,7 +7,7 @@ Bbox = tuple[float, float, float, float]
 
 
 def split_bbox(
-    bbox: Bbox, tile_size: float = 0.01
+    bbox: Bbox, tile_size: float = 0.001
 ) -> tuple[int, Iterable[tuple[Bbox, str]]]:
     """Split bounding box into set of smaller tiles with fixed tile size."""
     import numpy as np

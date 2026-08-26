@@ -1,7 +1,7 @@
 import shutil
-from typing import Any
 import uuid
 from pathlib import Path
+from typing import Any
 
 import duckdb
 import ibis
@@ -9,12 +9,11 @@ import orjson as oj
 import pandas as pd
 import shapely as shp
 from pandas import DataFrame
+from rich.progress import track
 from shapely.geometry import box
 
 from streetscapes import CFG, logger, utils
 from streetscapes.utils.bbox import Bbox
-
-from rich.progress import track
 
 
 def _format_image(
@@ -87,9 +86,7 @@ class Project:
                 "rating": "INTEGER",  # 0-5
                 "polygons": "GEOMETRY",
             },
-            "init": [
-                "ALTER TABLE segmentations ADD PRIMARY KEY (run, curated, image)"
-            ],
+            "init": ["ALTER TABLE segmentations ADD PRIMARY KEY (run, curated, image)"],
         },
         "mapillary": {
             "schema": {
@@ -671,7 +668,7 @@ class Project:
         if shard is not None:
             image_dir = utils.ensure_dir(image_dir / shard)
 
-        ti = self.table('images')
+        ti = self.table("images")
 
         # Iterate over all images and copy them to the local directory.
         # Any EXIF metadata in the images themselves can be used to
@@ -719,7 +716,7 @@ class Project:
         if df.columns.size != expected_colcount:
             msg = (
                 "Missing columns in image. Skipping..."
-                f"Image is available at {df.get("thumb_2048_url")}"
+                f"Image is available at {df.get('thumb_2048_url')}"
             )
             logger.error(msg)
             return None
@@ -816,8 +813,18 @@ class Project:
             logger.error(f"Error updating table '{table}': {e}")
 
     # TODO: could generalize to "get_records(table, columns, include='missing')"
-    def get_mapillary_download_records(self) -> list[tuple[Any, ...]]:
-        """Return list of (id, url, location) for Mapillary images to download."""
+    def get_mapillary_download_records(
+        self,
+        skip_existing: bool = True,
+    ) -> list[tuple[Any, ...]]:
+        """Return list of (id, url, location) for Mapillary images to download.
+
+        Args:
+            skip_existing: Skip images that have already been downloaded.
+
+        Returns:
+            A list of tuples constaining the images to download.
+        """
         keys = {
             "image": "image",
             "id": "id",
@@ -837,7 +844,9 @@ class Project:
         t = t.select(**keys)
         # images that have been downloaded have `image IS NOT NULL`,
         # so we filter those out to get the missing ones.
-        data = t.filter([t.image.isnull(), t.url.notnull()]).to_pyarrow().to_pydict()
+        if skip_existing:
+            t = t.filter([t.image.isnull(), t.url.notnull()])
+        data = t.to_pyarrow().to_pydict()
         if len(data) == 0:
             return [() * len(keys)]
         return list(zip(*[data[k] for k in keys]))
