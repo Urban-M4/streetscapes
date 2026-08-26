@@ -109,8 +109,8 @@ class SVWorkspace:
         """Save metadata to a Parquet file in the workspace.
 
         Args:
-            records:
-                The metadata records to save.
+            records: The metadata records to save.
+            filename: ...
 
         """
         # TODO: Maybe use geoparquet? Or duckdb? Or postgis?

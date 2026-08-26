@@ -1,7 +1,7 @@
+"""Database access utilities."""
+
 from contextlib import contextmanager
-from pathlib import Path
-from typing import Any, Callable, Generator, Type, overload
-from uuid import UUID
+from typing import TYPE_CHECKING, Any, Callable, Generator, Type, overload
 
 import ibis
 import numpy as np
@@ -11,6 +11,10 @@ from shapely.ops import transform
 
 from streetscapes.config import CFG
 from streetscapes.utils.data_structures import Instance, Segmentation
+
+if TYPE_CHECKING:
+    from pathlib import Path
+    from uuid import UUID
 
 
 def _flip(x, y):
@@ -133,6 +137,8 @@ def get_segmentations(
     Args:
         uuid: UUID of the image.
         project: (optional) name of the project. Defaults to the active project.
+        poly_fmt: Format of the segmentation's polygons (string or
+            shapely Polygon)
 
     Returns:
         List of segmentation objects.

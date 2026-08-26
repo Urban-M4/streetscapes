@@ -1,3 +1,5 @@
+"""Bounding box utils."""
+
 from itertools import product
 from typing import Iterable
 

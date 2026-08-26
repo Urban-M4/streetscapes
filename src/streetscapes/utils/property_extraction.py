@@ -1,4 +1,6 @@
-from typing import Optional
+"""Property extraction functionality."""
+
+from typing import TYPE_CHECKING, Optional
 
 import matplotlib
 import matplotlib.axes
@@ -6,8 +8,10 @@ import matplotlib.patches as patches
 import matplotlib.pyplot as plt
 import numpy as np
 import rasterio.features
-import shapely
-from PIL.Image import Image
+
+if TYPE_CHECKING:
+    import shapely
+    from PIL.Image import Image
 
 
 def poly_to_mask(
@@ -48,7 +52,7 @@ def plot_multipolygon(
 
 
 def mask_image(img: Image, mask: np.ndarray) -> np.ma.MaskedArray:
-    """Mask an Image object with a binary mask
+    """Mask an Image object with a binary mask.
 
     Note: numpy masks away values under the mask. As we're interested in the values
     under the mask we need to invert the mask her.

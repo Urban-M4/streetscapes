@@ -1,3 +1,5 @@
+"""Many utility functions."""
+
 import os
 import re
 import sys
@@ -26,8 +28,6 @@ else:
 
 if TYPE_CHECKING:  # Delay slow imports for CLI responsiveness
     import geopandas as gpd
-    import numpy as np
-    import shapely
     import torch
 
 
@@ -51,6 +51,7 @@ def iso_timestamp(
         precision: Precision for the timespec parameter.
         fmt: Explicit format.
         sep: A custom separator for the default ISO format.
+        utc: Use UTC time (default)
 
     Returns:
         The formatted timestamp.
@@ -93,8 +94,7 @@ def is_notebook() -> bool:
 
 
 def ensure_dir(path: Path | str) -> Path:
-    """Resolve and expand a directory path and
-    create the directory if it doesn't exist.
+    """Resolve and expand a directory path and create the directory if it doesn't exist.
 
     Args:
         path:
@@ -110,8 +110,7 @@ def ensure_dir(path: Path | str) -> Path:
 
 
 def hide_home(dir: Path) -> str:
-    """A very simple function that replaces the home directory
-    with a tilde.
+    """A very simple function that replaces the home directory with a tilde.
 
     Useful for printing the home directory in notebooks without
     revealing private information.
@@ -173,9 +172,7 @@ def filter_files(
         raise TypeError("The provided path is a file (it should be a directory).")
 
     items = [str(n) for n in path.glob("*.*")]
-    return set(
-        [Path(p) for p in filter(re.compile(pattern, re.IGNORECASE).match, items)]
-    )
+    return {Path(p) for p in filter(re.compile(pattern, re.IGNORECASE).match, items)}
 
 
 def make_path(
@@ -183,8 +180,7 @@ def make_path(
     root: Path | None = None,
     suffix: str | None = None,
 ):
-    """Construct a path (a file or a directory)
-    with optional modifications.
+    """Construct a path (a file or a directory) with optional modifications.
 
     Args:
         path:
@@ -257,7 +253,7 @@ def as_rgb(
 
 
 def as_hsv(image: "np.ndarray") -> "np.ndarray":
-    """Convert an RGB image into HSV format
+    """Convert an RGB image into HSV format.
 
     Args:
         image:
@@ -298,7 +294,7 @@ def make_colourmap(
 
     cm = plt.get_cmap(cmap, len(labels))
     cm = cm(np.linspace(0.0, 1.0, cm.N))[:, :3]  # type: ignore
-    return {label: colour for label, colour in zip(sorted(labels), cm, strict=False)}  # type: ignore
+    return dict(zip(sorted(labels), cm, strict=False))  # type: ignore
 
 
 def open_image(

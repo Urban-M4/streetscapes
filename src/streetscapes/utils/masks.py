@@ -38,6 +38,8 @@ def mask2poly(
     Args:
         data: Raw numpy array produced by segmentation routine (2D or 3D).
         model: Name of the model used for segmentation.
+        image: Used for BFMS masks; bfms generates lower resolution masks, original
+            image data is needed to rescale back.
         tolerance (optional): Tolerance value (in pixels) used to simpily geometry.
             Simplifying the geometry might be necessary when the polygons otherwise
             get too big and complex. Defaults to None.
