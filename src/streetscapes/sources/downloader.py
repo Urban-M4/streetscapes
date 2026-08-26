@@ -10,6 +10,7 @@ class ImageDownloader:
     def __init__(
         self, source, manifest_dir: Path, images_dir: Path, shard_size: int = 1000
     ):
+        """Initialize downloader."""
         import ibis
 
         self.source = source
@@ -53,6 +54,7 @@ class ImageDownloader:
     # Removed: DuckDB is now the canonical manifest. No export needed.
 
     def download_by_id(self, image_ids, overwrite=False):
+        """."""
         for idx, image_id in enumerate(
             track(image_ids, description="Downloading images by ID...")
         ):
@@ -76,12 +78,16 @@ class ImageDownloader:
             if already_downloaded and overwrite:
                 # Update entry
                 self.con.raw_sql(f"DELETE FROM downloads WHERE image_id = '{safe_id}'")
-            sql = f"INSERT INTO downloads VALUES ('{safe_id}', '{safe_path}', '{safe_timestamp}', '{safe_url}')"
+            sql = (
+                "INSERT INTO downloads VALUES ("
+                f"'{safe_id}', '{safe_path}', '{safe_timestamp}', '{safe_url}')"
+            )
             self.con.raw_sql(sql)
 
     def download_from_manifest(
         self, manifest_df, id_column, url_column, overwrite=False
     ):
+        """."""
         for idx, (_, row) in enumerate(
             track(
                 manifest_df.iterrows(),
@@ -109,5 +115,8 @@ class ImageDownloader:
             if already_downloaded and overwrite:
                 # Update entry
                 self.con.raw_sql(f"DELETE FROM downloads WHERE image_id = '{safe_id}'")
-            sql = f"INSERT INTO downloads VALUES ('{safe_id}', '{safe_path}', '{safe_timestamp}', '{safe_url}')"
+            sql = (
+                "INSERT INTO downloads VALUES ("
+                f"'{safe_id}', '{safe_path}', '{safe_timestamp}', '{safe_url}')"
+            )
             self.con.raw_sql(sql)

@@ -1,3 +1,5 @@
+"""Image processing functionality."""
+
 import numpy as np
 from scipy.ndimage import gaussian_filter
 
@@ -18,6 +20,7 @@ def luminance(img_lin):
 
 def estimate_illumination(Y, sigma_shade=100, method="linear"):
     """Estimate local illumination from a luminance map Y.
+
     Rescale so that the maximum Y corresponds to illumination = 1,
     ensuring that apparent albedo Y / illum_est ≤ 1.
 
@@ -44,7 +47,8 @@ def estimate_illumination(Y, sigma_shade=100, method="linear"):
         raise ValueError("method must be 'linear' or 'retinex'")
 
     # Rescale so that brightest Y maps to illum = 1
-    # TODO: maybe scale based on high percentile, mask out very bright or dark areas, or leave out alltogether?
+    # TODO: maybe scale based on high percentile, mask out very bright
+    #   or dark areas, or leave out alltogether?
     # max_Y = Y.max()
     # max_illum = illum_est.max()
     # if max_illum > 0:

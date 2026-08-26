@@ -1,8 +1,8 @@
-# streetscapes/sources/mapillary.py
+"""Mapillary related functionality."""
 import logging
-import uuid
 from pathlib import Path
 from time import sleep
+from typing import TYPE_CHECKING
 
 import geopandas as gpd
 import pandas as pd
@@ -11,8 +11,12 @@ from shapely.geometry import Point
 
 from streetscapes import utils
 from streetscapes.project import Project
-from streetscapes.utils.bbox import Bbox
-from streetscapes.utils.metadata import ImageMeta
+
+if TYPE_CHECKING:
+    import uuid
+
+    from streetscapes.utils.bbox import Bbox
+    from streetscapes.utils.metadata import ImageMeta
 
 logger = logging.getLogger(__name__)
 
@@ -43,10 +47,15 @@ class MapillaryClient:
 
     Methods:
     -------
-    fetch_metadata_bbox(bbox: tuple[float, float, float, float], limit: int = 1000) -> pd.DataFrame
+    fetch_metadata_bbox(
+        bbox: tuple[float, float, float, float], limit: int = 1000
+    ) -> pd.DataFrame
         Fetch metadata for a bounding box and return as a pandas DataFrame.
-    fetch_metadata_bbox_gpd(bbox: tuple[float, float, float, float], limit: int = 1000) -> gpd.GeoDataFrame
-        Fetch metadata for a bounding box and return as a GeoDataFrame with CRS EPSG:4326.
+    fetch_metadata_bbox_gpd(
+        bbox: tuple[float, float, float, float], limit: int = 1000
+    ) -> gpd.GeoDataFrame
+        Fetch metadata for a bounding box and return as a GeoDataFrame
+         with CRS EPSG:4326.
     """
 
     BASE_URL = "https://graph.mapillary.com/images"
@@ -69,6 +78,7 @@ class MapillaryClient:
 
     @property
     def db_fields(self) -> dict:
+        """Get schema's fields."""
         return Project.core_tables["mapillary"]["schema"]  # type: ignore[return-value]
 
     # NOTE: could make this "fetch_metadata_id" to be similar to bbox retrieval

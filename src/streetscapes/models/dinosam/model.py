@@ -20,7 +20,9 @@ class DinoSAM:
         **kwargs,
     ):
         """A model combining SAM2 and GroundingDINO for promptable instance segmentation.
-        Inspired by [LangSAM](https://github.com/luca-medeiros/lang-segment-anything) and [SamGeo](https://samgeo.gishub.org/samgeo/).
+    
+        Inspired by [LangSAM](https://github.com/luca-medeiros/lang-segment-anything)
+        and [SamGeo](https://samgeo.gishub.org/samgeo/).
 
         Args:
             sam_model_id: SAM2 model. Possible options include:
@@ -28,7 +30,8 @@ class DinoSAM:
                 - facebook/sam2.1-hiera-small
                 - facebook/sam2.1-hiera-large
             dino_model_id: A GroundingDINO model.
-            box_threshold: This parameter is used for modulating the identification of objects in the images.
+            box_threshold: This parameter is used for modulating the identification of
+              objects in the images.
                 The box threshold is related to the model confidence,
                 so a higher value makes the model more selective because
                 it is equivalent to requiring the model to only select

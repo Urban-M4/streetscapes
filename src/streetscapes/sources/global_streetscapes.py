@@ -1,3 +1,4 @@
+"""Global Streetscapes related functionality."""
 import operator
 import typing as tp
 from abc import ABC, abstractmethod
@@ -13,7 +14,7 @@ from streetscapes.sources.base import SourceBase
 
 
 class HFSourceBase(SourceBase, ABC):
-    """TODO: Add docstrings"""
+    """TODO: Add docstrings."""
 
     @abstractmethod
     def load_dataset(
@@ -89,8 +90,7 @@ class HFSourceBase(SourceBase, ABC):
         self,
         filename: str | Path,
     ) -> Path:
-        """Retrieve a single (potentially cached) file
-        from the Huggingface stored repo.
+        """Retrieve a single (potentially cached) file from the Huggingface stored repo.
 
         Args:
             filename:
@@ -125,8 +125,7 @@ class HFSourceBase(SourceBase, ABC):
         self,
         filenames: list[str | Path],
     ) -> list[Path]:
-        """Retrieve multiple (potentially cached) files
-        from the HuggingFace stored repo.
+        """Retrieve multiple (potentially cached) files from the HuggingFace repo.
 
         Args:
             filenames:
@@ -140,7 +139,7 @@ class HFSourceBase(SourceBase, ABC):
 
 
 class GlobalStreetscapesSource(HFSourceBase):
-    """TODO: Add docstrings"""
+    """TODO: Add docstrings."""
 
     def __init__(
         self,
@@ -282,7 +281,7 @@ class GlobalStreetscapesSource(HFSourceBase):
         """Download images from Mapillary and KartaView."""
         paths = []
         df = table.execute()
-        for index, row in df.iterrows():
+        for _, row in df.iterrows():
             if row["source"] == "Mapillary":
                 path = mp.download_image(row["image_id"], row["image_url"])
                 paths.append(path)
