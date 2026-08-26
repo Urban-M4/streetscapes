@@ -11,8 +11,7 @@ from PIL.Image import Image
 
 
 def poly_to_mask(
-    poly: shapely.Polygon | shapely.MultiPolygon,
-    img: Image
+    poly: shapely.Polygon | shapely.MultiPolygon, img: Image
 ) -> np.ndarray:
     """Convert a segmentation polygon to an image mask.
 
@@ -25,11 +24,14 @@ def poly_to_mask(
     """
     h, w, _ = np.asarray(img).shape
     return rasterio.features.rasterize(  # type: ignore[no-any-return]
-        [poly], out_shape=(h,w),
+        [poly],
+        out_shape=(h, w),
     )
 
 
-def plot_multipolygon(poly: shapely.MultiPolygon, ax: Optional[matplotlib.axes.Axes] = None, color = "r"):
+def plot_multipolygon(
+    poly: shapely.MultiPolygon, ax: Optional[matplotlib.axes.Axes] = None, color="r"
+):
     """Plot a MultiPolygon with Matplotlib, e.g. to overlay on an image.
 
     Args:
@@ -38,7 +40,7 @@ def plot_multipolygon(poly: shapely.MultiPolygon, ax: Optional[matplotlib.axes.A
             active matplotlib plot.
         color (optional): Matplotlib color name to color the polygon.
     """
-    for geom in poly.geoms:    
+    for geom in poly.geoms:
         xs, ys = geom.exterior.xy
         if ax is None:
             ax = plt  # type: ignore
@@ -61,6 +63,6 @@ def display_color(rgb: tuple[float, float, float]) -> None:
     """Display an RGB color as a rectangle, for debugging and testing."""
     rgb = tuple([c / 255 for c in rgb])  # type: ignore
     rect = patches.Rectangle((0, 0), 1, 1, edgecolor="none", facecolor=rgb)
-    _, ax = plt.subplots(1,1, figsize=(1,1))
+    _, ax = plt.subplots(1, 1, figsize=(1, 1))
     ax.add_patch(rect)
     ax.set_axis_off()

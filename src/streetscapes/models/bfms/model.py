@@ -34,11 +34,11 @@ class BFMS:
         ).to(self.device)  # type: ignore[arg-type]
 
         # won't load directly from BFMS ID
-        # from_pretrained should accept URL but this is broken in 
+        # from_pretrained should accept URL but this is broken in
         # transformers v5
         tmp_model_dir = CFG.image_dir / "models"
         tmp_model_dir.mkdir(exist_ok=True)
-        conf_path =  tmp_model_dir / "bfms-config.json"
+        conf_path = tmp_model_dir / "bfms-config.json"
         config.to_json_file(conf_path)
 
         self.processor = tform.AutoImageProcessor.from_pretrained(

@@ -5,6 +5,7 @@ from shapely import Polygon
 
 T = TypeVar("T", tuple[float, float], Polygon)
 
+
 @dataclass
 class Instance[T]:
     label: str

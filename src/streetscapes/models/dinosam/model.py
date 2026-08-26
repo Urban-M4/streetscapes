@@ -9,7 +9,6 @@ from streetscapes.utils import logger
 
 
 class DinoSAM:
-
     def __init__(
         self,
         sam_model_id: str = "facebook/sam2.1-hiera-large",

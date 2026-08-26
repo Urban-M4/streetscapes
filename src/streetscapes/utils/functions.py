@@ -530,7 +530,6 @@ def get_image_paths(path: str | Path) -> list[Path]:
     entries = path.glob("**/*")
     image_paths = []
     for entry in entries:
-
         if not ft.is_image(entry):
             continue
 
@@ -673,7 +672,6 @@ def extract_exif_data(impath: Path) -> dict[str, Any]:
     data = dict.fromkeys(mapping)
 
     for k, (val, caster) in mapping.items():
-
         if isinstance(val, str):
             val = tags.get(val)
             if val is not None:

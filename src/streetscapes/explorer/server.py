@@ -60,9 +60,7 @@ def _get_all_images(con: ibis.BaseBackend):
 def _get_images(tables: list[ibis.Table]):
     dataframes = []
     for table in tables:
-        dataframes.append(
-            table.select("image", "geometry").to_pandas()
-        )
+        dataframes.append(table.select("image", "geometry").to_pandas())
     data = pd.concat(dataframes)
     return [
         Image(*args)
@@ -144,7 +142,7 @@ def _fetch_images(filter: FilterParams | None) -> list[Image]:
         for source in ("mapillary", "local"):
             src = con.table(source)
             src = src.filter(src.image.isin(images.uuid))
-        
+
             if filter.date_range is not None:
                 start = filter.date_range[0]
                 end = filter.date_range[1]
@@ -158,7 +156,12 @@ def _fetch_images(filter: FilterParams | None) -> list[Image]:
 
         # Last filter on segmentation properties
         if any(
-            (filter.models, filter.labels, filter.model_runs, filter.segmentation_ratings)
+            (
+                filter.models,
+                filter.labels,
+                filter.model_runs,
+                filter.segmentation_ratings,
+            )
         ):
             segmentations = con.table("segmentations")
             # optionally filter for models
@@ -168,7 +171,9 @@ def _fetch_images(filter: FilterParams | None) -> list[Image]:
                 segmentations = segmentations.filter(segmentations.run.isin(runs.run))
 
             for label in filter.labels:
-                segmentations = segmentations.filter(segmentations.labels.contains(label))
+                segmentations = segmentations.filter(
+                    segmentations.labels.contains(label)
+                )
             if len(filter.model_runs) > 0:
                 segmentations = segmentations.filter(
                     segmentations.run.isin(filter.model_runs)
@@ -282,7 +287,9 @@ async def fetch_stats() -> AggregateStats:
             tags=_get_unique_tags(con),
             labels=_get_unique_labels(con),
             model_run_names=list(set(con.table("runs").run.to_pandas())),
-            image_sources=list(set(con.table("images")["source"].to_pandas().to_list())),
+            image_sources=list(
+                set(con.table("images")["source"].to_pandas().to_list())
+            ),
             date_range=_get_daterange(con),
             models=list(set(con.table("runs").model.to_pandas())),
         )
@@ -302,7 +309,7 @@ async def fetch_image_metadata(image_id: str) -> ImageMetadata:
 
 @app.get(
     "/images/{image_id}/img",
-    responses = {200: {"content": {"image/jpeg": {}}}},
+    responses={200: {"content": {"image/jpeg": {}}}},
     response_class=FileResponse,
 )
 async def fetch_image(image_id: str) -> FileResponse:

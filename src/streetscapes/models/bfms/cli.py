@@ -59,7 +59,6 @@ def cli(
 
     # NOTE: BFMS does not support a batch mode.
     for image_idx, uid in enumerate(unprocessed, 1):
-
         # Extract the paths and open the images as NumPy arrays.
         path, _ = unprocessed[uid]
         img = np.asarray(iio.imread(path))
@@ -82,5 +81,9 @@ def cli(
             run,
             uid,
             response.labels,
-            polygons=mask2poly(np.array(instances), model="bfms", image=img,),
+            polygons=mask2poly(
+                np.array(instances),
+                model="bfms",
+                image=img,
+            ),
         )

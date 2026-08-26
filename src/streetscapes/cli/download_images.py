@@ -79,7 +79,9 @@ def mapillary(
 
     token = token or CFG.mapillary_token
     if not token:
-        logger.error("Error: 'mapillary_token' missing, set with `streetscapes config set mapillary_token <your token>`")
+        logger.error(
+            "Error: 'mapillary_token' missing, set with `streetscapes config set mapillary_token <your token>`"
+        )
         raise typer.Exit(code=1)
 
     mapillary = MapillaryClient(token)
@@ -111,7 +113,9 @@ def mapillary(
             if output_dir is not None:
                 output_dir /= shard
 
-        if not skip_existing or not _existing_img_valid(uid, image_id, output_dir, skip_existing):
+        if not skip_existing or not _existing_img_valid(
+            uid, image_id, output_dir, skip_existing
+        ):
             try:
                 img_meta = mapillary.download_image(
                     url, output_dir, image_id, uid, skip_existing=skip_existing
@@ -130,9 +134,7 @@ def mapillary(
         image_data.append(_format_image(uid, "mapillary", str(shard), tags=tags))
 
         # Update the Mapillary table
-        proj._con.raw_sql(
-            f"UPDATE mapillary SET image='{uid}' WHERE id={image_id};"
-        )
+        proj._con.raw_sql(f"UPDATE mapillary SET image='{uid}' WHERE id={image_id};")
 
         downloaded += 1
 

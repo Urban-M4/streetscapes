@@ -12,7 +12,6 @@ CONFIG_FILE = user_config_path("streetscapes", ensure_exists=True) / "config.jso
 
 
 class Configuration(BaseSettings):
-
     project_dir: Path = user_data_path("streetscapes")
     image_dir: Path = user_cache_path("streetscapes")
     active_project: str = "streetscapes"

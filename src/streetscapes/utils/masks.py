@@ -16,8 +16,8 @@ def _scale_contours(contours: list[np.ndarray], scale: tuple[float, float]):
     """Scale contour x/y to image x/y coordinates."""
     for i in range(len(contours)):
         c = contours[i]
-        c[:,0] *= scale[0]
-        c[:,1] *= scale[1]
+        c[:, 0] *= scale[0]
+        c[:, 1] *= scale[1]
         contours[i] = c
 
 
@@ -31,7 +31,7 @@ def mask2poly(
     data: np.ndarray,
     model: Literal["maskformer", "dinosam", "bfms"],
     image: np.ndarray | None = None,
-    tolerance: float | None = None
+    tolerance: float | None = None,
 ) -> GeometryCollection:
     """Convert segmentation masks to a collection of (multi-)polygons.
 
@@ -43,7 +43,7 @@ def mask2poly(
             get too big and complex. Defaults to None.
 
     Returns:
-        GeometryCollection: collection of all segmentations as multipolygons.   
+        GeometryCollection: collection of all segmentations as multipolygons.
     """
     scale: tuple[float, float] | None = None
 
@@ -61,7 +61,7 @@ def mask2poly(
         data_shape = data.shape
         if len(data_shape) == 3:
             data_shape = data_shape[1:]
-        scale = (image.shape[0]/data_shape[0], image.shape[1]/data_shape[1])
+        scale = (image.shape[0] / data_shape[0], image.shape[1] / data_shape[1])
 
     geometries = []
     for i in range(data.shape[0]):
@@ -71,7 +71,11 @@ def mask2poly(
             _scale_contours(contours, scale)
         polys = [geometry.Polygon(contour) for contour in contours]
         geometries.append(
-            geometry.MultiPolygon(polys if tolerance is None else [poly.simplify(tolerance) for poly in polys])  # type: ignore[misc]
+            geometry.MultiPolygon(
+                polys
+                if tolerance is None
+                else [poly.simplify(tolerance) for poly in polys]
+            )  # type: ignore[misc]
         )
 
     return GeometryCollection(geometries)

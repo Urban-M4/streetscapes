@@ -5,7 +5,6 @@ from pathlib import Path
 
 @dataclass
 class ImageMeta:
-
     content: bytes
     hash: bytes
     uid: uuid.UUID

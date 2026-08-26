@@ -16,10 +16,12 @@ class DinoSAMRequest(BaseModel):
     images: list[DinoSAMImage]
     prompt: str | list[str]
 
+
 class DinoSAMResponse(BaseModel):
     uid: uuid.UUID
     labels: list[str]
     instances: bytes
+
 
 class DinoSAMService:
     """Inference service for the DinoSAM model.

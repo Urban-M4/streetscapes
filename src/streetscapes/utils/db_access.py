@@ -24,7 +24,9 @@ def _validate_rating(rating: Any) -> int:
 
 
 @contextmanager
-def _open_db(project: str | None = None, read_only=True) -> Generator[ibis.BaseBackend, None, None]:
+def _open_db(
+    project: str | None = None, read_only=True
+) -> Generator[ibis.BaseBackend, None, None]:
     db = open_project(project, read_only)
     try:
         yield db
@@ -37,7 +39,7 @@ def open_project(
     read_only: bool = True,
 ) -> ibis.BaseBackend:
     """Open the database of the currently active project.
-    
+
     Args:
         project: (optional) name of the project to open.
             Defaults to the active project.
@@ -45,7 +47,7 @@ def open_project(
             the database.
     """
     proj = CFG.active_project if project is None else project
-    db_path =(CFG.project_dir / proj).with_suffix(".duckdb")
+    db_path = (CFG.project_dir / proj).with_suffix(".duckdb")
     return ibis.duckdb.connect(
         db_path,
         extensions=["spatial", "json"],
@@ -59,7 +61,7 @@ def get_image_path(
     err: Callable = lambda msg: ValueError(msg),
 ) -> Path:
     """Load image based on UUID.
-    
+
     NOTE: large overlap with _get_image from explorer code.
     """
     db = open_project(project=project)
@@ -78,7 +80,7 @@ def get_image_path(
     if file_shard is None:
         msg = "File shard not defined. Cannot find image"
         raise err(msg)
-    
+
     file = CFG.image_dir / "images" / str(source) / str(file_shard) / uuid
 
     if file.with_suffix(".jpg").exists():
@@ -94,7 +96,7 @@ def get_image_path(
 
 def get_image(uuid: str) -> Image.Image:
     """Returns an in-memory copy of an image.
-    
+
     Args:
         uuid: UUID of the image you want to open.
     """
@@ -109,8 +111,7 @@ def get_segmentations(
     project: str | None = None,
     *,
     poly_fmt: Type[str],
-) -> list[Segmentation[tuple[float, float]]]:
-    ...
+) -> list[Segmentation[tuple[float, float]]]: ...
 
 
 @overload
@@ -119,8 +120,7 @@ def get_segmentations(
     project: str | None = None,
     *,
     poly_fmt: Type[Polygon],
-) -> list[Segmentation[Polygon]]:
-    ...
+) -> list[Segmentation[Polygon]]: ...
 
 
 def get_segmentations(
@@ -155,8 +155,9 @@ def get_segmentations(
             inst = [
                 Instance(
                     label,
-                    poly if poly_fmt == Polygon else 
-                    [list(points.exterior.coords) for points in poly.geoms],
+                    poly
+                    if poly_fmt == Polygon
+                    else [list(points.exterior.coords) for points in poly.geoms],
                 )
                 for label, poly in zip(labels, polys, strict=True)
             ]

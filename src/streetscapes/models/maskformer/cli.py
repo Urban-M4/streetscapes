@@ -85,7 +85,6 @@ def cli(
     logger.info(f"Segmenting {len(unprocessed)} images using {model}...")
     batches = list(batched(unprocessed, batch_size))
     for batch_idx, batch in enumerate(batches, 1):
-
         # Extract the paths and open the images as NumPy arrays.
         request = {
             "images": [],

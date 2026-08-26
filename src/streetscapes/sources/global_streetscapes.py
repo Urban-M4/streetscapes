@@ -161,7 +161,7 @@ class GlobalStreetscapesSource(HFSourceBase):
 
         # Paths for the Global Streetscapes cache directory and some
         # subdirectories for convenience.
-        if self.root_dir is not None:    
+        if self.root_dir is not None:
             self.csv_dir = self.root_dir / "data"
             self.parquet_dir = self.csv_dir / "parquet"
 

@@ -46,7 +46,9 @@ def get_model_app(model: str, /, **kwargs) -> serve.Application:
     return ModelApp.bind(model, **kwargs)  # type: ignore[attr-defined,no-any-return]
 
 
-def serve_model(model: str, verbose: bool = False, /, **model_kwargs) -> DeploymentHandle:
+def serve_model(
+    model: str, verbose: bool = False, /, **model_kwargs
+) -> DeploymentHandle:
     app = get_model_app(model, **model_kwargs)
 
     logger = logging.getLogger("ray.serve")
