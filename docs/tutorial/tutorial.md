@@ -21,9 +21,6 @@ git checkout dev  # checkout the in-development branch
 python3 -m venv .venv  # create a virtual environment
 source .venv/bin/activate
 
-pip install transformers  # install required packages
-pip install tokenizers
-
 pip install .[explorer]  # Install Streetscapes 
 ```
 
