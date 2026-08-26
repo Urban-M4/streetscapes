@@ -16,7 +16,7 @@ fetch_metadata_cli = App(help="Fetch metadata for a source")
 @fetch_metadata_cli.command(name="mapillary")
 def mapillary(
     bbox: Bbox,
-    tile_size: float = 0.01,
+    tile_size: float = 0.001,
     limit: int = 1000,
     token: str | None = None,
     project: str | None = None,
