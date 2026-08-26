@@ -5,7 +5,6 @@ Streetscapes provides a versatile command line interface (CLI) to some of the mo
 pip install -e .
 ```
 
-<!-- TODO: note about installing `tokenizers` and `transformers` *first* -->
 If the installation was successful, typing the `streetscapes` command in your terminal should produce a list of available entrypoints:
 
 ```bash
