@@ -2,7 +2,10 @@ site_name: Streetscapes
 repo_url: https://github.com/Urban-M4/streetscapes
 nav:
   - Overview: index.md
-  - Tutorial: tutorial/tutorial.ipynb
+  - Tutorials:
+      - Introduction: tutorial/tutorial.md
+      - Streetscapes CLI: tutorial/cli.md
+      - Access database from Python: tutorial/manual-database-access.ipynb
   - Examples:
       - Exploring Global Streetscapes: examples/explore_global_streetscapes.ipynb
       - Converting CSV files into Parquet: examples/convert_csv_to_parquet.ipynb
@@ -61,3 +64,11 @@ extra:
     provider: mike
 extra_css:
   - stylesheets/extra.css
+markdown_extensions:
+  - pymdownx.superfences:
+      custom_fences:
+        - name: mermaid
+          class: mermaid
+          format: !!python/name:pymdownx.superfences.fence_code_format
+hooks:
+  - docs/mermaid-hook.py
