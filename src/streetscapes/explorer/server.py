@@ -1,0 +1,414 @@
+"""FastAPI server implementation."""
+
+import webbrowser
+from datetime import datetime
+from typing import Annotated, Any
+from itertools import chain
+
+from fastapi.responses import FileResponse
+import ibis
+import numpy as np
+import pandas as pd
+import uvicorn
+from brotli_asgi import BrotliMiddleware
+from cyclopts import App, Parameter
+from fastapi import FastAPI, HTTPException
+from fastapi.middleware.cors import CORSMiddleware
+from fastapi.params import Query
+from shapely.geometry import Polygon
+
+from streetscapes import CFG
+from streetscapes.explorer.data import (
+    AggregateStats,
+    Bbox,
+    FilterParams,
+    Image,
+    ImageMetadata,
+)
+from streetscapes.utils.db_access import get_image_path, get_segmentations
+from streetscapes.utils.db_access import _validate_rating
+from streetscapes.utils.db_access import _open_db
+
+app = FastAPI()
+
+origins = [
+    "*",
+]
+
+app.add_middleware(BrotliMiddleware)
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=origins,
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
+
+PROJECT = CFG.active_project
+
+
+def _get_all_images(con: ibis.BaseBackend):
+    tables = [con.table("mapillary"), con.table("local")]
+    return _get_images(tables)
+
+
+def _get_images(tables: list[ibis.Table]):
+    dataframes = []
+    for table in tables:
+        dataframes.append(
+            table.select("image", "geometry").to_pandas()
+        )
+    data = pd.concat(dataframes)
+    return [
+        Image(*args)
+        for args in zip(
+            data["image"].astype(str),
+            data["geometry"].y,
+            data["geometry"].x,
+            strict=True,
+        )
+    ]
+
+
+def raise_httpexception(msg: str) -> None:
+    HTTPException(status_code=404, detail=msg)
+
+
+def _get_metadata(uuid: str) -> ImageMetadata:
+    with _open_db(PROJECT) as con:
+        imgtable = con.table("images")
+        imgtable = imgtable.filter(imgtable.uuid == uuid)
+        if imgtable.count().to_pandas() == 0:
+            raise _unknown_image(uuid)
+        imgdata = imgtable.to_pandas().squeeze()
+
+        metatable = con.table(imgdata["source"])
+        metatable = metatable.filter(metatable.image == uuid)
+        if metatable.count().to_pandas() == 0:
+            raise _unknown_image(uuid)
+        if metatable.count().to_pandas() > 1:
+            metadata = metatable.to_pandas().iloc[0].squeeze()
+        else:
+            metadata = metatable.to_pandas().squeeze()
+
+    segmentations = get_segmentations(uuid, poly_fmt=str)
+    return ImageMetadata(
+        id=str(metadata["image"]),
+        lat=metadata["geometry"].y,
+        lon=metadata["geometry"].x,
+        width=int(metadata["width"]),
+        height=int(metadata["height"]),
+        altitude=metadata["altitude"],
+        captured_at=datetime.fromtimestamp(metadata["captured_at"] / 1000),
+        panoramic=bool(metadata["is_pano"]),
+        source=imgdata["source"],
+        tags=imgdata["tags"],
+        rating=_validate_rating(imgdata["rating"]),
+        compass_angle=float(metadata["compass_angle"]),
+        notes="" if imgdata["notes"] in [None, np.nan] else imgdata["notes"],
+        segmentation=segmentations,
+    )
+
+
+def _bbox_to_polygon(bbox: Bbox) -> Polygon:
+    return Polygon(
+        [(bbox.w, bbox.n), (bbox.e, bbox.n), (bbox.e, bbox.s), (bbox.w, bbox.s)]
+    )
+
+
+def _fetch_images(filter: FilterParams | None) -> list[Image]:
+    """Fetch images that conform to a filter specification."""
+    with _open_db(PROJECT) as con:
+        if filter is None:
+            return _get_all_images(con)  # type: ignore[no-any-return]
+
+        # First filter on image table info
+        images = con.table("images")
+        if len(filter.image_ratings) > 0:
+            match = con.table("images").rating.isin(filter.image_ratings)
+            images = images.filter(match)
+        if len(filter.sources) > 0:
+            match = con.table("images").source.isin(filter.sources)
+            images = images.filter(match)
+        for tag in filter.tags:
+            match = con.table("images").tags.contains(tag)
+            images = images.filter(match)
+
+        # Next filter on mapillary/local table info
+        sources: dict[str, ibis.Table] = {}
+        for source in ("mapillary", "local"):
+            src = con.table(source)
+            src = src.filter(src.image.isin(images.uuid))
+        
+            if filter.date_range is not None:
+                start = filter.date_range[0]
+                end = filter.date_range[1]
+                match_start = src.captured_at >= (start.timestamp() * 1000)
+                match_end = src.captured_at <= (end.timestamp() * 1000)
+                src = src.filter(match_start).filter(match_end)
+
+            _match = src.geometry.within(_bbox_to_polygon(filter))
+            src = src.filter(_match)
+            sources[source] = src
+
+        # Last filter on segmentation properties
+        if any(
+            (filter.models, filter.labels, filter.model_runs, filter.segmentation_ratings)
+        ):
+            segmentations = con.table("segmentations")
+            # optionally filter for models
+            if len(filter.models) > 0:
+                runs = con.table("runs")
+                runs = runs.filter(runs.model.isin(filter.models))
+                segmentations = segmentations.filter(segmentations.run.isin(runs.run))
+
+            for label in filter.labels:
+                segmentations = segmentations.filter(segmentations.labels.contains(label))
+            if len(filter.model_runs) > 0:
+                segmentations = segmentations.filter(
+                    segmentations.run.isin(filter.model_runs)
+                )
+            if len(filter.segmentation_ratings) > 0:
+                segmentations = segmentations.filter(
+                    segmentations.rating.isin(filter.segmentation_ratings)
+                )
+
+            valid_images = segmentations.distinct(on="image").image
+
+            for source, src in sources.items():
+                _match = src.image.isin(valid_images)
+                sources[source] = src.filter(_match)
+
+        # Now we can request the valid images
+        return _get_images([src for _, src in sources.items()])  # type: ignore[no-any-return]
+
+
+def _update_img_prop(image_id: str, prop: str, value: Any):
+    with _open_db(PROJECT, read_only=False) as con:
+        imgs = con.table("images")
+        img = imgs.filter(imgs.uuid == image_id).to_pandas()
+
+        if len(img) == 0:
+            raise _unknown_image(image_id)
+
+        imgd = img.to_dict()
+        imgd[prop][0] = value  # workaround for replacing lists
+        con.con.register("updated_df", pd.DataFrame(imgd))
+        con.raw_sql(f"INSERT OR REPLACE INTO images FROM updated_df;")
+
+
+def _update_segmentation_rating(image_id: str, run_name: str, rating: int):
+    with _open_db(PROJECT, read_only=False) as con:
+        segs = con.table("segmentations")
+        segs = segs.filter(segs.image == image_id)
+        seg = segs.filter(segs.run == run_name).to_pandas()
+
+        if len(seg) == 0:
+            raise _unknown_image(image_id)
+
+        imgd = seg.to_dict()
+        imgd["rating"][0] = rating
+        con.con.register("updated_df", pd.DataFrame(imgd))
+        con.raw_sql(f"INSERT OR REPLACE INTO segmentations FROM updated_df;")
+
+
+def _unknown_image(image_id):
+    msg = f"No image found with id '{image_id}'"
+    print(msg)
+    return HTTPException(status_code=404, detail=msg)
+
+
+def _get_unique_tags(con: ibis.BaseBackend):
+    tags = con.table("images").tags.to_pandas().dropna()
+    if len(tags) == 0:
+        return []
+    tags = set(chain.from_iterable(tags.to_list()))
+    return list(tags)
+
+
+def _get_unique_labels(con: ibis.BaseBackend):
+    labels = con.table("segmentations").labels.to_pandas().dropna()
+    if len(labels) == 0:
+        return []
+    labels = set(chain.from_iterable(labels))  # nested list to set of uniques
+    return list(labels)
+
+
+def _get_img_sources(con: ibis.BaseBackend) -> list[str]:
+    return con.table("images").distinct(on="source").source.to_pandas().to_list()  # type: ignore[no-any-return]
+
+
+def _get_daterange(con: ibis.BaseBackend) -> tuple[datetime, datetime]:
+    sources = _get_img_sources(con)
+
+    mintimes = []
+    maxtimes = []
+    if len(sources) == 0:
+        msg = "No images found in database"
+        raise HTTPException(status_code=404, detail=msg)
+
+    for source in sources:
+        source_table = con.table(source)
+        mintimes.append(source_table.captured_at.min().to_pandas() / 1000)
+        maxtimes.append(source_table.captured_at.max().to_pandas() / 1000)
+
+    start = datetime.fromtimestamp(np.min(mintimes))
+    end = datetime.fromtimestamp(np.max(maxtimes))
+    return (start, end)
+
+
+@app.get("/")
+async def root():
+    """Server root."""
+    return {"message": "Welcome to the Streetscapes Explorer"}
+
+
+@app.get("/project")
+async def project():
+    """Get the active project name."""
+    return str(CFG.active_project)
+
+
+@app.get("/stats")
+async def fetch_stats() -> AggregateStats:
+    """Get the aggregate stats of the images."""
+    with _open_db(PROJECT) as con:
+        return AggregateStats(
+            tags=_get_unique_tags(con),
+            labels=_get_unique_labels(con),
+            model_run_names=list(set(con.table("runs").run.to_pandas())),
+            image_sources=list(set(con.table("images")["source"].to_pandas().to_list())),
+            date_range=_get_daterange(con),
+            models=list(set(con.table("runs").model.to_pandas())),
+        )
+
+
+@app.get("/images")
+async def fetch_images(filter: Annotated[FilterParams, Query()]) -> list[Image]:
+    """Fetch streetscape images corresponding to a bounding box and optionally filters."""
+    return _fetch_images(filter)
+
+
+@app.get("/images/{image_id}")
+async def fetch_image_metadata(image_id: str) -> ImageMetadata:
+    """Get all metadata associated with a certain image, including segmentations."""
+    return _get_metadata(image_id)
+
+
+@app.get(
+    "/images/{image_id}/img",
+    responses = {200: {"content": {"image/jpeg": {}}}},
+    response_class=FileResponse,
+)
+async def fetch_image(image_id: str) -> FileResponse:
+    """Get all metadata associated with a certain image, including segmentations."""
+    return FileResponse(
+        get_image_path(image_id, err=raise_httpexception),
+        media_type="image/jpeg",
+        headers={"Cache-Control": "public, max-age=31536000, immutable"},
+    )
+
+
+@app.post("/images/{image_id}/rating")
+async def set_rating(image_id: str, rating: int):
+    """Set an image's rating."""
+    _update_img_prop(image_id, "rating", rating)
+
+
+@app.post("/images/{image_id}/tags")
+async def set_tags(image_id: str, tags: list[str]):
+    """Set an image's tags."""
+    _update_img_prop(image_id, "tags", tags)
+
+
+@app.post("/images/{image_id}/notes")
+async def set_notes(image_id: str, notes: str):
+    """Set an image's notes."""
+    _update_img_prop(image_id, "notes", notes)
+
+
+@app.post("/images/{image_id}/{run_name}/rating")
+async def set_segmentation_rating(image_id: str, run_name: str, rating: int):
+    """Rate an image's segmentation."""
+    _update_segmentation_rating(image_id, run_name, rating)
+
+
+@app.post("/images/{image_id}/{run_name}/{instance_idx}/{label}")
+async def set_instance_label(
+    image_id: str, run_name: str, instance_idx: int, label: str
+):
+    """Set the label of a specific instance within a segmentation."""
+    pass
+
+
+@app.post("/images/{image_id}/segment/{model}/{run_args}")
+async def segment_image(image_id, model, run_args):
+    """Compute a new segmentation of an image."""
+    pass
+
+
+async def _start_uvicorn(port: int, host: str, log_info: bool):
+    config = uvicorn.Config(
+        app,
+        host=host,
+        port=port,
+        log_level="info" if log_info else "warning",
+    )
+    server = uvicorn.Server(config)
+    await server.serve()
+
+
+async def _serve(port: int, host: str, open_webpage: bool, log_info: bool):
+    server = _start_uvicorn(port, host, log_info)
+    if open_webpage:
+        print("Waiting for the streetscapes-explorer to start...")
+        webbrowser.open(
+            f"https://urban-m4.github.io/streetscapes-explorer/?s=http://localhost:{port}"
+        )
+        print(
+            "The streetscapes-explorer should have launched automatically.\n"
+            "To open it manually, go to https://urban-m4.github.io/streetscapes-explorer/ and "
+        )
+    else:
+        print(
+            "Starting the streetscapes-explorer...\n\n"
+            "To open the explorer, go to https://urban-m4.github.io/streetscapes-explorer/ and "
+        )
+    print(
+        f"paste in http://localhost:{port} as web service.\n"
+        "  You will need to disable your ad blocker (like uBlock Origin Lite)\n"
+        "and allow your web browser to load localhost resources."
+    )
+    await server
+
+
+cli = App(help="Streetscapes data explorer")
+
+
+@cli.default
+async def serve(
+    *,
+    port: Annotated[int, Parameter(name=["--port", "-p"])] = 5001,
+    host: Annotated[str, Parameter(name=["--host"])] = "0.0.0.0",
+    open_webpage: bool = True,
+    verbose_logs: bool = False,
+):
+    """Start the Streetscapes Explorer server.
+
+    Args:
+        port: port to host the backend on.
+        host: Bind socket to this host. Default (0.0.0.0) makes the backend available
+            to any machine that can communicate with the host. Set it to 127.0.0.1 to
+            allow only access from the local machine.
+        open_webpage: automatically open a browser window with the frontend viewer,
+            with the backend correctly configured.
+        verbose_logs: display verbose backend server logs, useful for debugging the
+            frontend.
+    """
+    await _serve(port, host, open_webpage, verbose_logs)
+
+
+if __name__ == "__main__":
+    cli()

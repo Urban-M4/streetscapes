@@ -16,16 +16,14 @@ class SVSegmentation:
         self,
         path: Path | str,
     ):
-        """
-        A class that acts as an interface to an image segmentation
+        """A class that acts as an interface to an image segmentation
         and the object instances that are part of it.
 
         Args:
-
             path:
                 Path to the segmentation archive.
-        """
 
+        """
         # Path to the segmentation file
         self.path = Path(path)
 
@@ -46,22 +44,21 @@ class SVSegmentation:
         # Path to the image file
         # TODO: Handle different image types (resp. extensions).
         image_name = self._get_value("image_name")
-        self.image_path = path.parent.parent.parent / image_name
+        self.image_path = self.path.parent.parent.parent / image_name
 
     def __repr__(self):
         return f"SVSegmentation(path={utils.hide_home(self.path)!r}"
 
     def _get_value(self, key: str) -> tp.Any:
-        """
-        Retrieve a value for a given key from the segmentation file.
+        """Retrieve a value for a given key from the segmentation file.
 
         Args:
             key: The key to load from the parquet file.
 
         Returns:
             The extracted value.
-        """
 
+        """
         if self._metadata is None:
             self._metadata = np.load(self.path, allow_pickle=True)["arr_0"].item()
         return self._metadata[key]
@@ -90,8 +87,7 @@ class SVSegmentation:
         self,
         cache: bool = False,
     ) -> np.ndarray:
-        """
-        Loads the image from the stored path.
+        """Loads the image from the stored path.
 
         Args:
             cache:
@@ -101,8 +97,8 @@ class SVSegmentation:
 
         Returns:
             The image as a NumPy array.
-        """
 
+        """
         if cache:
             if self._image is None:
                 self._image = utils.open_image(self.image_path)
@@ -126,8 +122,7 @@ class SVSegmentation:
         cache: bool = False,
         as_table: bool = False,
     ) -> dict | ibis.Table:
-        """
-        Load the saved instances with their labels.
+        """Load the saved instances with their labels.
 
         Args:
             cache:
@@ -142,8 +137,8 @@ class SVSegmentation:
 
         Returns:
             The instances as a dictionary.
-        """
 
+        """
         # Ensure that we have a
         if cache and self._instances is not None:
             instances = self._instances
@@ -173,8 +168,7 @@ class SVSegmentation:
         exclude: str | list[str] | None = None,
         merge: bool = False,
     ) -> list[SVInstance]:
-        """
-        Return an array of instances corresponding to label.
+        """Return an array of instances corresponding to label.
 
         Args:
             label:
@@ -185,8 +179,8 @@ class SVSegmentation:
 
         Returns:
             The (potentially merged and de-overlapped) instances for this label.
-        """
 
+        """
         instance_ids = set(
             [k for k, v in self.get_instance_labels().items() if v == label]
         )
@@ -215,14 +209,12 @@ class SVSegmentation:
         self,
         labels: str | list[str] | None = None,
         opacity: float = 0.5,
-        title: str = None,
+        title: str | None = None,
         figsize: tuple[int, int] = (16, 6),
     ) -> tuple:
-        """
-        Visualise the instances of different objects in an image.
+        """Visualise the instances of different objects in an image.
 
         Args:
-
             labels:
                 Labels for the instance categories that should be plotted.
 
@@ -241,6 +233,7 @@ class SVSegmentation:
             A tuple containing:
                 - A Figure object.
                 - An Axes object that allows further annotations to be added.
+
         """
         from matplotlib import patches as mpatches
         from matplotlib import pyplot as plt

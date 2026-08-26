@@ -4,122 +4,106 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "streetscapes"
-version = "0.3.2"
-requires-python = ">= 3.12"
+version = "1.0.0a0"
+requires-python = ">= 3.14"
 dependencies = [
-    "awkward",
     "black",
-    "cloup",
     "contextily",
+    "cyclopts>=4.2.1",
     "duckdb",
-    "ephem",
     "environs",
-    "fiona",
+    "ephem",
+    "filetype",
     "geodatasets",
+    "exifread",
     "geopandas",
     "h3",
     "h5netcdf",
+    "huggingface_hub",
     "humanize",
-    "huggingface_hub[cli]",
-    "ibis-framework[duckdb]",
+    "ibis-framework[duckdb,geospatial]",
+    "imageio[pyav]",
     "ipykernel",
     "ipywidgets",
     "loguru",
     "matplotlib",
+    "mit-semseg",
     "numpy",
+    "orjson",
     "osmnx",
     "pandas",
+    "pillow>=11.3.0",
     "pyarrow",
+    "pydantic-settings",
+    "pygeohash>=3.2.0",
     "pyproj",
     "rasterio",
+    "ray[serve]>=2.51.1",
     "rich",
+    "safetensors>=0.6.2",
     "sam2",
-    "seedir",
     "scikit-image",
     "scipy",
+    "seedir",
+    "tabulate>=0.9.0",
     "timezonefinder",
     "torch",
     "torchvision",
     "tqdm",
     "transformers",
+    "uuid7gen",
+    "typer>=0.23.0",
 ]
 authors = [
     { name = "Claire Donnelly", email = "c.donnelly@esciencecenter.nl" },
     { name = "Alexander Hadjiivanov", email = "a.hadjiivanov@esciencecenter.nl" },
     { name = "Peter Kalverla", email = "p.kalverla@esciencecenter.nl" },
+    { name = "Bart Schilperoort", email = "b.schilperoort@esciencecenter.nl" },
 ]
 description = "Code for downloading, segmenting and analysing images from Mapillary and KartaView, with the aim of extracting the emissivity and albedo of buildings."
 readme = "README.md"
-license = { file = "LICENCE.md" }
+license = { file = "LICENCE" }
 
 [project.scripts]
-streetscapes = "streetscapes.main:main"
+streetscapes = "streetscapes.cli.main:app"
+streetscapes-explorer = "streetscapes.explorer.server:cli"
+
+[tool.ruff]
+lint.select = ["F", "E", "TYP", "B", "D", "C", "Q", "I"]
+
+[tool.ruff.lint.per-file-ignores]
+"tests/*.py" = ["D"]
+
+[tool.ruff.lint.pydocstyle]
+convention = "google"
+
+[tool.mypy]
+python_version = "3.14"
+warn_return_any = true
+warn_unused_configs = true
+ignore_missing_imports = true
+exclude = '''(?x)(
+    streetview/
+)'''
 
 [project.optional-dependencies]
+explorer = ["fastapi", "uvicorn", "brotli-asgi"]
 dev = [
+    "fastapi[standard]",
+    "pytest>=8.4.2",
+    "mimesis",
     "ruff",
     "py-spy",
+    "piexif",
     "mike",
     "mkdocs",
     "mkdocstrings[python]",
+    "mkdocs-autoapi>=0.4.1",
     "mkdocs-material",
     "mkdocs-jupyter",
+    "mypy",
+    # type stubs for mypy;
+    "pandas-stubs",
+    "types-shapely",
+    "types-requests",
 ]
-
-[tool.ruff]
-# Exclude a variety of commonly ignored directories.
-exclude = [
-    ".bzr",
-    ".direnv",
-    ".eggs",
-    ".git",
-    ".git-rewrite",
-    ".hg",
-    ".ipynb_checkpoints",
-    ".mypy_cache",
-    ".nox",
-    ".pants.d",
-    ".pyenv",
-    ".pytest_cache",
-    ".pytype",
-    ".ruff_cache",
-    ".svn",
-    ".tox",
-    ".venv",
-    ".vscode",
-    "__pypackages__",
-    "_build",
-    "buck-out",
-    "build",
-    "dist",
-    "node_modules",
-    "site-packages",
-    "venv",
-]
-
-indent-width = 4
-
-[tool.ruff.format]
-indent-style = "space"
-skip-magic-trailing-comma = false
-line-ending = "auto"
-docstring-code-format = false
-docstring-code-line-length = "dynamic"
-
-[tool.ruff.lint.isort]
-from-first = false
-force-single-line = true
-force-sort-within-sections = true
-length-sort = true
-lines-after-imports = 1
-order-by-type = true
-forced-separate = [
-    "typing",
-    "future",
-    "standard-library",
-    "third-party",
-    "first-party",
-    "local-folder",
-    "streetscapes",
-]
-relative-imports-order = "closest-to-furthest"

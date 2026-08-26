@@ -1,0 +1,36 @@
+name: Python Tests
+
+on:
+  pull_request
+
+jobs:
+
+  test:
+    runs-on: ubuntu-latest
+
+    strategy:
+      matrix:
+        python-version: ["3.14"]
+    
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v5
+    
+      - name: Setup uv with cache and python version
+        uses: astral-sh/setup-uv@v6
+        with:
+          python-version: ${{ matrix.python-version }}
+          enable-cache: true
+
+      - name: Install the project
+        run: uv sync --locked --all-extras --dev
+
+      - name: document env
+        run: uv pip freeze
+
+      - name: Run tests
+        run: uv run pytest -v
+
+      - name: Run type checking
+        run: uv run mypy src/
+

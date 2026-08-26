@@ -2,85 +2,27 @@
 [![PyPI - Version](https://img.shields.io/pypi/v/streetscapes)](https://pypi.org/project/streetscapes/)
 [![Research Software Directory](https://img.shields.io/badge/RSD-streetscapes-00a3e3)](https://research-software-directory.org/software/streetscapes)
 [![Read The Docs](https://readthedocs.org/projects/streetscapes/badge/?version=latest)](https://streetscapes.readthedocs.io/en/latest/)
+[![DOI](https://zenodo.org/badge/DOI/10.5281/zenodo.14283584.svg)](https://doi.org/10.5281/zenodo.14283533)
 
-# Overview
+# Streetscapes
 
-`streetscapes` is a package to extract metadata, download, segment and analyse street view images from various open sources, such as [Mapillary](https://www.mapillary.com/), [Kartaview](https://kartaview.org/landing) and [Amsterdam Open Panorama](https://amsterdam.github.io/projects/open-panorama/). The package also builds upon the [Global Streetscapes](https://ual.sg/project/global-streetscapes/), making it possible to use the dataset for analysis and download images with certain properties. 
+`streetscapes` is a Python package, CLI, and web-based explorer for large-scale analysis of street-level imagery.
+It bundles functionality ranging from imagery retrieval to segmentation, feature extraction, and building-level aggregation.
+The package is designed to be transparent, reproducible, and easy to extend for research use.
 
-This package is a subproject of ([Urban-M4](https://github.com/Urban-M4)), which aims to model the Urban Heat Island effect by evaluating the properties of individual objects in the images (such as buildings, roads and sidewalks).
+## Installation
 
-For more information, please refer to the [documentation](https://streetscapes.readthedocs.io/en/latest/).
+Requirements: Python 3.14
 
-## 📥 Setup
+In a Python virtual environment, or conda environment do:
 
-Create and activate a virtual environment using the tool of your choice, such as [venv](https://docs.python.org/3/library/venv.html). You can also use [Conda](https://anaconda.org/) (or [Mamba](https://mamba.readthedocs.io/en/latest/installation/mamba-installation.html)) if you prefer, but please note that all dependencies are installed by `pip` from `PyPI`.
-
-Using `venv`:
-
-```sh
-python -m venv .venv
-source .venv/bin/activate
-```
-
-Using `conda`:
-
-```sh
-conda create -n myenv -c conda-forge python=3.12 pip
-conda activate myenv
-```
-
-## ⚙️ Installation
-
-The `streetscapes` package can be installed from PyPI:
-
-```shell
+```bash
 pip install streetscapes
 ```
 
-Alternatively, the in-development version of `streetscapes` can be installed by cloning the repository and installing the package locally with `pip`:
-
-```shell
-git clone git@github.com:Urban-M4/streetscapes.git
-cd streetscapes
-pip install -e .
-```
-
-⚠️ If one or more dependencies fail to install, check the Python version - it might be too _new_. While `streetscapes` itself specifies only the _minimal_ required Python verion, some dependencies might be slow to make releases for the latest Python version.
-
-### Configuring the package for development
-
-To install with optional dependencies: 
-
-```shell
-git clone git@github.com:Urban-M4/streetscapes.git
-cd streetscapes
-pip install -e .[dev]
-```
-
-#### Building and running the documentation
-
-The `streetscapes` project documentation is based on [MkDocs](https://www.mkdocs.org/). To build  and view the documentation:
-
-```shell
-mkdocs build
-```
-
-The documentation can then be viewed locally:
-
-```shell
-mkdocs serve
-```
-
-This will start an HTTP server which can be accessed by visiting `http://127.0.0.1:8000` in a browser.
-
-### 🌲 Environment variables
-
-To facilitate the use of `streetscapes` when dowloading images, access tokens can be added to an `.env` file in the root directory of the `streetscapes` repository. You can get and access token for Mapillary [here](https://www.mapillary.com/developer/api-documentation).
-
-| Variable                  | Description                                                                                                                                                  |
-| ------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| `MAPILLARY_TOKEN`         | A Mapillary token string used for authentication when querying Mapillary via their API.  |
-
+Retrieving image metadata and downloading images is performed using the command line interface.
+For a simple quickstart, see the [tutorial](https://streetscapes.readthedocs.io/en/latest/tutorial/tutorial/) in the documentation.
+The documentation also contains more elaborate examples and workflows.
 
 ## Contributing and publishing
 

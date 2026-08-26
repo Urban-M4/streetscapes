@@ -1,6 +1,8 @@
-from pathlib import Path
-import numpy as np
 import typing as tp
+from pathlib import Path
+
+import numpy as np
+
 from streetscapes import utils
 
 
@@ -29,8 +31,7 @@ class SVInstance:
         channel: int = None,
         hsv: bool = False,
     ) -> np.ndarray:
-        """
-        Return the pixel values corresponding to this instance's mask.
+        """Return the pixel values corresponding to this instance's mask.
 
         Args:
             channel: Specific channel to extract (e.g. 0=R, 1=G, 2=B).
@@ -38,6 +39,7 @@ class SVInstance:
 
         Returns:
             np.ndarray: The masked pixel values (N, C) or (N,) if single channel.
+
         """
         image = utils.open_image(self.image_path)
         if hsv:
@@ -52,13 +54,11 @@ class SVInstance:
 
     def visualise(
         self,
-        title: str = None,
+        title: str | None = None,
         figsize: tuple[int, int] = (16, 6),
-        channel: int = None,
+        channel: int | None = None,
     ):
-        """
-        Visualise this instance isolated, with everything else blacked out.
-        """
+        """Visualise this instance isolated, with everything else blacked out."""
         import matplotlib.pyplot as plt
 
         fig, axes = plt.subplots(1, 1, figsize=figsize)
