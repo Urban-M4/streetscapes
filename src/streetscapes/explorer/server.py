@@ -49,14 +49,22 @@ app.add_middleware(
 PROJECT = CFG.active_project
 
 
-def _get_images(mapillary_table: ibis.Table):
-    data = mapillary_table.select("image", "thumb_original_url", "geometry").to_pandas()
+def _get_all_images(con: ibis.BaseBackend):
+    tables = [con.table("mapillary"), con.table("local")]
+    return _get_images(tables)
 
+
+def _get_images(tables: list[ibis.Table]):
+    dataframes = []
+    for table in tables:
+        dataframes.append(
+            table.select("image", "geometry").to_pandas()
+        )
+    data = pd.concat(dataframes)
     return [
         Image(*args)
         for args in zip(
             data["image"].astype(str),
-            data["thumb_original_url"],
             data["geometry"].y,
             data["geometry"].x,
             strict=True,
@@ -88,7 +96,6 @@ def _get_metadata(uuid: str) -> ImageMetadata:
     segmentations = get_segmentations(uuid, poly_fmt=str)
     return ImageMetadata(
         id=str(metadata["image"]),
-        url=metadata["thumb_2048_url"],
         lat=metadata["geometry"].y,
         lon=metadata["geometry"].x,
         width=int(metadata["width"]),
@@ -115,7 +122,7 @@ def _fetch_images(filter: FilterParams | None) -> list[Image]:
     """Fetch images that conform to a filter specification."""
     with _open_db(PROJECT) as con:
         if filter is None:
-            return _get_images(con.table("mapillary"))  # type: ignore[no-any-return]
+            return _get_all_images(con)  # type: ignore[no-any-return]
 
         # First filter on image table info
         images = con.table("images")
@@ -129,19 +136,22 @@ def _fetch_images(filter: FilterParams | None) -> list[Image]:
             match = con.table("images").tags.contains(tag)
             images = images.filter(match)
 
-        # Next filter on mapillary table info
-        mapillary = con.table("mapillary")
-        mapillary = mapillary.filter(mapillary.image.isin(images.uuid))
+        # Next filter on mapillary/local table info
+        sources: dict[str, ibis.Table] = {}
+        for source in ("mapillary", "local"):
+            src = con.table(source)
+            src = src.filter(src.image.isin(images.uuid))
+        
+            if filter.date_range is not None:
+                start = filter.date_range[0]
+                end = filter.date_range[1]
+                match_start = src.captured_at >= (start.timestamp() * 1000)
+                match_end = src.captured_at <= (end.timestamp() * 1000)
+                src = src.filter(match_start).filter(match_end)
 
-        if filter.date_range is not None:
-            start = filter.date_range[0].timestamp() * 1000
-            end = filter.date_range[1].timestamp() * 1000
-            match_start = mapillary.captured_at >= start
-            match_end = mapillary.captured_at <= end
-            mapillary = mapillary.filter(match_start).filter(match_end)
-
-        _match = mapillary.geometry.within(_bbox_to_polygon(filter))
-        mapillary = mapillary.filter(_match)
+            _match = src.geometry.within(_bbox_to_polygon(filter))
+            src = src.filter(_match)
+            sources[source] = src
 
         # Last filter on segmentation properties
         if any(
@@ -167,11 +177,12 @@ def _fetch_images(filter: FilterParams | None) -> list[Image]:
 
             valid_images = segmentations.distinct(on="image").image
 
-            _match = mapillary.image.isin(valid_images)
-            mapillary = mapillary.filter(_match)
+            for source, src in sources.items():
+                _match = src.image.isin(valid_images)
+                sources[source] = src.filter(_match)
 
         # Now we can request the valid images
-        return _get_images(mapillary)  # type: ignore[no-any-return]
+        return _get_images([src for _, src in sources.items()])  # type: ignore[no-any-return]
 
 
 def _update_img_prop(image_id: str, prop: str, value: Any):
@@ -225,12 +236,26 @@ def _get_unique_labels(con: ibis.BaseBackend):
     return list(labels)
 
 
+def _get_img_sources(con: ibis.BaseBackend) -> list[str]:
+    return con.table("images").distinct(on="source").source.to_pandas().to_list()  # type: ignore[no-any-return]
+
+
 def _get_daterange(con: ibis.BaseBackend) -> tuple[datetime, datetime]:
-    # Note: only implemented for mapillary
-    with _open_db(PROJECT) as con:
-        mapillary = con.table("mapillary")
-        start = datetime.fromtimestamp(mapillary.captured_at.min().to_pandas() / 1000)
-        end = datetime.fromtimestamp(mapillary.captured_at.max().to_pandas() / 1000)
+    sources = _get_img_sources(con)
+
+    mintimes = []
+    maxtimes = []
+    if len(sources) == 0:
+        msg = "No images found in database"
+        raise HTTPException(status_code=404, detail=msg)
+
+    for source in sources:
+        source_table = con.table(source)
+        mintimes.append(source_table.captured_at.min().to_pandas() / 1000)
+        maxtimes.append(source_table.captured_at.max().to_pandas() / 1000)
+
+    start = datetime.fromtimestamp(np.min(mintimes))
+    end = datetime.fromtimestamp(np.max(maxtimes))
     return (start, end)
 
 

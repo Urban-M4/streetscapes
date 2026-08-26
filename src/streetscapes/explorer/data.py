@@ -32,7 +32,6 @@ class FilterParams(Bbox):
 @dataclass
 class Image:
     id: str
-    url: str
     lat: float
     lon: float
 

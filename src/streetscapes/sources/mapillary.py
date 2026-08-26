@@ -203,7 +203,10 @@ class MapillaryClient:
             return None
 
         df["geometry"] = df["geometry"].apply(unpack_geometry)
-        df["computed_geometry"] = df["computed_geometry"].apply(unpack_geometry)
+        if df.get("computed_geometry") is None:
+            df["computed_geometry"] = None
+        else:
+            df["computed_geometry"] = df["computed_geometry"].apply(unpack_geometry)
 
         return df
 

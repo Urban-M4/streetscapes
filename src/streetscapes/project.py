@@ -127,7 +127,8 @@ class Project:
                 "make": "STRING",
                 "model": "STRING",
                 "orientation": "UBIGINT",
-                "timestamp": "TIMESTAMP",
+                "captured_at": "UBIGINT",
+                "compass_angle": "FLOAT8",
                 "width": "UBIGINT",
                 "height": "UBIGINT",
                 "altitude": "FLOAT4",
@@ -694,6 +695,7 @@ class Project:
             )
             image_data.append(entry)
             exif = utils.extract_exif_data(ip)
+            exif["captured_at"] = int(exif["timestamp"].timestamp() * 1000)
             exif["image"] = uid
             exif_data.append(exif)
 
@@ -712,6 +714,15 @@ class Project:
         )
 
         df.insert(loc=0, column="uuid", value=None)
+
+        expected_colcount = len(self.core_tables["mapillary"]["schema"])
+        if df.columns.size != expected_colcount:
+            msg = (
+                "Missing columns in image. Skipping..."
+                f"Image is available at {df.get("thumb_2048_url")}"
+            )
+            logger.error(msg)
+            return None
 
         self._con.con.register("metadata_tile", df)
 
