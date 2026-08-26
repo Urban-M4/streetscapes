@@ -2,14 +2,14 @@ import logging
 import os
 from typing import Any
 
+import ray
 from ray import serve
 from ray.serve.handle import DeploymentHandle
 from rich.console import Console  # TODO: import from cli.console, or just use logger?
-import ray
 
 from streetscapes.models.bfms.service import BFMSService
-from streetscapes.models.maskformer.service import MaskFormerService
 from streetscapes.models.dinosam.service import DinoSAMService
+from streetscapes.models.maskformer.service import MaskFormerService
 
 os.environ["RAY_ACCEL_ENV_VAR_OVERRIDE_ON_ZERO"] = "0"
 

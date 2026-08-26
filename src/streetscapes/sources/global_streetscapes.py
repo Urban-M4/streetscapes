@@ -1,18 +1,14 @@
 import operator
-
 import typing as tp
-
 from abc import ABC, abstractmethod
 from pathlib import Path
 
 import ibis
-
 from huggingface_hub import hf_hub_download, scan_cache_dir, try_to_load_from_cache
 from huggingface_hub.constants import HF_HUB_CACHE
 from huggingface_hub.file_download import repo_folder_name
 
 from streetscapes import logger, utils
-
 from streetscapes.sources.base import SourceBase
 
 

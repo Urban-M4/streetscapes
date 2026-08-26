@@ -1,9 +1,8 @@
-import numpy as np
-from typing import Any
-from PIL import Image
-import torch
 
+import numpy as np
 import open_clip
+import torch
+from PIL import Image
 
 
 class OpenCLIP:

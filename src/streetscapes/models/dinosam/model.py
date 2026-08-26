@@ -1,7 +1,9 @@
-import numpy as np
 import uuid
+
+import numpy as np
 from PIL import Image
 from tqdm import tqdm
+
 from streetscapes import utils
 from streetscapes.utils import logger
 

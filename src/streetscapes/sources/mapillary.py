@@ -41,7 +41,7 @@ class MapillaryClient:
         # Or fetch directly as GeoDataFrame
         gdf = client.fetch_metadata_bbox_gpd(bbox)
 
-    Methods
+    Methods:
     -------
     fetch_metadata_bbox(bbox: tuple[float, float, float, float], limit: int = 1000) -> pd.DataFrame
         Fetch metadata for a bounding box and return as a pandas DataFrame.
@@ -87,8 +87,7 @@ class MapillaryClient:
         uid: uuid.UUID | None = None,
         skip_existing: bool = True,
     ) -> ImageMeta:
-        """
-        Download image from a URL to output_path.
+        """Download image from a URL to output_path.
 
         Args:
             url: The download URL.
@@ -96,10 +95,10 @@ class MapillaryClient:
             image_id: Mapillary image ID.
             uid: Image UUID (from the SHA-256 hash).
             skip_existing: Don't re-download existing images.
+
         Returns:
             Image metadata.
         """
-
         output_path = output_dir
         if output_dir is not None:
             output_dir = Path(output_dir)
@@ -170,7 +169,7 @@ class MapillaryClient:
         Geometry columns are converted to WKT strings for downstream processing
         with GeoPandas or spatial databases like DuckDB.
 
-        Note
+        Note:
         ----
         The Mapillary API endpoint doesn't support pagination beyond ~2000 results.
         For dense areas (like Amsterdam), consider splitting your bounding box into
@@ -183,7 +182,7 @@ class MapillaryClient:
         limit : int
             Maximum number of images to fetch (default 1000).
 
-        Returns
+        Returns:
         -------
         pd.DataFrame
             DataFrame with Mapillary metadata and WKT geometry columns.
@@ -218,7 +217,7 @@ class MapillaryClient:
 
         Geometry columns are parsed from WKT and the CRS is set to EPSG:4326.
 
-        Note
+        Note:
         ----
         The Mapillary API endpoint doesn't support pagination beyond ~2000 results.
         For dense areas (like Amsterdam), consider splitting your bounding box into
@@ -231,7 +230,7 @@ class MapillaryClient:
         limit : int
             Maximum number of images to fetch (default 1000).
 
-        Returns
+        Returns:
         -------
         gpd.GeoDataFrame
             GeoDataFrame with Mapillary metadata and geometry columns.

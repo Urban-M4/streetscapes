@@ -1,18 +1,16 @@
 from contextlib import contextmanager
 from pathlib import Path
 from typing import Any, Callable, Generator, Type, overload
-
-from PIL import Image
-import ibis
-import numpy as np
 from uuid import UUID
 
+import ibis
+import numpy as np
+from PIL import Image
 from shapely import Polygon
 from shapely.ops import transform
 
 from streetscapes.config import CFG
-from streetscapes.utils.data_structures import Segmentation
-from streetscapes.utils.data_structures import Instance
+from streetscapes.utils.data_structures import Instance, Segmentation
 
 
 def _flip(x, y):
@@ -62,7 +60,8 @@ def get_image_path(
 ) -> Path:
     """Load image based on UUID.
     
-    NOTE: large overlap with _get_image from explorer code."""
+    NOTE: large overlap with _get_image from explorer code.
+    """
     db = open_project(project=project)
     imgs = db.table("images")
     imgs = imgs.filter(imgs.uuid == uuid)

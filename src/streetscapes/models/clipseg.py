@@ -1,9 +1,9 @@
+
 import numpy as np
-from typing import Any
-from transformers import CLIPSegForImageSegmentation, CLIPSegProcessor
 import torch
-from PIL import Image
 import torchvision as tv
+from PIL import Image
+from transformers import CLIPSegForImageSegmentation, CLIPSegProcessor
 
 
 class CLIPSeg:

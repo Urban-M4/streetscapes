@@ -46,7 +46,6 @@ def cli(
         overwrite: Overwrite an existing run.
         verbose: Print verbose log to the terminal. Useful for debugging models.
     """
-
     # Open the project
     proj = Project(project)
 
@@ -68,7 +67,7 @@ def cli(
     if image_path is not None:
         image_paths = utils.get_image_paths(image_path)
         if len(image_paths) == 0:
-            logger.info(f"Nothing to process.")
+            logger.info("Nothing to process.")
             return
 
         uids = list(map(utils.get_image_uuid, image_paths))
@@ -77,7 +76,7 @@ def cli(
     _, unprocessed = proj.get_segmentation_status(uids, run)
 
     if len(unprocessed) == 0:
-        logger.info(f"Nothing to process.")
+        logger.info("Nothing to process.")
         return
 
     handle = serve_model(model, verbose, **model_params)

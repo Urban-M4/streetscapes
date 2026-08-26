@@ -15,8 +15,7 @@ class BFMSResponse(BaseModel):
 
 
 class BFMSService:
-    """
-    Inference service for the BFMS model.
+    """Inference service for the BFMS model.
 
     Exposes BFMS inferece as a structured request/response
     interface usable by Ray Serve.

@@ -3,7 +3,6 @@ import os
 
 from cyclopts import App
 
-
 logger = logging.getLogger(__name__)
 
 export_cli = App(help="Export tables from the project.")

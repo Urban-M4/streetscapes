@@ -27,7 +27,7 @@ def estimate_illumination(Y, sigma_shade=100, method="linear"):
         sigma_shade: float, Gaussian smoothing parameter
         method: str, 'linear' or 'retinex'
 
-    Returns
+    Returns:
     -------
         illum_est: ndarray, estimated illumination map
 

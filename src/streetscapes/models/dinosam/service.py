@@ -1,8 +1,9 @@
+import uuid
+
 import numpy as np
 import orjson as oj
 from pydantic import BaseModel
-import uuid
-from streetscapes import utils
+
 from streetscapes.models.dinosam.model import DinoSAM
 
 

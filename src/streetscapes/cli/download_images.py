@@ -1,5 +1,4 @@
 import logging
-import os
 from pathlib import Path
 
 import typer
@@ -122,9 +121,9 @@ def mapillary(
                 logger.error(e)
                 continue
 
-        tags = ['mapillary']
+        tags = ["mapillary"]
         if is_pano:
-            tags.append('panoramic')
+            tags.append("panoramic")
         if camera_type is not None:
             tags.append(camera_type)
 

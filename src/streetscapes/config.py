@@ -1,10 +1,12 @@
 import os
+from pathlib import Path
+
+import orjson as oj
+from platformdirs import user_cache_path, user_config_path, user_data_path
 from pydantic import field_validator
 from pydantic_settings import BaseSettings
-from pathlib import Path
-import orjson as oj
+
 from streetscapes.utils import ensure_dir
-from platformdirs import user_config_path, user_cache_path, user_data_path
 
 CONFIG_FILE = user_config_path("streetscapes", ensure_exists=True) / "config.json"
 

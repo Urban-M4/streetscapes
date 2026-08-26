@@ -1,22 +1,20 @@
-from typing import Any, Literal
 import os
 import re
 import sys
-from typing import TYPE_CHECKING
 import uuid
 from collections.abc import Iterable
-from datetime import datetime, UTC
+from datetime import UTC, datetime
 from hashlib import sha256
 from pathlib import Path
+from typing import TYPE_CHECKING, Any, Literal
 
-from PIL import Image
-import numpy as np
-import filetype as ft
-import seedir as sd
-
-from dotenv import load_dotenv
 import exifread
+import filetype as ft
+import numpy as np
+import seedir as sd
 import shapely
+from dotenv import load_dotenv
+from PIL import Image
 
 from streetscapes.utils.metadata import ImageMeta
 
@@ -28,8 +26,8 @@ else:
 
 if TYPE_CHECKING:  # Delay slow imports for CLI responsiveness
     import geopandas as gpd
-    import shapely
     import numpy as np
+    import shapely
     import torch
 
 
@@ -57,7 +55,6 @@ def iso_timestamp(
     Returns:
         The formatted timestamp.
     """
-
     ts = datetime.now(UTC) if utc else datetime.now()
 
     if fmt is not None:
@@ -236,8 +233,8 @@ def as_rgb(
         The RGB image.
 
     """
-    import skimage as ski
     import numpy as np
+    import skimage as ski
 
     if len(image.shape) == 2:
         # The image is already greyscale.
@@ -367,7 +364,6 @@ def plot_metadata(gdf: "gpd.GeoDataFrame", ax=None):
 
     """
     import contextily as ctx
-    import geopandas as gpd
 
     if ax is None:
         import matplotlib.pyplot as plt
@@ -475,7 +471,6 @@ def get_image_hash(image: str | Path | bytes) -> bytes:
     Returns:
         SHA-256 digest.
     """
-
     if not ft.is_image(image):
         raise ValueError("The provided file is not an image.")
 
@@ -496,7 +491,6 @@ def hash2uuid(ihash: bytes) -> uuid.UUID:
     Returns:
         A UUID.
     """
-
     return uuid.UUID(ihash.hex()[::2])
 
 
@@ -509,7 +503,6 @@ def get_image_uuid(image: str | Path | bytes) -> uuid.UUID:
     Returns:
         Image UUID.
     """
-
     if not ft.is_image(image):
         msg = "Input image type of is not supported!"
         raise ValueError(msg)
@@ -518,8 +511,7 @@ def get_image_uuid(image: str | Path | bytes) -> uuid.UUID:
 
 
 def get_image_paths(path: str | Path) -> list[Path]:
-    """
-    Get only the image paths in a directory.
+    """Get only the image paths in a directory.
 
     Args:
         path: A directory of images.
@@ -527,7 +519,6 @@ def get_image_paths(path: str | Path) -> list[Path]:
     Returns:
         Image paths.
     """
-
     if not isinstance(path, Path | str):
         raise ValueError(f"Invalid path '{path}'")
 
@@ -549,8 +540,7 @@ def get_image_paths(path: str | Path) -> list[Path]:
 
 
 def get_image_metadata(image: bytes | str | Path) -> ImageMeta:
-    """
-    Get some reproducible image metadata.
+    """Get some reproducible image metadata.
 
     Args:
         image: Binary content or a path to an existing image.
@@ -558,7 +548,6 @@ def get_image_metadata(image: bytes | str | Path) -> ImageMeta:
     Returns:
         An object contiaining the image metadata.
     """
-
     _hash = get_image_hash(image)
     _uuid = hash2uuid(_hash)
     ext = ft.guess_extension(image).lower()
@@ -593,8 +582,8 @@ def get_geohash_shard_path(location: "shapely.Point"):
     de/ --> neighbourhood scale (max 32x32 = 1024 per region)
     fg/ --> block level  (max 32x32 = 1024 per neighbourhood)
     """
-    import shapely
     import pygeohash
+    import shapely
 
     geom = shapely.from_wkb(location)  # type: ignore[call-overload]
     geohash = pygeohash.encode(geom.y, geom.x, precision=7)  # 153m x 153m
@@ -602,8 +591,7 @@ def get_geohash_shard_path(location: "shapely.Point"):
 
 
 def uuid7(as_str: bool = False) -> uuid.UUID | str:
-    """
-    Return a UUID7 instance, optionally converted to string.
+    """Return a UUID7 instance, optionally converted to string.
 
     Args:
         as_str: If True, convert the UUID to string before returning.
@@ -619,8 +607,7 @@ def to_deg(
     dms: list[int | float] | None,
     reference: Literal["N", "E", "S", "W"] | None = None,
 ) -> float:
-    """
-    Convert [deg, min, s] to degrees.
+    """Convert [deg, min, s] to degrees.
 
     Args:
         dms: A list containing degrees, minutes and seconds.
@@ -629,7 +616,6 @@ def to_deg(
     Returns:
         Latitude or longitude coordinate in decimal degrees.
     """
-
     if dms is None:
         return 0.0
 
@@ -639,8 +625,7 @@ def to_deg(
 
 
 def extract_exif_data(impath: Path) -> dict[str, Any]:
-    """
-    Extract EXIF metadata from an image file.
+    """Extract EXIF metadata from an image file.
 
     Args:
         impath: Path to an image.
@@ -685,7 +670,7 @@ def extract_exif_data(impath: Path) -> dict[str, Any]:
         "fstop": ("EXIF FNumber", float),
     }
 
-    data = {k: None for k in mapping}
+    data = dict.fromkeys(mapping)
 
     for k, (val, caster) in mapping.items():
 

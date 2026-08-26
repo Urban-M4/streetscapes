@@ -2,10 +2,9 @@
 
 import webbrowser
 from datetime import datetime
-from typing import Annotated, Any
 from itertools import chain
+from typing import Annotated, Any
 
-from fastapi.responses import FileResponse
 import ibis
 import numpy as np
 import pandas as pd
@@ -15,6 +14,7 @@ from cyclopts import App, Parameter
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.params import Query
+from fastapi.responses import FileResponse
 from shapely.geometry import Polygon
 
 from streetscapes import CFG
@@ -25,9 +25,12 @@ from streetscapes.explorer.data import (
     Image,
     ImageMetadata,
 )
-from streetscapes.utils.db_access import get_image_path, get_segmentations
-from streetscapes.utils.db_access import _validate_rating
-from streetscapes.utils.db_access import _open_db
+from streetscapes.utils.db_access import (
+    _open_db,
+    _validate_rating,
+    get_image_path,
+    get_segmentations,
+)
 
 app = FastAPI()
 
@@ -196,7 +199,7 @@ def _update_img_prop(image_id: str, prop: str, value: Any):
         imgd = img.to_dict()
         imgd[prop][0] = value  # workaround for replacing lists
         con.con.register("updated_df", pd.DataFrame(imgd))
-        con.raw_sql(f"INSERT OR REPLACE INTO images FROM updated_df;")
+        con.raw_sql("INSERT OR REPLACE INTO images FROM updated_df;")
 
 
 def _update_segmentation_rating(image_id: str, run_name: str, rating: int):
@@ -211,7 +214,7 @@ def _update_segmentation_rating(image_id: str, run_name: str, rating: int):
         imgd = seg.to_dict()
         imgd["rating"][0] = rating
         con.con.register("updated_df", pd.DataFrame(imgd))
-        con.raw_sql(f"INSERT OR REPLACE INTO segmentations FROM updated_df;")
+        con.raw_sql("INSERT OR REPLACE INTO segmentations FROM updated_df;")
 
 
 def _unknown_image(image_id):

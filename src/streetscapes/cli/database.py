@@ -3,9 +3,8 @@ from pathlib import Path
 from typing import TYPE_CHECKING
 
 from cyclopts import App
-
-from rich.table import Table
 from rich.console import Console
+from rich.table import Table
 
 from streetscapes import CFG
 

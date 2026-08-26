@@ -1,13 +1,12 @@
 from typing import Optional
 
-import numpy as np
-
-import shapely
 import matplotlib
 import matplotlib.axes
-import rasterio.features
-import matplotlib.pyplot as plt
 import matplotlib.patches as patches
+import matplotlib.pyplot as plt
+import numpy as np
+import rasterio.features
+import shapely
 from PIL.Image import Image
 
 
@@ -43,7 +42,7 @@ def plot_multipolygon(poly: shapely.MultiPolygon, ax: Optional[matplotlib.axes.A
         xs, ys = geom.exterior.xy
         if ax is None:
             ax = plt  # type: ignore
-        ax.fill(xs, ys, alpha=0.5, fc=color, ec='none')  # type: ignore
+        ax.fill(xs, ys, alpha=0.5, fc=color, ec="none")  # type: ignore
 
 
 def mask_image(img: Image, mask: np.ndarray) -> np.ma.MaskedArray:
@@ -61,7 +60,7 @@ def mask_image(img: Image, mask: np.ndarray) -> np.ma.MaskedArray:
 def display_color(rgb: tuple[float, float, float]) -> None:
     """Display an RGB color as a rectangle, for debugging and testing."""
     rgb = tuple([c / 255 for c in rgb])  # type: ignore
-    rect = patches.Rectangle((0, 0), 1, 1, edgecolor='none', facecolor=rgb)
+    rect = patches.Rectangle((0, 0), 1, 1, edgecolor="none", facecolor=rgb)
     _, ax = plt.subplots(1,1, figsize=(1,1))
     ax.add_patch(rect)
     ax.set_axis_off()

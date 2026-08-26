@@ -1,7 +1,8 @@
-import numpy as np
 import uuid
-from streetscapes import logger
-from streetscapes import utils
+
+import numpy as np
+
+from streetscapes import logger, utils
 
 
 class MaskFormer:

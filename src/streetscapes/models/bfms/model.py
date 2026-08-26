@@ -4,6 +4,7 @@ from typing import Any
 import numpy as np
 import torch
 from PIL import Image
+
 from streetscapes import utils
 from streetscapes.config import CFG
 

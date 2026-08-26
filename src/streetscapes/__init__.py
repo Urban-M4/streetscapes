@@ -1,7 +1,10 @@
 import os
+
 from dotenv import load_dotenv
-from streetscapes.utils import logger
+
 from streetscapes.config import CFG
+from streetscapes.utils import logger
+
 
 def get_env(key: str):
     load_dotenv()
