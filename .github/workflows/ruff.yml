@@ -22,4 +22,4 @@ jobs:
       - name: Run Ruff
         id: ruff
         run: |
-          ruff check src --exit-zero --output-format github
+          ruff check src --output-format github
