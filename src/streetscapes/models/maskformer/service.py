@@ -1,5 +1,6 @@
 """Maskformer inference service."""
-from typing import TYPE_CHECKING
+
+import uuid
 
 import numpy as np
 import orjson as oj
@@ -7,8 +8,6 @@ from pydantic import BaseModel
 
 from streetscapes.models.maskformer.model import MaskFormer
 
-if TYPE_CHECKING:
-    import uuid
 
 class MaskFormerImage(BaseModel):
     uid: uuid.UUID

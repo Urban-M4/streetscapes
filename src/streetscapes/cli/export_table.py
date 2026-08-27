@@ -1,3 +1,5 @@
+"""Export table CLI."""
+
 import logging
 import os
 
@@ -18,7 +20,8 @@ def export_table(
 
     Args:
         table_name: The name of the table to export.
-        output: Output file path (must have .csv, .parquet, .json, .gpkg, or .geojson extension).
+        output: Output file path (must have .csv, .parquet, .json, .gpkg, or
+            .geojson extension).
         project: Optionally specify the project to work on.
     """
     from streetscapes.project import Project

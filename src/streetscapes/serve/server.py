@@ -1,4 +1,5 @@
 """CV model serving."""
+
 import logging
 import os
 from typing import TYPE_CHECKING, Any
@@ -29,6 +30,7 @@ MODEL_REGISTRY = {
 )
 class ModelApp:
     """CV model app wrapper."""
+
     def __init__(self, model: str, /, **kwargs):
         """Initialize a model."""
         self.con = Console()

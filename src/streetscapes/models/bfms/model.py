@@ -1,3 +1,5 @@
+"""Building/Facade Material Segmentation model."""
+
 import hashlib
 from typing import Any
 
@@ -21,6 +23,7 @@ class BFMS:
 
         Args:
             device: Specify a device to run the model on.
+            model_id: Huggingface model ID to use for the model.
         """
         import transformers as tform
 
@@ -192,6 +195,7 @@ id2label = {
 
 
 def md5(path, chunk_size=8192):
+    """Generate a MD5 hash from a path."""
     h = hashlib.md5()
     with open(path, "rb") as f:
         for chunk in iter(lambda: f.read(chunk_size), b""):

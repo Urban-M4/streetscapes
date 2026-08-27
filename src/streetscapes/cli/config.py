@@ -1,3 +1,9 @@
+"""Config handling CLI.
+
+Usage:
+> streetscapes config --help
+"""
+
 import sys
 from pprint import pp
 
@@ -12,7 +18,7 @@ config_cli = App(name="config")
 
 @config_cli.command(name="set")
 def set_config(key: str, value: str):
-    """Set a global streetscapes config value
+    """Set a global streetscapes config value.
 
     Args:
         key: The configuration option.

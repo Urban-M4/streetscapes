@@ -1,5 +1,6 @@
 """DinoSAM model inference service."""
-from typing import TYPE_CHECKING
+
+import uuid
 
 import numpy as np
 import orjson as oj
@@ -7,8 +8,6 @@ from pydantic import BaseModel
 
 from streetscapes.models.dinosam.model import DinoSAM
 
-if TYPE_CHECKING:
-    import uuid
 
 class DinoSAMImage(BaseModel):
     uid: uuid.UUID

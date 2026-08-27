@@ -1,4 +1,5 @@
-"""Streetscapes project handling."""
+"""Streetscapes project."""
+
 import shutil
 import uuid
 from pathlib import Path
@@ -182,7 +183,7 @@ class Project:
 
     @property
     def image_path(self) -> Path:
-        """"Get the path to the images directory."""
+        """ "Get the path to the images directory."""
         return self.image_dir / "images"
 
     @property
@@ -611,7 +612,7 @@ class Project:
 
         Args:
             images: A list of dictionaries containing image information.
-            exif_data: Metadata extracted from the images' EXIF tags. 
+            exif_data: Metadata extracted from the images' EXIF tags.
                        Note: only used for locally imported images.
             overwrite: Replace or ignore conflicting data.
         """

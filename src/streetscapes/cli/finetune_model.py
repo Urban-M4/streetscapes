@@ -1,3 +1,5 @@
+"""Finetune CLI (not implemented)."""
+
 import typer
 
 finetune_model_cli = typer.Typer(help="Finetune segmentation models.")

@@ -1,3 +1,5 @@
+"""Streetscapes config handler."""
+
 import os
 from pathlib import Path
 
@@ -29,6 +31,7 @@ class Configuration(BaseSettings):
         return ensure_dir(value)
 
     def save(self):
+        """Save configuration to file."""
         CONFIG_FILE.write_text(self.model_dump_json(indent=4))
 
 

@@ -1,3 +1,9 @@
+"""Image download CLI.
+
+usage:
+> streetscapes download-images --help
+"""
+
 import logging
 from pathlib import Path
 
@@ -80,7 +86,8 @@ def mapillary(
     token = token or CFG.mapillary_token
     if not token:
         logger.error(
-            "Error: 'mapillary_token' missing, set with `streetscapes config set mapillary_token <your token>`"
+            "Error: 'mapillary_token' missing, set with `streetscapes config set "
+            "mapillary_token <your token>`"
         )
         raise typer.Exit(code=1)
 
@@ -143,5 +150,6 @@ def mapillary(
     proj.add_images(image_data)
 
     console.print(
-        f"Download complete: {downloaded}/{total} images saved under {proj.get_image_dir_for_source('mapillary')}."
+        f"Download complete: {downloaded}/{total} images saved under "
+        f"{proj.get_image_dir_for_source('mapillary')}."
     )

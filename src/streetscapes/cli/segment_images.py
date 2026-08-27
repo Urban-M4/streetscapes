@@ -1,3 +1,5 @@
+"""Segment images CLI."""
+
 from cyclopts import App
 
 segment_images_cli = App(help="Segment images")

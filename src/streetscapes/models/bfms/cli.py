@@ -1,3 +1,5 @@
+"""BFMS command line interface."""
+
 from typing import cast
 
 import imageio.v3 as iio

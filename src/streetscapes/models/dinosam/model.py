@@ -1,4 +1,5 @@
 """DinoSAM model."""
+
 from typing import TYPE_CHECKING
 
 import numpy as np
@@ -11,7 +12,10 @@ from streetscapes.utils import logger
 if TYPE_CHECKING:
     import uuid
 
+
 class DinoSAM:
+    """Model combining SAM2 and GroundingDINO for promptable instance segmentation."""
+
     def __init__(
         self,
         sam_model_id: str = "facebook/sam2.1-hiera-large",
@@ -19,8 +23,6 @@ class DinoSAM:
         box_threshold: float = 0.3,
         text_threshold: float = 0.3,
         device: str | None = None,
-        *args,
-        **kwargs,
     ):
         """Model combining SAM2 and GroundingDINO for promptable instance segmentation.
 
@@ -39,25 +41,21 @@ class DinoSAM:
                 so a higher value makes the model more selective because
                 it is equivalent to requiring the model to only select
                 objects that it feels confident about.
-            text_threshold: This parameter is also used for influencing the selectivity 
-                of the model by requiring a stronger association between the prompt 
+            text_threshold: This parameter is also used for influencing the selectivity
+                of the model by requiring a stronger association between the prompt
                 and the segment.
             device: Specify a device to run the model on.
-
         """
         import transformers
 
         self.device = utils.get_device(device)
 
         # Model parameters
-        # ==================================================
         self.sam_model_id = sam_model_id
         self.dino_model_id = dino_model_id
         self.box_threshold = box_threshold
         self.text_threshold = text_threshold
 
-        # Processors and models
-        # ==================================================
         # GroundingDINO model.
         self.dino_processor = transformers.AutoProcessor.from_pretrained(
             self.dino_model_id,

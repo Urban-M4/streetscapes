@@ -1,3 +1,5 @@
+"""BFMS model service."""
+
 import numpy as np
 import orjson as oj
 from pydantic import BaseModel
@@ -22,9 +24,14 @@ class BFMSService:
     """
 
     def __init__(self, model_id: str):
+        """Inference service for the BFMS model.
+
+        model_id: Huggingface model ID.
+        """
         self.model = BFMS(model_id=model_id)
 
     def handle(self, request: dict) -> BFMSResponse:
+        """Run a segmentation request."""
         req = BFMSRequest(**request)
 
         image = np.array(oj.loads(req.image), dtype=np.uint8)

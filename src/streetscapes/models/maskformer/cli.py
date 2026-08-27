@@ -1,4 +1,5 @@
 """MaskFormer CLI."""
+
 from itertools import batched
 from typing import cast
 

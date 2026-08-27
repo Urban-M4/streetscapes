@@ -3,9 +3,8 @@
 import webbrowser
 from datetime import datetime
 from itertools import chain
-from typing import Annotated, Any
+from typing import TYPE_CHECKING, Annotated, Any
 
-import ibis
 import numpy as np
 import pandas as pd
 import uvicorn
@@ -31,6 +30,9 @@ from streetscapes.utils.db_access import (
     get_image_path,
     get_segmentations,
 )
+
+if TYPE_CHECKING:
+    import ibis
 
 app = FastAPI()
 
@@ -74,6 +76,7 @@ def _get_images(tables: list[ibis.Table]):
 
 
 def raise_httpexception(msg: str) -> None:
+    """Raise 404 error with the provided error message."""
     HTTPException(status_code=404, detail=msg)
 
 
@@ -119,6 +122,7 @@ def _bbox_to_polygon(bbox: Bbox) -> Polygon:
     )
 
 
+# ruff: noqa: C901
 def _fetch_images(filter: FilterParams | None) -> list[Image]:
     """Fetch images that conform to a filter specification."""
     with _open_db(PROJECT) as con:
@@ -297,7 +301,7 @@ async def fetch_stats() -> AggregateStats:
 
 @app.get("/images")
 async def fetch_images(filter: Annotated[FilterParams, Query()]) -> list[Image]:
-    """Fetch streetscape images corresponding to a bounding box and optionally filters."""
+    """Fetch images corresponding to a bounding box and optionally filters."""
     return _fetch_images(filter)
 
 
@@ -379,12 +383,14 @@ async def _serve(port: int, host: str, open_webpage: bool, log_info: bool):
         )
         print(
             "The streetscapes-explorer should have launched automatically.\n"
-            "To open it manually, go to https://urban-m4.github.io/streetscapes-explorer/ and "
+            "To open it manually, go to "
+            "https://urban-m4.github.io/streetscapes-explorer/ and "
         )
     else:
         print(
             "Starting the streetscapes-explorer...\n\n"
-            "To open the explorer, go to https://urban-m4.github.io/streetscapes-explorer/ and "
+            "To open the explorer, go to "
+            "https://urban-m4.github.io/streetscapes-explorer/ and "
         )
     print(
         f"paste in http://localhost:{port} as web service.\n"

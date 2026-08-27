@@ -1,4 +1,5 @@
 """MaskFormer model."""
+
 from typing import TYPE_CHECKING
 
 from streetscapes import logger, utils
@@ -8,8 +9,10 @@ if TYPE_CHECKING:
 
     import numpy as np
 
+
 class MaskFormer:
     """MaskFormer model."""
+
     # All the labels recognised by Mask2Former.
     id_to_label = {
         0: "bird",
@@ -103,7 +106,7 @@ class MaskFormer:
             mask_threshold: Threshold to use when turning the predicted masks into
                 binary values.
             overlap_mask_area_threshold: The overlap mask area threshold to merge or
-                discard small disconnected parts within each binary instance mask. 
+                discard small disconnected parts within each binary instance mask.
                 The overlap mask area threshold to merge or discard small disconnected
                 parts within each binary instance mask.
             labels_to_fuse: The labels in this state will have all their instances

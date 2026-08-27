@@ -1,3 +1,9 @@
+"""Streetscapes command line interface.
+
+For usage see:
+> streetscapes --help
+"""
+
 from cyclopts import App
 from dotenv import load_dotenv
 
