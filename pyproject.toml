@@ -108,3 +108,4 @@ dev = [
     "types-shapely",
     "types-requests",
 ]
+sam3 = ["ultralytics>=8.3.237"]
