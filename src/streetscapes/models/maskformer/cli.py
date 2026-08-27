@@ -1,3 +1,4 @@
+"""MaskFormer CLI."""
 from itertools import batched
 from typing import cast
 
@@ -30,15 +31,18 @@ def cli(
     """Segment images with MaskFormer.
 
     Args:
-        image_path: Path to the images to be segmented. If not provided uses all downloaded images in the project.
+        image_path: Path to the images to be segmented. If not provided uses all
+            downloaded images in the project.
         labels: Labels to focus on.
         batch_size: Batch size for the segmentation model.
         model_id: Mask2Former model to load.
         threshold: The probability score threshold to keep predicted instance masks.
-        mask_threshold: Threshold to use when turning the predicted masks into binary values.
+        mask_threshold: Threshold to use when turning the predicted masks into binary
+            values.
         overlap_threshold: The overlap mask area threshold to merge or discard small
             disconnected parts within each binary instance mask.
-        fuse_labels: The labels in this state will have all their instances fused together.
+        fuse_labels: The labels in this state will have all their instances fused
+            together.
         run: Model run ID.
         project: The project to use. Uses the active project by default.
         overwrite: Overwrite an existing run.

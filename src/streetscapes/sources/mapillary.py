@@ -1,4 +1,5 @@
 """Mapillary related functionality."""
+
 import logging
 from pathlib import Path
 from time import sleep

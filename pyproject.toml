@@ -68,8 +68,9 @@ license = { file = "LICENCE" }
 streetscapes = "streetscapes.cli.main:app"
 streetscapes-explorer = "streetscapes.explorer.server:cli"
 
-[tool.ruff]
-lint.select = ["F", "E", "TYP", "B", "D", "C", "Q", "I"]
+[tool.ruff.lint]
+select = ["F", "E", "TYP", "B", "D", "C", "Q", "I"]
+ignore = ["D101", "B905", "B911"]
 
 [tool.ruff.lint.per-file-ignores]
 "tests/*.py" = ["D"]

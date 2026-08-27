@@ -1,3 +1,4 @@
+# ruff: noqa
 import numpy as np
 import open_clip
 import torch

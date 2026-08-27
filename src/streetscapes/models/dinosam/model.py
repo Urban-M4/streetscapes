@@ -1,4 +1,5 @@
-import uuid
+"""DinoSAM model."""
+from typing import TYPE_CHECKING
 
 import numpy as np
 from PIL import Image
@@ -7,6 +8,8 @@ from tqdm import tqdm
 from streetscapes import utils
 from streetscapes.utils import logger
 
+if TYPE_CHECKING:
+    import uuid
 
 class DinoSAM:
     def __init__(
@@ -19,8 +22,8 @@ class DinoSAM:
         *args,
         **kwargs,
     ):
-        """A model combining SAM2 and GroundingDINO for promptable instance segmentation.
-    
+        """Model combining SAM2 and GroundingDINO for promptable instance segmentation.
+
         Inspired by [LangSAM](https://github.com/luca-medeiros/lang-segment-anything)
         and [SamGeo](https://samgeo.gishub.org/samgeo/).
 
@@ -36,8 +39,9 @@ class DinoSAM:
                 so a higher value makes the model more selective because
                 it is equivalent to requiring the model to only select
                 objects that it feels confident about.
-            text_threshold: This parameter is also used for influencing the selectivity of the model
-                by requiring a stronger association between the prompt and the segment.
+            text_threshold: This parameter is also used for influencing the selectivity 
+                of the model by requiring a stronger association between the prompt 
+                and the segment.
             device: Specify a device to run the model on.
 
         """
@@ -103,7 +107,7 @@ class DinoSAM:
         # ==================================================
         segmentations = []
 
-        for idx, (uid, image) in tqdm(enumerate(zip(uids, images)), total=len(images)):
+        for _idx, (uid, image) in tqdm(enumerate(zip(uids, images)), total=len(images)):
             # Dictionary that will hold all the information about the segmentation
             segmentation = {"uid": uid}
 

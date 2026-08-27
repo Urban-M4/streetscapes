@@ -1,3 +1,5 @@
+"""Image downloader."""
+
 import datetime
 import hashlib
 import shutil
@@ -7,6 +9,8 @@ from rich.progress import track
 
 
 class ImageDownloader:
+    """Base image downloader."""
+
     def __init__(
         self, source, manifest_dir: Path, images_dir: Path, shard_size: int = 1000
     ):

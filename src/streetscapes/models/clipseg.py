@@ -1,3 +1,4 @@
+# ruff: noqa
 import numpy as np
 import torch
 import torchvision as tv

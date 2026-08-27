@@ -1,4 +1,5 @@
 """Global Streetscapes related functionality."""
+
 import operator
 import typing as tp
 from abc import ABC, abstractmethod

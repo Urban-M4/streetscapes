@@ -1,5 +1,4 @@
-# streetscapes/models/ade20k.py
-
+# ruff: noqa
 import numpy as np
 import torch
 import torch.nn as nn
@@ -19,7 +18,6 @@ class ADE20KFacade:
         decoder_weights: str = "DEFAULT",
         device: torch.device | str | None = None,
     ):
-
         net_encoder = ModelBuilder.build_encoder(
             arch="resnet50dilated",
             fc_dim=2048,

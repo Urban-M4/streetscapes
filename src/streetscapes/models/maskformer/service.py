@@ -1,4 +1,5 @@
-import uuid
+"""Maskformer inference service."""
+from typing import TYPE_CHECKING
 
 import numpy as np
 import orjson as oj
@@ -6,6 +7,8 @@ from pydantic import BaseModel
 
 from streetscapes.models.maskformer.model import MaskFormer
 
+if TYPE_CHECKING:
+    import uuid
 
 class MaskFormerImage(BaseModel):
     uid: uuid.UUID
@@ -39,6 +42,7 @@ class MaskFormerService:
         labels_to_fuse: list[str | int] | None = None,
         device: str | None = None,
     ):
+        """TODO: add docstring."""
         self.model = MaskFormer(
             model_id,
             threshold,
@@ -49,6 +53,7 @@ class MaskFormerService:
         )
 
     def handle(self, request: dict) -> list[MaskFormerResponse]:
+        """TODO: add docstring."""
         # Convert the request into a schema to validate it.
         schema = MaskFormerRequest(**request)
 

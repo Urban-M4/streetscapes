@@ -1,4 +1,5 @@
-import uuid
+"""DinoSAM model inference service."""
+from typing import TYPE_CHECKING
 
 import numpy as np
 import orjson as oj
@@ -6,6 +7,8 @@ from pydantic import BaseModel
 
 from streetscapes.models.dinosam.model import DinoSAM
 
+if TYPE_CHECKING:
+    import uuid
 
 class DinoSAMImage(BaseModel):
     uid: uuid.UUID
@@ -39,11 +42,13 @@ class DinoSAMService:
         *args,
         **kwargs,
     ):
+        """Initialize DinoSAM service."""
         self.model = DinoSAM(
             sam_model_id, dino_model_id, box_threshold, text_threshold, *args, **kwargs
         )
 
     def handle(self, request: dict) -> list[DinoSAMResponse]:
+        """Handle a segmentation request to DinoSAM."""
         req = DinoSAMRequest(**request)
 
         uids = []
