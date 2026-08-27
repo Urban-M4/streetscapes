@@ -155,12 +155,13 @@ class MapillaryClient:
                 res = self.session.get(self.BASE_URL, params=params, timeout=20)  # type: ignore[arg-type]
                 res.raise_for_status()
                 return res.json().get("data", [])  # type: ignore[no-any-return]
-            except (requests.RequestException, ValueError):
+            except (requests.RequestException, ValueError) as e:
+                logger.error(e)
                 sleep_time = 0.5 * (attempt + 1)
                 logger.info(f"Request failed for {bbox=} - retrying in {sleep_time}")
                 sleep(sleep_time)
 
-        logger.warning(f"Failed to retrieve metadata for bbounding box: {bbox}")
+        logger.warning(f"Failed to retrieve metadata for bounding box: {bbox}")
         return []
 
     def fetch_metadata_bbox(self, bbox: Bbox, limit: int = 1000) -> pd.DataFrame:

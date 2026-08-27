@@ -2,10 +2,9 @@ import logging
 import os
 from pathlib import Path
 
+import typer
 from cyclopts import App
 from rich.progress import track
-
-import typer
 
 from streetscapes import CFG, utils
 from streetscapes.cli.console import console
@@ -73,7 +72,7 @@ def mapillary(
     console.print(f"Active project: {proj.name}")
     console.print(f"Data home: {proj.image_dir}")
 
-    records = proj.get_mapillary_download_records()
+    records = proj.get_mapillary_download_records(skip_existing)
 
     if not records:
         logger.info("No new images to download.")
@@ -114,7 +113,14 @@ def mapillary(
                 output_dir /= shard
 
         if not skip_existing or not _existing_img_valid(uid, image_id, output_dir, skip_existing):
-            uid = mapillary.download_image(url, output_dir, image_id, uid, skip_existing).uid
+            try:
+                img_meta = mapillary.download_image(
+                    url, output_dir, image_id, uid, skip_existing=skip_existing
+                )
+                uid = img_meta.uid
+            except Exception as e:
+                logger.error(e)
+                continue
 
         tags = ['mapillary']
         if is_pano:
