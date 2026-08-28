@@ -1,4 +1,5 @@
 """SAM3 segmentation service."""
+
 import uuid
 
 from pydantic import BaseModel

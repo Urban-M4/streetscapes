@@ -1,4 +1,5 @@
 """BFMS segmentation service."""
+
 from pydantic import BaseModel
 from ray import cloudpickle
 
