@@ -1,3 +1,4 @@
+"""Segment Anything Model version 3."""
 import numpy as np
 import uuid
 from PIL import Image
@@ -15,8 +16,6 @@ class SAM3:
         device: str | None = None,
         confidence: float = 0.25,
         quantisation: str | None = None,
-        *args,
-        **kwargs,
     ):
         """A SAM3 backend for StreetScapes.
         Uses the Ultralytics engine to allow for querying for multiple types of objects.
@@ -90,7 +89,7 @@ class SAM3:
 
         segmentations = []
 
-        for idx, (uid, image) in tqdm(enumerate(zip(uids, images)), total=len(images)):
+        for _, (uid, image) in tqdm(enumerate(zip(uids, images)), total=len(images)):
             # Dictionary that will hold all the information about the segmentation
             segmentation = {"uid": uid}
 

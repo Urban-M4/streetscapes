@@ -1,5 +1,6 @@
 """Command line interface for BFMS model."""
 
+import importlib.util
 import logging
 from itertools import batched
 from typing import cast
@@ -51,6 +52,14 @@ def cli(
         overwrite: Overwrite an existing run.
         verbose: Print verbose log to the terminal. Useful for debugging models.
     """
+    if importlib.util.find_spec("ultralytics") is None:
+        msg = (
+            "SAM3 requires extra dependencies. "
+            "Install these with `pip install streetscapes[sam3]` or"
+            "`uv sync --all-extras`."
+        )
+        raise ImportError(msg)
+
     if CFG.sam3_model_path is None:
         raise ValueError(
             "No SAM3 model weights configured. Configure the 'sam3_model_path' entry in "
