@@ -38,7 +38,7 @@ def cli(
     > streetscapes config set sam3_model_path "/abs/path/to/file.pt".
 
     Args:
-        prompt: The prompt to use for this model.
+        prompt: The prompt to use for this model (e.g. "tree,bench,sign").
         image_path: Path to an image or a directory of images.
             If not provided uses all downloaded images in the project.
         batch_size: Batch size for the segmenter.
