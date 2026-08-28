@@ -1,6 +1,5 @@
-import numpy as np
-import orjson as oj
 from pydantic import BaseModel
+from ray import cloudpickle
 import uuid
 from streetscapes.utils import logger
 from streetscapes.models.maskformer.model import MaskFormer
@@ -55,7 +54,7 @@ class MaskFormerService:
         images = []
         for entry in schema.images:
             uids.append(entry.uid)
-            images.append(np.array(oj.loads(entry.image)))
+            images.append(cloudpickle.loads(entry.image))
 
         # Segment the images
         segmentations = self.model.segment_images(
@@ -67,9 +66,7 @@ class MaskFormerService:
         # Construct the response
         response = []
         for result in segmentations:
-            result["instances"] = oj.dumps(
-                result["instances"], option=oj.OPT_SERIALIZE_NUMPY
-            )
+            result["instances"] = cloudpickle.dumps(result["instances"])
             response.append(MaskFormerResponse(**result))
 
         return response
