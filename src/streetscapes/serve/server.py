@@ -7,9 +7,11 @@ from ray.serve.handle import DeploymentHandle
 from rich.console import Console  # TODO: import from cli.console, or just use logger?
 import ray
 
+from streetscapes import logger
 from streetscapes.models.bfms.service import BFMSService
 from streetscapes.models.maskformer.service import MaskFormerService
 from streetscapes.models.dinosam.service import DinoSAMService
+from streetscapes.models.sam3.service import SAM3Service
 
 os.environ["RAY_ACCEL_ENV_VAR_OVERRIDE_ON_ZERO"] = "0"
 
@@ -17,12 +19,11 @@ MODEL_REGISTRY = {
     "bfms": BFMSService,
     "maskformer": MaskFormerService,
     "dinosam": DinoSAMService,
+    "sam3": SAM3Service,
 }
 
 
-@serve.deployment(
-    num_replicas=1,
-)
+@serve.deployment(num_replicas=1)
 class ModelApp:
     def __init__(self, model: str, /, **kwargs):
 
@@ -46,7 +47,9 @@ def get_model_app(model: str, /, **kwargs) -> serve.Application:
     return ModelApp.bind(model, **kwargs)  # type: ignore[attr-defined,no-any-return]
 
 
-def serve_model(model: str, verbose: bool = False, /, **model_kwargs) -> DeploymentHandle:
+def serve_model(
+    model: str, verbose: bool = False, /, **model_kwargs
+) -> DeploymentHandle:
     app = get_model_app(model, **model_kwargs)
 
     logger = logging.getLogger("ray.serve")

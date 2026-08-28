@@ -7,6 +7,11 @@ Segmentation is part of a broader toolkit that also includes retrieval of images
 The goal of this design is to provide a **clean, transparent, and low-complexity architecture** that is accessible both to developers extending the system and to researchers experimenting with models or pipelines.
 
 Currently, we re-implement/wrap various models including DinoSAM, BFMS, the Zero-shot facade material segmentation (ZFMS) pipeline, DMS, ... and (re)combine them in various ways.
+
+## Note on SAM3
+
+Support for the [SAM3 model](https://huggingface.co/facebook/sam3) has been added to StreetScapes. If you plan to use this model, please be aware that it requires **weights to be downloaded manually from the HuggingFace repository**.
+
 ---
 
 ## 🎯 Design Principles
