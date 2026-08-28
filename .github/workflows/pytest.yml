@@ -23,7 +23,7 @@ jobs:
           enable-cache: true
 
       - name: Install the project
-        run: uv sync --locked --extras sam3,dev
+        run: uv sync --locked --extra sam3,dev
 
       - name: document env
         run: uv pip freeze
