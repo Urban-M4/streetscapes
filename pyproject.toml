@@ -88,6 +88,7 @@ exclude = '''(?x)(
 
 [project.optional-dependencies]
 explorer = ["fastapi", "uvicorn", "brotli-asgi"]
+rocm = ["torch", "torchvision", "triton-rocm"]
 dev = [
     "fastapi[standard]",
     "pytest>=8.4.2",
@@ -108,3 +109,13 @@ dev = [
     "types-requests",
 ]
 sam3 = ["ultralytics>=8.3.237"]
+
+[tool.uv.sources]
+torch = [{ index = "pytorch-rocm", extra = "rocm" }]
+torchvision = [{ index = "pytorch-rocm", extra = "rocm" }]
+triton-rocm = [{ index = "pytorch-rocm", extra = "rocm" }]
+
+[[tool.uv.index]]
+name = "pytorch-rocm"
+url = "https://download.pytorch.org/whl/rocm7.1"
+explicit = true
