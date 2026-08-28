@@ -1,17 +1,16 @@
-import numpy as np
-import orjson as oj
 from pydantic import BaseModel
+from ray import cloudpickle
 
 from streetscapes.models.bfms.model import BFMS
 
 
 class BFMSRequest(BaseModel):
-    image: str  # JSON-encoded numpy array
+    image: bytes  # cloudpickled numpy array
 
 
 class BFMSResponse(BaseModel):
     labels: list[str]  # Instance labels
-    instances: bytes  # JSON-encoded numpy array
+    instances: bytes  # cloudpickled numpy array
 
 
 class BFMSService:
@@ -28,15 +27,12 @@ class BFMSService:
     def handle(self, request: dict) -> BFMSResponse:
         req = BFMSRequest(**request)
 
-        image = np.array(oj.loads(req.image), dtype=np.uint8)
+        image = cloudpickle.loads(req.image)
         result = self.model.segment(image)
 
         response = BFMSResponse(
             labels=result["labels"],
-            instances=oj.dumps(
-                result["instances"],
-                option=oj.OPT_SERIALIZE_NUMPY,
-            ),
+            instances=cloudpickle.dumps(result["instances"]),
         )
 
         return response

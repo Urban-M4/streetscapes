@@ -1,6 +1,5 @@
-import numpy as np
-import orjson as oj
 from pydantic import BaseModel
+from ray import cloudpickle
 import uuid
 from streetscapes import utils
 from streetscapes.models.dinosam.model import DinoSAM
@@ -47,7 +46,7 @@ class DinoSAMService:
         images = []
         for entry in req.images:
             uids.append(entry.uid)
-            images.append(np.array(oj.loads(entry.image)))
+            images.append(cloudpickle.loads(entry.image))
 
         # Segment the images
         segmentations = self.model.segment_images(uids, images, req.prompt)
@@ -55,9 +54,7 @@ class DinoSAMService:
         # Construct the response
         response = []
         for result in segmentations:
-            result["instances"] = oj.dumps(
-                result["instances"], option=oj.OPT_SERIALIZE_NUMPY
-            )
+            result["instances"] = cloudpickle.dumps(result["instances"])
             response.append(DinoSAMResponse(**result))
 
         return response

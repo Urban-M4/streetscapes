@@ -6,7 +6,7 @@ from typing import cast
 
 import imageio.v3 as iio
 import numpy as np
-import orjson as oj
+from ray import cloudpickle
 
 from streetscapes import CFG, utils
 from streetscapes.project import Project
@@ -94,9 +94,7 @@ def cli(
             path, _ = unprocessed[uid]
             img_data = {
                 "uid": uid,
-                "image": oj.dumps(
-                    np.asarray(iio.imread(path)), option=oj.OPT_SERIALIZE_NUMPY
-                ),
+                "image": cloudpickle.dumps(np.asarray(iio.imread(path))),
             }
             request["images"].append(img_data)  # type: ignore[attr-defined]
 
@@ -108,8 +106,7 @@ def cli(
         # Save the instances.
         segmentations = []
         for response in responses:
-            instances = oj.loads(response.instances)
-            instances = np.array(instances) # turned 3-level nested list into 3D array
+            instances = cloudpickle.loads(response.instances)
             segmentations.append(
                 {
                     "run": run,
