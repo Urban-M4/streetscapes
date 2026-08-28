@@ -18,7 +18,6 @@ logger = logging.getLogger(__name__)
 
 def cli(
     prompt: str,
-    weights: str = 'sam3.pt',
     image_path: str | None = None,
     batch_size: int = 10,
     confidence: float = 0.25,
@@ -28,12 +27,17 @@ def cli(
     overwrite: bool = False,
     verbose: bool = False,
 ):
-    """Segment images with DinoSAM.
+    """Segment images with SAM3.
+
+    Note: The SAM3 model weights cannot be downloaded from HuggingFace without
+    authentication. Instead download the SAM3 `.pt` file after signing up at:
+    https://huggingface.co/facebook/sam3
+    Set the absolute path to the downloaded SAM3 `.pt` file in the
+    streetscapes config:
+    > streetscapes config set sam3_model_path "/abs/path/to/file.pt".
 
     Args:
         prompt: The prompt to use for this model.
-        weights: Path to the SAM3 model weights. Defaults to 'sam3.pt' in the current directory.
-            This can be a symlink to the actual weights located elsewhere.
         image_path: Path to an image or a directory of images.
             If not provided uses all downloaded images in the project.
         batch_size: Batch size for the segmenter.
@@ -47,6 +51,11 @@ def cli(
         overwrite: Overwrite an existing run.
         verbose: Print verbose log to the terminal. Useful for debugging models.
     """
+    if CFG.sam3_model_path is None:
+        raise ValueError(
+            "No SAM3 model weights configured. Configure the 'sam3_model_path' entry in "
+            "the streetscapes config."
+        )
 
     # Open the project
     proj = Project(project)
@@ -55,7 +64,7 @@ def cli(
     # ==================================================
     model = "sam3"
     model_params = {
-        "weights": weights,
+        "weights": str(CFG.sam3_model_path),
         "confidence": confidence,
         "quantisation": quantisation,
     }
