@@ -1,3 +1,5 @@
+"""BFMS segmentation service."""
+
 from pydantic import BaseModel
 from ray import cloudpickle
 
@@ -14,17 +16,21 @@ class BFMSResponse(BaseModel):
 
 
 class BFMSService:
-    """
-    Inference service for the BFMS model.
+    """Inference service for the BFMS model.
 
     Exposes BFMS inferece as a structured request/response
     interface usable by Ray Serve.
     """
 
     def __init__(self, model_id: str):
+        """Inference service for the BFMS model.
+
+        model_id: Huggingface model ID.
+        """
         self.model = BFMS(model_id=model_id)
 
     def handle(self, request: dict) -> BFMSResponse:
+        """Run a segmentation request."""
         req = BFMSRequest(**request)
 
         image = cloudpickle.loads(req.image)

@@ -1,10 +1,18 @@
-import numpy as np
-import uuid
-from streetscapes import logger
-from streetscapes import utils
+"""MaskFormer model."""
+
+from typing import TYPE_CHECKING
+
+from streetscapes import logger, utils
+
+if TYPE_CHECKING:
+    import uuid
+
+    import numpy as np
 
 
 class MaskFormer:
+    """MaskFormer model."""
+
     # All the labels recognised by Mask2Former.
     id_to_label = {
         0: "bird",
@@ -85,8 +93,8 @@ class MaskFormer:
     ):
         """A wrapper for the [Mask2Former model](https://huggingface.co/docs/transformers/en/model_doc/mask2former).
 
-        The following documentation for the model parameters is taken from the HuggingFace
-        page for the panoptic [processing pipeline](https://huggingface.co/docs/transformers/v4.46.3/en/model_doc/mask2former#transformers.Mask2FormerImageProcessor.post_process_panoptic_segmentation)
+        The following documentation for the model parameters is taken from the
+        HuggingFace page for the panoptic [processing pipeline](https://huggingface.co/docs/transformers/v4.46.3/en/model_doc/mask2former#transformers.Mask2FormerImageProcessor.post_process_panoptic_segmentation)
         for the Mask2Former model.
 
         These parameters are passed directly to the corresponding arguments of the
@@ -95,15 +103,18 @@ class MaskFormer:
         Args:
             model_id: Mask2Former model to load.
             threshold: The probability score threshold to keep predicted instance masks.
-            mask_threshold: Threshold to use when turning the predicted masks into binary values.
-            overlap_mask_area_threshold: The overlap mask area threshold to merge or discard small disconnected
-                parts within each binary instance mask. The overlap mask area threshold
-                to merge or discard small disconnected parts within each binary instance mask.
-            labels_to_fuse: The labels in this state will have all their instances be fused together.
-                For instance, we could say there can only be one sky in an image, but several
-                persons, so the label ID for sky would be in that set, but not the one for person.
-                This differs slightly from the original parameter because it can also accept
-                strings instead of integers (the strings are converted to their IDs).
+            mask_threshold: Threshold to use when turning the predicted masks into
+                binary values.
+            overlap_mask_area_threshold: The overlap mask area threshold to merge or
+                discard small disconnected parts within each binary instance mask.
+                The overlap mask area threshold to merge or discard small disconnected
+                parts within each binary instance mask.
+            labels_to_fuse: The labels in this state will have all their instances
+                be fused together. For instance, we could say there can only be one sky
+                in an image, but several persons, so the label ID for sky would be in
+                that set, but not the one for person. This differs slightly from the
+                original parameter because it can also accept strings instead of
+                integers (the strings are converted to their IDs).
             device: Specify a device to run the model on.
         """
         import transformers as tform
@@ -135,9 +146,7 @@ class MaskFormer:
 
         # Processors and models
         # ==================================================
-        self.processor = tform.Mask2FormerImageProcessor.from_pretrained(
-            self.model_id
-        )
+        self.processor = tform.Mask2FormerImageProcessor.from_pretrained(self.model_id)
         self.model = tform.Mask2FormerForUniversalSegmentation.from_pretrained(
             self.model_id
         ).to(self.device)  # type: ignore[arg-type]
@@ -145,6 +154,7 @@ class MaskFormer:
 
     @property
     def name(self) -> str:
+        """Get the model name."""
         return self.__class__.__name__.lower()
 
     def segment_images(

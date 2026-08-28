@@ -1,3 +1,5 @@
+"""CLI console."""
+
 import logging
 
 from rich.console import Console

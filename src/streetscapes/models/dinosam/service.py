@@ -1,7 +1,10 @@
+"""DinoSAM model inference service."""
+
+import uuid
+
 from pydantic import BaseModel
 from ray import cloudpickle
-import uuid
-from streetscapes import utils
+
 from streetscapes.models.dinosam.model import DinoSAM
 
 
@@ -14,10 +17,12 @@ class DinoSAMRequest(BaseModel):
     images: list[DinoSAMImage]
     prompt: str | list[str]
 
+
 class DinoSAMResponse(BaseModel):
     uid: uuid.UUID
     labels: list[str]
     instances: bytes
+
 
 class DinoSAMService:
     """Inference service for the DinoSAM model.
@@ -35,11 +40,13 @@ class DinoSAMService:
         *args,
         **kwargs,
     ):
+        """Initialize DinoSAM service."""
         self.model = DinoSAM(
             sam_model_id, dino_model_id, box_threshold, text_threshold, *args, **kwargs
         )
 
     def handle(self, request: dict) -> list[DinoSAMResponse]:
+        """Handle a segmentation request to DinoSAM."""
         req = DinoSAMRequest(**request)
 
         uids = []

@@ -1,22 +1,23 @@
-# --------------------------------------
-from pathlib import Path
+"""TODO: Add docstrings."""
 
-# --------------------------------------
+from typing import TYPE_CHECKING
+
 import ibis
 
-# --------------------------------------
 from streetscapes.sources.base import ImageSourceBase
+
+if TYPE_CHECKING:
+    from pathlib import Path
 
 
 class AmsterdamPanorama(ImageSourceBase):
-    """TODO: Add docstrings"""
+    """TODO: Add docstrings."""
 
     def __init__(
         self,
         root_dir: str | Path | None = None,
     ):
-        """An interface for downloading and manipulating
-        street view images from the Amsterdam repository.
+        """Interface for downloading & manipulating Amsterdam repository images.
 
         Args:
             root_dir:
@@ -31,11 +32,14 @@ class AmsterdamPanorama(ImageSourceBase):
         )
 
     def get_image_url(self, image_id):
+        """TODO: Add docstrings."""
         raise NotImplementedError(
-            "get_image_url not implemented for Amsterdam. Use URLs returned by fetch_image_ids directly."
+            "get_image_url not implemented for Amsterdam. "
+            "Use URLs returned by fetch_image_ids directly."
         )
 
     def fetch_image_ids(self, lat, lon, radius):
+        """TODO: Add docstrings."""
         return self._fetch_image_ids(near=f"{lon},{lat}", radius=radius)
 
     def _fetch_image_ids(self, **params):

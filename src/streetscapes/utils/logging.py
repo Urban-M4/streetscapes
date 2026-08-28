@@ -1,11 +1,9 @@
-# --------------------------------------
+"""Setup logger."""
+
 import sys
 
-# --------------------------------------
 from loguru import logger
 
-# Logger configuration
-# ==================================================
 # Enable colour tags in messages.
 logger = logger.opt(colors=True)
 
@@ -14,7 +12,11 @@ log_config = {
     "handlers": [
         {
             "sink": sys.stderr,
-            "format": "<magenta>Streetscapes</magenta> | <cyan>{time:YYYY-MM-DD@HH:mm:ss}</cyan> | <level>{message}</level>",
+            "format": (
+                "<magenta>Streetscapes</magenta> | "
+                "<cyan>{time:YYYY-MM-DD@HH:mm:ss}</cyan> | "
+                "<level>{message}</level>"
+            ),
             "level": "INFO",
         }
     ]

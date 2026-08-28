@@ -1,23 +1,21 @@
+"""Global Streetscapes related functionality."""
+
 import operator
-
 import typing as tp
-
 from abc import ABC, abstractmethod
 from pathlib import Path
 
 import ibis
-
 from huggingface_hub import hf_hub_download, scan_cache_dir, try_to_load_from_cache
 from huggingface_hub.constants import HF_HUB_CACHE
 from huggingface_hub.file_download import repo_folder_name
 
 from streetscapes import logger, utils
-
 from streetscapes.sources.base import SourceBase
 
 
 class HFSourceBase(SourceBase, ABC):
-    """TODO: Add docstrings"""
+    """TODO: Add docstrings."""
 
     @abstractmethod
     def load_dataset(
@@ -93,8 +91,7 @@ class HFSourceBase(SourceBase, ABC):
         self,
         filename: str | Path,
     ) -> Path:
-        """Retrieve a single (potentially cached) file
-        from the Huggingface stored repo.
+        """Retrieve a single (potentially cached) file from the Huggingface stored repo.
 
         Args:
             filename:
@@ -129,8 +126,7 @@ class HFSourceBase(SourceBase, ABC):
         self,
         filenames: list[str | Path],
     ) -> list[Path]:
-        """Retrieve multiple (potentially cached) files
-        from the HuggingFace stored repo.
+        """Retrieve multiple (potentially cached) files from the HuggingFace repo.
 
         Args:
             filenames:
@@ -144,7 +140,7 @@ class HFSourceBase(SourceBase, ABC):
 
 
 class GlobalStreetscapesSource(HFSourceBase):
-    """TODO: Add docstrings"""
+    """TODO: Add docstrings."""
 
     def __init__(
         self,
@@ -165,7 +161,7 @@ class GlobalStreetscapesSource(HFSourceBase):
 
         # Paths for the Global Streetscapes cache directory and some
         # subdirectories for convenience.
-        if self.root_dir is not None:    
+        if self.root_dir is not None:
             self.csv_dir = self.root_dir / "data"
             self.parquet_dir = self.csv_dir / "parquet"
 
@@ -286,7 +282,7 @@ class GlobalStreetscapesSource(HFSourceBase):
         """Download images from Mapillary and KartaView."""
         paths = []
         df = table.execute()
-        for index, row in df.iterrows():
+        for _, row in df.iterrows():
             if row["source"] == "Mapillary":
                 path = mp.download_image(row["image_id"], row["image_url"])
                 paths.append(path)

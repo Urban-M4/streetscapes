@@ -1,9 +1,12 @@
+"""Building/Facade Material Segmentation model."""
+
 import hashlib
 from typing import Any
 
 import numpy as np
 import torch
 from PIL import Image
+
 from streetscapes import utils
 from streetscapes.config import CFG
 
@@ -20,6 +23,7 @@ class BFMS:
 
         Args:
             device: Specify a device to run the model on.
+            model_id: Huggingface model ID to use for the model.
         """
         import transformers as tform
 
@@ -33,11 +37,11 @@ class BFMS:
         ).to(self.device)  # type: ignore[arg-type]
 
         # won't load directly from BFMS ID
-        # from_pretrained should accept URL but this is broken in 
+        # from_pretrained should accept URL but this is broken in
         # transformers v5
         tmp_model_dir = CFG.image_dir / "models"
         tmp_model_dir.mkdir(exist_ok=True)
-        conf_path =  tmp_model_dir / "bfms-config.json"
+        conf_path = tmp_model_dir / "bfms-config.json"
         config.to_json_file(conf_path)
 
         self.processor = tform.AutoImageProcessor.from_pretrained(
@@ -191,6 +195,7 @@ id2label = {
 
 
 def md5(path, chunk_size=8192):
+    """Generate a MD5 hash from a path."""
     h = hashlib.md5()
     with open(path, "rb") as f:
         for chunk in iter(lambda: f.read(chunk_size), b""):

@@ -1,22 +1,22 @@
-from typing import Any, Literal
+"""Many utility functions."""
+
 import os
 import re
 import sys
-from typing import TYPE_CHECKING
 import uuid
 from collections.abc import Iterable
-from datetime import datetime, UTC
+from datetime import UTC, datetime
 from hashlib import sha256
 from pathlib import Path
+from typing import TYPE_CHECKING, Any, Literal
 
-from PIL import Image
-import numpy as np
-import filetype as ft
-import seedir as sd
-
-from dotenv import load_dotenv
 import exifread
+import filetype as ft
+import numpy as np
+import seedir as sd
 import shapely
+from dotenv import load_dotenv
+from PIL import Image
 
 from streetscapes.utils.metadata import ImageMeta
 
@@ -28,8 +28,6 @@ else:
 
 if TYPE_CHECKING:  # Delay slow imports for CLI responsiveness
     import geopandas as gpd
-    import shapely
-    import numpy as np
     import torch
 
 
@@ -53,11 +51,11 @@ def iso_timestamp(
         precision: Precision for the timespec parameter.
         fmt: Explicit format.
         sep: A custom separator for the default ISO format.
+        utc: Use UTC time (default)
 
     Returns:
         The formatted timestamp.
     """
-
     ts = datetime.now(UTC) if utc else datetime.now()
 
     if fmt is not None:
@@ -96,8 +94,7 @@ def is_notebook() -> bool:
 
 
 def ensure_dir(path: Path | str) -> Path:
-    """Resolve and expand a directory path and
-    create the directory if it doesn't exist.
+    """Resolve and expand a directory path and create the directory if it doesn't exist.
 
     Args:
         path:
@@ -113,8 +110,7 @@ def ensure_dir(path: Path | str) -> Path:
 
 
 def hide_home(dir: Path) -> str:
-    """A very simple function that replaces the home directory
-    with a tilde.
+    """A very simple function that replaces the home directory with a tilde.
 
     Useful for printing the home directory in notebooks without
     revealing private information.
@@ -176,9 +172,7 @@ def filter_files(
         raise TypeError("The provided path is a file (it should be a directory).")
 
     items = [str(n) for n in path.glob("*.*")]
-    return set(
-        [Path(p) for p in filter(re.compile(pattern, re.IGNORECASE).match, items)]
-    )
+    return {Path(p) for p in filter(re.compile(pattern, re.IGNORECASE).match, items)}
 
 
 def make_path(
@@ -186,8 +180,7 @@ def make_path(
     root: Path | None = None,
     suffix: str | None = None,
 ):
-    """Construct a path (a file or a directory)
-    with optional modifications.
+    """Construct a path (a file or a directory) with optional modifications.
 
     Args:
         path:
@@ -236,8 +229,8 @@ def as_rgb(
         The RGB image.
 
     """
-    import skimage as ski
     import numpy as np
+    import skimage as ski
 
     if len(image.shape) == 2:
         # The image is already greyscale.
@@ -260,7 +253,7 @@ def as_rgb(
 
 
 def as_hsv(image: "np.ndarray") -> "np.ndarray":
-    """Convert an RGB image into HSV format
+    """Convert an RGB image into HSV format.
 
     Args:
         image:
@@ -301,7 +294,7 @@ def make_colourmap(
 
     cm = plt.get_cmap(cmap, len(labels))
     cm = cm(np.linspace(0.0, 1.0, cm.N))[:, :3]  # type: ignore
-    return {label: colour for label, colour in zip(sorted(labels), cm, strict=False)}  # type: ignore
+    return dict(zip(sorted(labels), cm, strict=False))  # type: ignore
 
 
 def open_image(
@@ -367,7 +360,6 @@ def plot_metadata(gdf: "gpd.GeoDataFrame", ax=None):
 
     """
     import contextily as ctx
-    import geopandas as gpd
 
     if ax is None:
         import matplotlib.pyplot as plt
@@ -483,7 +475,6 @@ def get_image_hash(image: str | Path | bytes) -> bytes:
     Returns:
         SHA-256 digest.
     """
-
     if not ft.is_image(image):
         raise ValueError("The provided file is not an image.")
 
@@ -504,7 +495,6 @@ def hash2uuid(ihash: bytes) -> uuid.UUID:
     Returns:
         A UUID.
     """
-
     return uuid.UUID(ihash.hex()[::2])
 
 
@@ -517,7 +507,6 @@ def get_image_uuid(image: str | Path | bytes) -> uuid.UUID:
     Returns:
         Image UUID.
     """
-
     if not ft.is_image(image):
         msg = "Input image type of is not supported!"
         raise ValueError(msg)
@@ -526,8 +515,7 @@ def get_image_uuid(image: str | Path | bytes) -> uuid.UUID:
 
 
 def get_image_paths(path: str | Path) -> list[Path]:
-    """
-    Get only the image paths in a directory.
+    """Get only the image paths in a directory.
 
     Args:
         path: A directory of images.
@@ -535,7 +523,6 @@ def get_image_paths(path: str | Path) -> list[Path]:
     Returns:
         Image paths.
     """
-
     if not isinstance(path, Path | str):
         raise ValueError(f"Invalid path '{path}'")
 
@@ -547,7 +534,6 @@ def get_image_paths(path: str | Path) -> list[Path]:
     entries = path.glob("**/*")
     image_paths = []
     for entry in entries:
-
         if not ft.is_image(entry):
             continue
 
@@ -557,8 +543,7 @@ def get_image_paths(path: str | Path) -> list[Path]:
 
 
 def get_image_metadata(image: bytes | str | Path) -> ImageMeta:
-    """
-    Get some reproducible image metadata.
+    """Get some reproducible image metadata.
 
     Args:
         image: Binary content or a path to an existing image.
@@ -566,7 +551,6 @@ def get_image_metadata(image: bytes | str | Path) -> ImageMeta:
     Returns:
         An object contiaining the image metadata.
     """
-
     _hash = get_image_hash(image)
     _uuid = hash2uuid(_hash)
     ext = ft.guess_extension(image).lower()
@@ -601,8 +585,8 @@ def get_geohash_shard_path(location: "shapely.Point"):
     de/ --> neighbourhood scale (max 32x32 = 1024 per region)
     fg/ --> block level  (max 32x32 = 1024 per neighbourhood)
     """
-    import shapely
     import pygeohash
+    import shapely
 
     geom = shapely.from_wkb(location)  # type: ignore[call-overload]
     geohash = pygeohash.encode(geom.y, geom.x, precision=7)  # 153m x 153m
@@ -610,8 +594,7 @@ def get_geohash_shard_path(location: "shapely.Point"):
 
 
 def uuid7(as_str: bool = False) -> uuid.UUID | str:
-    """
-    Return a UUID7 instance, optionally converted to string.
+    """Return a UUID7 instance, optionally converted to string.
 
     Args:
         as_str: If True, convert the UUID to string before returning.
@@ -627,8 +610,7 @@ def to_deg(
     dms: list[int | float] | None,
     reference: Literal["N", "E", "S", "W"] | None = None,
 ) -> float:
-    """
-    Convert [deg, min, s] to degrees.
+    """Convert [deg, min, s] to degrees.
 
     Args:
         dms: A list containing degrees, minutes and seconds.
@@ -637,7 +619,6 @@ def to_deg(
     Returns:
         Latitude or longitude coordinate in decimal degrees.
     """
-
     if dms is None:
         return 0.0
 
@@ -647,8 +628,7 @@ def to_deg(
 
 
 def extract_exif_data(impath: Path) -> dict[str, Any]:
-    """
-    Extract EXIF metadata from an image file.
+    """Extract EXIF metadata from an image file.
 
     Args:
         impath: Path to an image.
@@ -693,10 +673,9 @@ def extract_exif_data(impath: Path) -> dict[str, Any]:
         "fstop": ("EXIF FNumber", float),
     }
 
-    data = {k: None for k in mapping}
+    data = dict.fromkeys(mapping)
 
     for k, (val, caster) in mapping.items():
-
         if isinstance(val, str):
             val = tags.get(val)
             if val is not None:

@@ -15,14 +15,10 @@ def run_cli(cmd: str, exit_code=0):
     """
     Run a Cyclopts CLI command string as if typed in the shell.
 
-    Parameters
-    ----------
-    cmd : str
-        Command line string, e.g., "streetscapes config list --json"
+    Args:
+        cmd: Command line string, e.g., "streetscapes config list --json"
 
-    Returns
-    -------
-    stdout : str
+    Returns:
         Captured standard output.
     """
     args = shlex.split(cmd)[1:]  # skip the script name if present

@@ -1,6 +1,10 @@
+"""SAM3 segmentation service."""
+
+import uuid
+
 from pydantic import BaseModel
 from ray import cloudpickle
-import uuid
+
 from streetscapes.models.sam3.model import SAM3
 
 
@@ -38,9 +42,11 @@ class SAM3Service:
         *args,
         **kwargs,
     ):
+        """Initialize the SAM3 segmentation service."""
         self.model = SAM3(weights, device, confidence, quantisation, *args, **kwargs)
 
     def handle(self, request: dict) -> list[SAM3Response]:
+        """Handle segmentation request."""
         req = SAM3Request(**request)
 
         uids = []

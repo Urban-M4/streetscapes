@@ -1,8 +1,9 @@
-# streetscapes/sources/mapillary.py
+"""Mapillary related functionality."""
+
 import logging
-import uuid
 from pathlib import Path
 from time import sleep
+from typing import TYPE_CHECKING
 
 import geopandas as gpd
 import pandas as pd
@@ -11,8 +12,12 @@ from shapely.geometry import Point
 
 from streetscapes import utils
 from streetscapes.project import Project
-from streetscapes.utils.bbox import Bbox
-from streetscapes.utils.metadata import ImageMeta
+
+if TYPE_CHECKING:
+    import uuid
+
+    from streetscapes.utils.bbox import Bbox
+    from streetscapes.utils.metadata import ImageMeta
 
 logger = logging.getLogger(__name__)
 
@@ -41,12 +46,16 @@ class MapillaryClient:
         # Or fetch directly as GeoDataFrame
         gdf = client.fetch_metadata_bbox_gpd(bbox)
 
-    Methods
-    -------
-    fetch_metadata_bbox(bbox: tuple[float, float, float, float], limit: int = 1000) -> pd.DataFrame
-        Fetch metadata for a bounding box and return as a pandas DataFrame.
-    fetch_metadata_bbox_gpd(bbox: tuple[float, float, float, float], limit: int = 1000) -> gpd.GeoDataFrame
-        Fetch metadata for a bounding box and return as a GeoDataFrame with CRS EPSG:4326.
+    Methods:
+        fetch_metadata_bbox(
+            bbox: tuple[float, float, float, float], limit: int = 1000
+        ) -> pd.DataFrame
+            Fetch metadata for a bounding box and return as a pandas DataFrame.
+        fetch_metadata_bbox_gpd(
+            bbox: tuple[float, float, float, float], limit: int = 1000
+        ) -> gpd.GeoDataFrame
+            Fetch metadata for a bounding box and return as a GeoDataFrame
+            with CRS EPSG:4326.
     """
 
     BASE_URL = "https://graph.mapillary.com/images"
@@ -55,13 +64,11 @@ class MapillaryClient:
     def __init__(self, token: str, retries: int = 3):
         """Instantiate the client.
 
-        Parameters
-        ----------
-        token : str
-            Mapillary OAuth token.
-        retries : int, optional
-            Number of request retries on failure (default is 3).
-
+        Args:
+            token : str
+                Mapillary OAuth token.
+            retries : int, optional
+                Number of request retries on failure (default is 3).
         """
         self.session = requests.Session()
         self.session.headers.update({"Authorization": f"OAuth {token}"})
@@ -69,6 +76,7 @@ class MapillaryClient:
 
     @property
     def db_fields(self) -> dict:
+        """Get schema's fields."""
         return Project.core_tables["mapillary"]["schema"]  # type: ignore[return-value]
 
     # NOTE: could make this "fetch_metadata_id" to be similar to bbox retrieval
@@ -87,8 +95,7 @@ class MapillaryClient:
         uid: uuid.UUID | None = None,
         skip_existing: bool = True,
     ) -> ImageMeta:
-        """
-        Download image from a URL to output_path.
+        """Download image from a URL to output_path.
 
         Args:
             url: The download URL.
@@ -96,10 +103,10 @@ class MapillaryClient:
             image_id: Mapillary image ID.
             uid: Image UUID (from the SHA-256 hash).
             skip_existing: Don't re-download existing images.
+
         Returns:
             Image metadata.
         """
-
         output_path = output_dir
         if output_dir is not None:
             output_dir = Path(output_dir)
@@ -170,24 +177,21 @@ class MapillaryClient:
         Geometry columns are converted to WKT strings for downstream processing
         with GeoPandas or spatial databases like DuckDB.
 
-        Note
+        Note:
         ----
         The Mapillary API endpoint doesn't support pagination beyond ~2000 results.
         For dense areas (like Amsterdam), consider splitting your bounding box into
         smaller tiles (~0.001 deg) to ensure complete coverage.
 
-        Parameters
-        ----------
-        bbox : tuple[float, float, float, float]
-            Bounding box as (west, south, east, north).
-        limit : int
-            Maximum number of images to fetch (default 1000).
+        Args:
+            bbox : tuple[float, float, float, float]
+                Bounding box as (west, south, east, north).
+            limit : int
+                Maximum number of images to fetch (default 1000).
 
-        Returns
-        -------
-        pd.DataFrame
-            DataFrame with Mapillary metadata and WKT geometry columns.
-
+        Returns:
+            pd.DataFrame
+                DataFrame with Mapillary metadata and WKT geometry columns.
         """
         records = self._fetch_bbox(bbox, limit)
 
@@ -218,24 +222,21 @@ class MapillaryClient:
 
         Geometry columns are parsed from WKT and the CRS is set to EPSG:4326.
 
-        Note
+        Note:
         ----
         The Mapillary API endpoint doesn't support pagination beyond ~2000 results.
         For dense areas (like Amsterdam), consider splitting your bounding box into
         smaller tiles (~0.001 deg) to ensure complete coverage.
 
-        Parameters
-        ----------
-        bbox : tuple[float, float, float, float]
-            Bounding box as (west, south, east, north).
-        limit : int
-            Maximum number of images to fetch (default 1000).
+        Args:
+            bbox : tuple[float, float, float, float]
+                Bounding box as (west, south, east, north).
+            limit : int
+                Maximum number of images to fetch (default 1000).
 
-        Returns
-        -------
-        gpd.GeoDataFrame
-            GeoDataFrame with Mapillary metadata and geometry columns.
-
+        Returns:
+            gpd.GeoDataFrame
+                GeoDataFrame with Mapillary metadata and geometry columns.
         """
         df = self.fetch_metadata_bbox(bbox, limit)
 

@@ -2,11 +2,9 @@
 
 import webbrowser
 from datetime import datetime
-from typing import Annotated, Any
 from itertools import chain
+from typing import TYPE_CHECKING, Annotated, Any
 
-from fastapi.responses import FileResponse
-import ibis
 import numpy as np
 import pandas as pd
 import uvicorn
@@ -15,6 +13,7 @@ from cyclopts import App, Parameter
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.params import Query
+from fastapi.responses import FileResponse
 from shapely.geometry import Polygon
 
 from streetscapes import CFG
@@ -25,9 +24,15 @@ from streetscapes.explorer.data import (
     Image,
     ImageMetadata,
 )
-from streetscapes.utils.db_access import get_image_path, get_segmentations
-from streetscapes.utils.db_access import _validate_rating
-from streetscapes.utils.db_access import _open_db
+from streetscapes.utils.db_access import (
+    _open_db,
+    _validate_rating,
+    get_image_path,
+    get_segmentations,
+)
+
+if TYPE_CHECKING:
+    import ibis
 
 app = FastAPI()
 
@@ -57,9 +62,7 @@ def _get_all_images(con: ibis.BaseBackend):
 def _get_images(tables: list[ibis.Table]):
     dataframes = []
     for table in tables:
-        dataframes.append(
-            table.select("image", "geometry").to_pandas()
-        )
+        dataframes.append(table.select("image", "geometry").to_pandas())
     data = pd.concat(dataframes)
     return [
         Image(*args)
@@ -73,6 +76,7 @@ def _get_images(tables: list[ibis.Table]):
 
 
 def raise_httpexception(msg: str) -> None:
+    """Raise 404 error with the provided error message."""
     HTTPException(status_code=404, detail=msg)
 
 
@@ -118,6 +122,7 @@ def _bbox_to_polygon(bbox: Bbox) -> Polygon:
     )
 
 
+# ruff: noqa: C901
 def _fetch_images(filter: FilterParams | None) -> list[Image]:
     """Fetch images that conform to a filter specification."""
     with _open_db(PROJECT) as con:
@@ -141,7 +146,7 @@ def _fetch_images(filter: FilterParams | None) -> list[Image]:
         for source in ("mapillary", "local"):
             src = con.table(source)
             src = src.filter(src.image.isin(images.uuid))
-        
+
             if filter.date_range is not None:
                 start = filter.date_range[0]
                 end = filter.date_range[1]
@@ -155,7 +160,12 @@ def _fetch_images(filter: FilterParams | None) -> list[Image]:
 
         # Last filter on segmentation properties
         if any(
-            (filter.models, filter.labels, filter.model_runs, filter.segmentation_ratings)
+            (
+                filter.models,
+                filter.labels,
+                filter.model_runs,
+                filter.segmentation_ratings,
+            )
         ):
             segmentations = con.table("segmentations")
             # optionally filter for models
@@ -165,7 +175,9 @@ def _fetch_images(filter: FilterParams | None) -> list[Image]:
                 segmentations = segmentations.filter(segmentations.run.isin(runs.run))
 
             for label in filter.labels:
-                segmentations = segmentations.filter(segmentations.labels.contains(label))
+                segmentations = segmentations.filter(
+                    segmentations.labels.contains(label)
+                )
             if len(filter.model_runs) > 0:
                 segmentations = segmentations.filter(
                     segmentations.run.isin(filter.model_runs)
@@ -196,7 +208,7 @@ def _update_img_prop(image_id: str, prop: str, value: Any):
         imgd = img.to_dict()
         imgd[prop][0] = value  # workaround for replacing lists
         con.con.register("updated_df", pd.DataFrame(imgd))
-        con.raw_sql(f"INSERT OR REPLACE INTO images FROM updated_df;")
+        con.raw_sql("INSERT OR REPLACE INTO images FROM updated_df;")
 
 
 def _update_segmentation_rating(image_id: str, run_name: str, rating: int):
@@ -211,7 +223,7 @@ def _update_segmentation_rating(image_id: str, run_name: str, rating: int):
         imgd = seg.to_dict()
         imgd["rating"][0] = rating
         con.con.register("updated_df", pd.DataFrame(imgd))
-        con.raw_sql(f"INSERT OR REPLACE INTO segmentations FROM updated_df;")
+        con.raw_sql("INSERT OR REPLACE INTO segmentations FROM updated_df;")
 
 
 def _unknown_image(image_id):
@@ -279,7 +291,9 @@ async def fetch_stats() -> AggregateStats:
             tags=_get_unique_tags(con),
             labels=_get_unique_labels(con),
             model_run_names=list(set(con.table("runs").run.to_pandas())),
-            image_sources=list(set(con.table("images")["source"].to_pandas().to_list())),
+            image_sources=list(
+                set(con.table("images")["source"].to_pandas().to_list())
+            ),
             date_range=_get_daterange(con),
             models=list(set(con.table("runs").model.to_pandas())),
         )
@@ -287,7 +301,7 @@ async def fetch_stats() -> AggregateStats:
 
 @app.get("/images")
 async def fetch_images(filter: Annotated[FilterParams, Query()]) -> list[Image]:
-    """Fetch streetscape images corresponding to a bounding box and optionally filters."""
+    """Fetch images corresponding to a bounding box and optionally filters."""
     return _fetch_images(filter)
 
 
@@ -299,7 +313,7 @@ async def fetch_image_metadata(image_id: str) -> ImageMetadata:
 
 @app.get(
     "/images/{image_id}/img",
-    responses = {200: {"content": {"image/jpeg": {}}}},
+    responses={200: {"content": {"image/jpeg": {}}}},
     response_class=FileResponse,
 )
 async def fetch_image(image_id: str) -> FileResponse:
@@ -369,12 +383,14 @@ async def _serve(port: int, host: str, open_webpage: bool, log_info: bool):
         )
         print(
             "The streetscapes-explorer should have launched automatically.\n"
-            "To open it manually, go to https://urban-m4.github.io/streetscapes-explorer/ and "
+            "To open it manually, go to "
+            "https://urban-m4.github.io/streetscapes-explorer/ and "
         )
     else:
         print(
             "Starting the streetscapes-explorer...\n\n"
-            "To open the explorer, go to https://urban-m4.github.io/streetscapes-explorer/ and "
+            "To open the explorer, go to "
+            "https://urban-m4.github.io/streetscapes-explorer/ and "
         )
     print(
         f"paste in http://localhost:{port} as web service.\n"

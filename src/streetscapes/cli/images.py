@@ -1,6 +1,7 @@
 """CLI commands to view/manipulate the database."""
 
 from pathlib import Path
+
 from cyclopts import App
 
 image_cli = App(help="Perform various operations on local collections of images.")
@@ -13,8 +14,7 @@ def add_images(
     shard: str | None = None,
     overwrite: bool = False,
 ):
-    """
-    Add images from a local directory.
+    """Add images from a local directory.
 
     This could be useful if you have a collection of images that have been
     acquired manually (not from an online source such as Mapillary or Kartaview).
@@ -25,7 +25,6 @@ def add_images(
         shard: Optional path shard (to a subpath for the images).
         overwrite: Overwrite images that have already been added.
     """
-
     from streetscapes.project import Project
 
     proj = Project(project)

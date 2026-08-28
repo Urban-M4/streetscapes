@@ -1,7 +1,10 @@
+"""Maskformer inference service."""
+
+import uuid
+
 from pydantic import BaseModel
 from ray import cloudpickle
-import uuid
-from streetscapes.utils import logger
+
 from streetscapes.models.maskformer.model import MaskFormer
 
 
@@ -37,6 +40,7 @@ class MaskFormerService:
         labels_to_fuse: list[str | int] | None = None,
         device: str | None = None,
     ):
+        """TODO: add docstring."""
         self.model = MaskFormer(
             model_id,
             threshold,
@@ -47,6 +51,7 @@ class MaskFormerService:
         )
 
     def handle(self, request: dict) -> list[MaskFormerResponse]:
+        """TODO: add docstring."""
         # Convert the request into a schema to validate it.
         schema = MaskFormerRequest(**request)
 

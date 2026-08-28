@@ -1,19 +1,24 @@
+"""Streetscapes project."""
+
 import shutil
 import uuid
 from pathlib import Path
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 import duckdb
 import ibis
 import orjson as oj
 import pandas as pd
-import shapely as shp
 from pandas import DataFrame
 from rich.progress import track
 from shapely.geometry import box
 
 from streetscapes import CFG, logger, utils
-from streetscapes.utils.bbox import Bbox
+
+if TYPE_CHECKING:
+    import shapely as shp
+
+    from streetscapes.utils.bbox import Bbox
 
 
 def _format_image(
@@ -24,8 +29,7 @@ def _format_image(
     tags: str | list[str] | None = None,
     rating: int = 0,
 ) -> dict[str, Any]:
-    """
-    Prepare image metadata for entry into for the database.
+    """Prepare image metadata for entry into for the database.
 
     Args:
         uid: UUID of the image.
@@ -38,7 +42,6 @@ def _format_image(
         rating: Image quality rating.
         overwrite: Replace or ignore conflicting data.
     """
-
     if isinstance(tags, str):
         tags = [tags]
 
@@ -147,7 +150,7 @@ class Project:
         image_dir: str | Path | None = None,
         project_dir: str | Path | None = None,
     ):
-
+        """Connect to the DuckDB database, bootstrapping if it doesn't exist yet."""
         self.name = name or CFG.active_project
 
         # Directory for projects (databases + segmentations)
@@ -159,8 +162,6 @@ class Project:
         CFG.active_project = self.name
         CFG.save()
 
-        # Internal attributes
-        # ==================================================
         self._timestamp_resolution = "milliseconds"
 
         # Database connection
@@ -172,26 +173,29 @@ class Project:
 
     @property
     def db_path(self) -> Path:
+        """Get the path to the DuckDB file."""
         return self.project_dir / f"{self.name}.duckdb"
 
     @property
     def archive_path(self) -> Path:
+        """Get the path to the project's archive dir."""
         return self.project_dir / "archives"
 
     @property
     def image_path(self) -> Path:
+        """Get the path to the images directory."""
         return self.image_dir / "images"
 
     @property
     def tables(self) -> list[str]:
+        """Get the project's tables."""
         return self._con.tables  # type: ignore[no-any-return]
 
     def table(
         self,
         name: str,
     ) -> ibis.Table:
-        """
-        Return an Ibis table for the requested name.
+        """Return an Ibis table for the requested name.
 
         Args:
             name: Table name.
@@ -284,9 +288,9 @@ class Project:
         source: str | None = None,
         create: bool = False,
     ) -> Path:
-        """
-        Get the path to the directory where downloaded images
-        are stored, optionally specifying a source.
+        """Get the path to the directory where downloaded images are stored.
+
+        You can filter (optional) by specifying a source.
 
         Args:
             source: The source name (e.g., 'mapillary').
@@ -305,8 +309,7 @@ class Project:
         self,
         uids: uuid.UUID | list[uuid.UUID],
     ) -> dict[uuid.UUID, tuple[Path, str]]:
-        """
-        Get image paths from UUIDs.
+        """Get image paths from UUIDs.
 
         Args:
             uids: Image UUID(s) (produced with SHA-256, see utils.hash2uuid)
@@ -314,7 +317,6 @@ class Project:
         Returns:
             The paths to the images.
         """
-
         if isinstance(uids, uuid.UUID | str):
             uids = [uids]
 
@@ -352,9 +354,7 @@ class Project:
         model: str,
         create: bool = False,
     ) -> Path:
-        """
-        Get the path to the archive directory,
-        optionally specifying a model.
+        """Get the path to the archive directory, optionally specifying a model.
 
         Args:
             model: The model name (e.g., 'maskformer').
@@ -374,18 +374,16 @@ class Project:
         segmentations: bool = False,
         curated: bool | None = None,
     ) -> list[dict]:
-        """
-        Get (an optionally curated) segmentation run.
+        """Get (an optionally curated) segmentation run.
 
         Args:
-            run: The model run.
+            result: The model run UUID.
             segmentations: If True, get the associated segmentations as well.
             curated: Optionally filter segmentations by 'curated' status.
 
         Returns:
             UUID of the archive.
         """
-
         t = self.table("runs")
 
         t = t.filter([t.run == result])
@@ -406,8 +404,7 @@ class Project:
         metadata: dict | None = None,
         overwrite: bool = False,
     ) -> dict:
-        """
-        Add a run for a model and its associated metadata.
+        """Add a run for a model and its associated metadata.
 
         Args:
             run: The model run ID (optional, UUID7 used by default).
@@ -437,8 +434,7 @@ class Project:
         runs: list[dict],
         overwrite: bool = False,
     ) -> dict:
-        """
-        Add a run for a model and its associated metadata.
+        """Add a run for a model and its associated metadata.
 
         Args:
             runs: List of run data as dictionaries.
@@ -466,8 +462,7 @@ class Project:
         curated: bool,
         image: uuid.UUID | str,
     ) -> list[dict]:
-        """
-        Get a segmentation by UUID + curation status.
+        """Get a segmentation by UUID + curation status.
 
         Args:
             run: Run ID.
@@ -477,7 +472,6 @@ class Project:
         Returns:
             Segmentation instance.
         """
-
         t = self.table("segmentations")
         if t is None:
             raise ValueError
@@ -496,9 +490,9 @@ class Project:
         runs: str | list[str] | None = None,
         curated: bool | None = None,
     ) -> list[dict]:
-        """
-        Get all segmentations of an image,
-        optionally filtered by run ID and curation status.
+        """Get all segmentations of an image.
+
+        Optionally filtered by run ID and curation status.
 
         Args:
             image: Image ID.
@@ -508,7 +502,6 @@ class Project:
         Returns:
             A list of segmentation instances.
         """
-
         t = self.table("segmentations")
         flt = [t.image == image]
         if runs is not None:
@@ -549,7 +542,6 @@ class Project:
             polygons: A Shapely GeometryCollection.
             overwrite: Replace or ignore conflicting data.
         """
-
         data = {
             "run": [run],
             "curated": [curated],
@@ -568,8 +560,7 @@ class Project:
         segmentations: list[dict],
         overwrite: bool = False,
     ):
-        """
-        Add a new set of segmentations to the database.
+        """Add a new set of segmentations to the database.
 
         Args:
             segmentations: A list of dictionaries containing segmentation data.
@@ -590,11 +581,10 @@ class Project:
         uids: list[uuid.UUID] | list[str],
         run: str,
     ) -> tuple[set[uuid.UUID], dict[uuid.UUID, tuple[Path, str]]]:
-        """
-        Filter out processed images.
+        """Filter out processed images.
 
         Args:
-            images: Image UUIDs.
+            uids: Image UUIDs.
             run: Query the status for a specific run ID.
 
         Returns:
@@ -618,15 +608,14 @@ class Project:
         exif_data: list[dict] | None = None,
         overwrite: bool = False,
     ):
-        """
-        Register downloaded (local) images into the database.
+        """Register downloaded (local) images into the database.
 
         Args:
             images: A list of dictionaries containing image information.
-            exif_data: Metadata extracted from the images' EXIF tags. Note: only used for locally imported images.
+            exif_data: Metadata extracted from the images' EXIF tags.
+                       Note: only used for locally imported images.
             overwrite: Replace or ignore conflicting data.
         """
-
         # Entries for the `images` table.
         img_data: dict[str, list] = {column: [] for column in self.schema("images")}
 
@@ -651,15 +640,13 @@ class Project:
         shard: str | None = None,
         overwrite: bool = False,
     ):
-        """
-        Add images from a directory.
+        """Add images from a directory.
 
         Args:
             path: A directory containing images.
             shard: An optional shard (=subdirectory) to use.
             overwrite: Overwrite existing entries.
         """
-
         path = Path(path)
         image_paths = utils.get_image_paths(path)
         image_data = []
@@ -700,7 +687,6 @@ class Project:
 
     def ingest_mapillary(self, df: DataFrame, table: str = "mapillary"):
         """Ingest a DataFrame of Mapillary metadata."""
-
         # Ensure that that the camera_parameters column is a list of floats
         df["camera_parameters"] = df["camera_parameters"].apply(
             lambda params: (
@@ -730,12 +716,10 @@ class Project:
     def ingest_image_records(self, records: list[dict]):
         """Batch insert local images into `images`.
 
-        Parameters
-        ----------
-        records : list of dict
-            Each dict must have keys: 'id', 'source', 'path', 'geometry'.
+        Args:
+            records : list of dict
+                Each dict must have keys: 'id', 'source', 'path', 'geometry'.
         """
-
         sql = """
         INSERT INTO images (id, source, geometry)
         VALUES (GEN_RANDOM_UUID(), ?, ?, ?, ST_GeomFromWKB(?))
@@ -762,8 +746,7 @@ class Project:
         table: str,
         bbox: Bbox,
     ) -> ibis.Table:
-        """
-        Return an Ibis table expression filtered by a bounding box.
+        """Return an Ibis table expression filtered by a bounding box.
 
         Args:
             table: The table name.
@@ -772,7 +755,6 @@ class Project:
         Returns:
             An Ibis table.
         """
-
         t = self.table(table)
         envelope_expr = ibis.literal(box(*bbox).wkt, type="geospatial:geometry")
         return t.filter(t.geometry.within(envelope_expr))
@@ -838,7 +820,8 @@ class Project:
         t_img = self.table("images")
         if t_img is None or t_map is None:
             raise ValueError(
-                "Required tables 'mapillary' and 'images' are not present in the database."
+                "Required tables 'mapillary' and 'images' "
+                "are not present in the database."
             )
         t = t_map.outer_join(t_img, t_map.image == t_img.uuid)
         t = t.select(**keys)
@@ -852,26 +835,31 @@ class Project:
         return list(zip(*[data[k] for k in keys]))
 
     def export_parquet(self, table: str, output_path: str):
+        """Export project as a Parquet file."""
         self._con.raw_sql(f"COPY {table} TO '{output_path}' (FORMAT PARQUET);")
 
     def export_json(self, table: str, output_path: str):
+        """Export project as a JSON file."""
         nonspatial = self._select_nonspatial(table)
         self._con.raw_sql(
             f"COPY (SELECT {nonspatial} FROM {table}) TO '{output_path}' (FORMAT JSON);"
         )
 
     def export_csv(self, table: str, output_path: str):
+        """Export project as a CSV file."""
         nonspatial = self._select_nonspatial(table)
         self._con.raw_sql(f"""COPY (SELECT {nonspatial} FROM {table}) TO '{output_path}'
                 (HEADER, DELIMITER ',');""")
 
     def export_gpkg(self, table: str, output_path: str):
+        """Export project as a GeoPackage file."""
         self._require_geometry(table, "GeoPackage")
         self._con.raw_sql(
             f"COPY {table} TO '{output_path}' WITH (FORMAT GDAL, DRIVER 'GPKG');"
         )
 
     def export_geojson(self, table: str, output_path: str):
+        """Export project as a GeoJSON file."""
         self._require_geometry(table, "GeoJSON")
         self._con.raw_sql(
             f"COPY {table} TO '{output_path}' WITH (FORMAT GDAL, DRIVER 'GeoJSON');"

@@ -44,8 +44,8 @@ def cli(
         batch_size: Batch size for the segmenter.
         device: Specify a device to run the model on.
         confidence: Confidence threshold for accepting segmentations.
-        quantisation: Quantisation level. Possible values are `FP16` (faster inference) or `FP32`.
-            `None` means that the default value will be used.
+        quantisation: Quantisation level. Possible values are `FP16` (faster inference)
+            or `FP32`. `None` means that the default value will be used.
         overwrite: Whether to overwrite existing segmentations.
         run: Model run ID.
         project: The project to use.
@@ -62,8 +62,8 @@ def cli(
 
     if CFG.sam3_model_path is None:
         raise ValueError(
-            "No SAM3 model weights configured. Configure the 'sam3_model_path' entry in "
-            "the streetscapes config."
+            "No SAM3 model weights configured. Configure the 'sam3_model_path' entry"
+            " in the streetscapes config."
         )
 
     # Open the project
@@ -86,7 +86,7 @@ def cli(
     if image_path is not None:
         image_paths = utils.get_image_paths(image_path)
         if len(image_paths) == 0:
-            logger.info(f"Nothing to process.")
+            logger.info("Nothing to process.")
             return
 
         uids = list(map(utils.get_image_uuid, image_paths))
@@ -95,14 +95,13 @@ def cli(
     _, unprocessed = proj.get_segmentation_status(uids, run)
 
     if len(unprocessed) == 0:
-        logger.info(f"Nothing to process.")
+        logger.info("Nothing to process.")
         return
 
     handle = serve_model(model, verbose, **model_params)
     logger.info(f"Segmenting {len(unprocessed)} images using {model}...")
     batches = list(batched(unprocessed, batch_size))
     for batch_idx, batch in enumerate(batches, 1):
-
         # Extract the paths and open the images as NumPy arrays.
         request = {
             "images": [],

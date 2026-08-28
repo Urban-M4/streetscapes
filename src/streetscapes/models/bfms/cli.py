@@ -1,3 +1,5 @@
+"""BFMS command line interface."""
+
 from typing import cast
 
 import imageio.v3 as iio
@@ -19,8 +21,7 @@ def cli(
     overwrite: bool = False,
     verbose: bool = False,
 ):
-    """
-    Segment images with BFMS.
+    """Segment images with BFMS.
 
     Args:
         image_path: Path to the images to be segmented.
@@ -31,7 +32,6 @@ def cli(
         overwrite: Overwrite an existing run.
         verbose: Print verbose log to the terminal. Useful for debugging models.
     """
-
     # Open the project
     proj = Project(project)
 
@@ -44,7 +44,7 @@ def cli(
     if image_path is not None:
         image_paths = utils.get_image_paths(image_path)
         if len(image_paths) == 0:
-            logger.info(f"Nothing to process.")
+            logger.info("Nothing to process.")
             return
 
         uids = list(map(utils.get_image_uuid, image_paths))
@@ -53,7 +53,7 @@ def cli(
     _, unprocessed = proj.get_segmentation_status(uids, run)
 
     if len(unprocessed) == 0:
-        logger.info(f"Nothing to process.")
+        logger.info("Nothing to process.")
         return
 
     handle = serve_model(model, verbose, **model_params)
@@ -61,7 +61,6 @@ def cli(
 
     # NOTE: BFMS does not support a batch mode.
     for image_idx, uid in enumerate(unprocessed, 1):
-
         # Extract the paths and open the images as NumPy arrays.
         path, _ = unprocessed[uid]
         img = np.asarray(iio.imread(path))
@@ -79,5 +78,9 @@ def cli(
             run,
             uid,
             response.labels,
-            polygons=mask2poly(instances, model="bfms", image=img,),
+            polygons=mask2poly(
+                instances,
+                model="bfms",
+                image=img,
+            ),
         )

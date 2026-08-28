@@ -19,7 +19,12 @@ jobs:
       - name: Install Ruff
         run: pip install ruff
 
-      - name: Run Ruff
-        id: ruff
+      - name: Run format check
+        id: ruff-format
         run: |
-          ruff check src --exit-zero --output-format github
+          ruff format src --check
+
+      - name: Run Ruff linter
+        id: ruff-linter
+        run: |
+          ruff check src --output-format github

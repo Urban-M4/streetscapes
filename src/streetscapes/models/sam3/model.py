@@ -1,15 +1,19 @@
 """Segment Anything Model version 3."""
-import numpy as np
-import uuid
-from PIL import Image
+
 from pathlib import Path
+from typing import TYPE_CHECKING
+
+import numpy as np
+from PIL import Image
 from tqdm import tqdm
+
 from streetscapes import utils
-from streetscapes.utils import logger
+
+if TYPE_CHECKING:
+    import uuid
 
 
 class SAM3:
-
     def __init__(
         self,
         weights: str | Path = "sam3.pt",
@@ -18,6 +22,7 @@ class SAM3:
         quantisation: str | None = None,
     ):
         """A SAM3 backend for StreetScapes.
+
         Uses the Ultralytics engine to allow for querying for multiple types of objects.
 
         IMPORTANT: The model weights need to be downloaded *manually*.
@@ -25,14 +30,14 @@ class SAM3:
         https://huggingface.co/facebook/sam3
 
         Args:
-            weights: Path to the SAM3 model weights. Defaults to 'sam3.pt' in the current directory.
-                This can be a symlink to the actual weights located elsewhere.
+            weights: Path to the SAM3 model weights. Defaults to 'sam3.pt' in the
+                current directory. This can be a symlink to the actual weights
+                located elsewhere.
             device: Specify a device to run the model on.
             confidence: Confidence threshold for accepting segmentations.
-            quantisation: Quantisation level. Possible values are `FP16` (faster inference) or `FP32`.
-                `None` means that the default value will be used.
+            quantisation: Quantisation level. Possible values are `FP16` (faster
+                inference) or `FP32`. `None` means that the default value will be used.
         """
-
         from ultralytics.models.sam import SAM3SemanticPredictor
 
         self.device = utils.get_device(device)
@@ -83,7 +88,6 @@ class SAM3:
         Returns:
             A list of dictionaries containing instance-level segmentation information.
         """
-
         # Flatten the label dictionary
         _prompt = utils.extract_categories(prompt, as_list=True)
 

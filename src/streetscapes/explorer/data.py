@@ -1,3 +1,5 @@
+"""Explorer backend data objects."""
+
 from dataclasses import dataclass, field
 from datetime import datetime
 from typing import Annotated
@@ -21,10 +23,12 @@ class FilterParams(Bbox):
     sources: list[str] = []
     tags: list[str] = []
     # metadata level filters
-    date_range: tuple[datetime, datetime] = Field(default=(datetime(1826,1,1),datetime.now()))
+    date_range: tuple[datetime, datetime] = Field(
+        default=(datetime(1826, 1, 1), datetime.now())
+    )
     # segmentation level filters
     models: list[str] = []
-    model_runs: list[str] =[]
+    model_runs: list[str] = []
     labels: list[str] = []
     segmentation_ratings: list[Annotated[int, Ge(0), Le(5)]] = Field(default=[])
 
@@ -49,6 +53,7 @@ class ImageMetadata(Image):
     compass_angle: float | None = None
     notes: str = ""
     segmentation: list[Segmentation] = field(default_factory=list)
+
 
 @dataclass
 class AggregateStats:
