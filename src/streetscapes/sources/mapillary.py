@@ -47,16 +47,15 @@ class MapillaryClient:
         gdf = client.fetch_metadata_bbox_gpd(bbox)
 
     Methods:
-    -------
-    fetch_metadata_bbox(
-        bbox: tuple[float, float, float, float], limit: int = 1000
-    ) -> pd.DataFrame
-        Fetch metadata for a bounding box and return as a pandas DataFrame.
-    fetch_metadata_bbox_gpd(
-        bbox: tuple[float, float, float, float], limit: int = 1000
-    ) -> gpd.GeoDataFrame
-        Fetch metadata for a bounding box and return as a GeoDataFrame
-         with CRS EPSG:4326.
+        fetch_metadata_bbox(
+            bbox: tuple[float, float, float, float], limit: int = 1000
+        ) -> pd.DataFrame
+            Fetch metadata for a bounding box and return as a pandas DataFrame.
+        fetch_metadata_bbox_gpd(
+            bbox: tuple[float, float, float, float], limit: int = 1000
+        ) -> gpd.GeoDataFrame
+            Fetch metadata for a bounding box and return as a GeoDataFrame
+            with CRS EPSG:4326.
     """
 
     BASE_URL = "https://graph.mapillary.com/images"
@@ -65,13 +64,11 @@ class MapillaryClient:
     def __init__(self, token: str, retries: int = 3):
         """Instantiate the client.
 
-        Parameters
-        ----------
-        token : str
-            Mapillary OAuth token.
-        retries : int, optional
-            Number of request retries on failure (default is 3).
-
+        Args:
+            token : str
+                Mapillary OAuth token.
+            retries : int, optional
+                Number of request retries on failure (default is 3).
         """
         self.session = requests.Session()
         self.session.headers.update({"Authorization": f"OAuth {token}"})
@@ -186,18 +183,15 @@ class MapillaryClient:
         For dense areas (like Amsterdam), consider splitting your bounding box into
         smaller tiles (~0.001 deg) to ensure complete coverage.
 
-        Parameters
-        ----------
-        bbox : tuple[float, float, float, float]
-            Bounding box as (west, south, east, north).
-        limit : int
-            Maximum number of images to fetch (default 1000).
+        Args:
+            bbox : tuple[float, float, float, float]
+                Bounding box as (west, south, east, north).
+            limit : int
+                Maximum number of images to fetch (default 1000).
 
         Returns:
-        -------
-        pd.DataFrame
-            DataFrame with Mapillary metadata and WKT geometry columns.
-
+            pd.DataFrame
+                DataFrame with Mapillary metadata and WKT geometry columns.
         """
         records = self._fetch_bbox(bbox, limit)
 
@@ -234,18 +228,15 @@ class MapillaryClient:
         For dense areas (like Amsterdam), consider splitting your bounding box into
         smaller tiles (~0.001 deg) to ensure complete coverage.
 
-        Parameters
-        ----------
-        bbox : tuple[float, float, float, float]
-            Bounding box as (west, south, east, north).
-        limit : int
-            Maximum number of images to fetch (default 1000).
+        Args:
+            bbox : tuple[float, float, float, float]
+                Bounding box as (west, south, east, north).
+            limit : int
+                Maximum number of images to fetch (default 1000).
 
         Returns:
-        -------
-        gpd.GeoDataFrame
-            GeoDataFrame with Mapillary metadata and geometry columns.
-
+            gpd.GeoDataFrame
+                GeoDataFrame with Mapillary metadata and geometry columns.
         """
         df = self.fetch_metadata_bbox(bbox, limit)
 

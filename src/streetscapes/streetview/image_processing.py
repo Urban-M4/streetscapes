@@ -24,15 +24,13 @@ def estimate_illumination(Y, sigma_shade=100, method="linear"):
     Rescale so that the maximum Y corresponds to illumination = 1,
     ensuring that apparent albedo Y / illum_est ≤ 1.
 
-    Parameters
-    ----------
+    Args:
         Y: ndarray, luminance map in [0,1]
         sigma_shade: float, Gaussian smoothing parameter
         method: str, 'linear' or 'retinex'
 
     Returns:
-    -------
-        illum_est: ndarray, estimated illumination map
+        ndarray, estimated illumination map
 
     """
     if method == "linear":

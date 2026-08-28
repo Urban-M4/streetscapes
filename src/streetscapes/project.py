@@ -716,10 +716,9 @@ class Project:
     def ingest_image_records(self, records: list[dict]):
         """Batch insert local images into `images`.
 
-        Parameters
-        ----------
-        records : list of dict
-            Each dict must have keys: 'id', 'source', 'path', 'geometry'.
+        Args:
+            records : list of dict
+                Each dict must have keys: 'id', 'source', 'path', 'geometry'.
         """
         sql = """
         INSERT INTO images (id, source, geometry)
