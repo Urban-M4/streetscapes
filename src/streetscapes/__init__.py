@@ -17,4 +17,4 @@ def get_env(key: str):
     raise KeyError(f"{key} not found in environment variables.")
 
 
-__all__ = [CFG, logger, get_env]
+__all__ = ["CFG", "logger", "get_env"]

@@ -76,8 +76,8 @@ def mask2poly(
             geometry.MultiPolygon(
                 polys
                 if tolerance is None
-                else [poly.simplify(tolerance) for poly in polys]
-            )  # type: ignore[misc]
+                else [poly.simplify(tolerance) for poly in polys]  # type: ignore[misc]
+            )
         )
 
     return GeometryCollection(geometries)

@@ -1,0 +1,1 @@
+"""SAM3 model for streetscapes."""

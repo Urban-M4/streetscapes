@@ -11,10 +11,10 @@ from rich.console import Console  # TODO: import from cli.console, or just use l
 from streetscapes.models.bfms.service import BFMSService
 from streetscapes.models.dinosam.service import DinoSAMService
 from streetscapes.models.maskformer.service import MaskFormerService
+from streetscapes.models.sam3.service import SAM3Service
 
 if TYPE_CHECKING:
     from ray.serve.handle import DeploymentHandle
-
 
 os.environ["RAY_ACCEL_ENV_VAR_OVERRIDE_ON_ZERO"] = "0"
 
@@ -22,12 +22,11 @@ MODEL_REGISTRY = {
     "bfms": BFMSService,
     "maskformer": MaskFormerService,
     "dinosam": DinoSAMService,
+    "sam3": SAM3Service,
 }
 
 
-@serve.deployment(
-    num_replicas=1,
-)
+@serve.deployment(num_replicas=1)
 class ModelApp:
     """CV model app wrapper."""
 

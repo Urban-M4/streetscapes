@@ -5,7 +5,7 @@ from typing import cast
 
 import imageio as iio
 import numpy as np
-import orjson as oj
+from ray import cloudpickle
 
 from streetscapes import CFG, utils
 from streetscapes.models.maskformer.model import MaskFormer
@@ -99,9 +99,7 @@ def cli(
             path, _ = unprocessed[uid]
             img_data = {
                 "uid": uid,
-                "image": oj.dumps(
-                    np.asarray(iio.imread(path)), option=oj.OPT_SERIALIZE_NUMPY
-                ),
+                "image": cloudpickle.dumps(np.asarray(iio.imread(path))),
             }
             request["images"].append(img_data)  # type: ignore[arg-type]
 
@@ -113,7 +111,7 @@ def cli(
         # Save the instances.
         segmentations = []
         for response in responses:
-            instances = oj.loads(response.instances)
+            instances = cloudpickle.loads(response.instances)
             segmentations.append(
                 {
                     "run": run,

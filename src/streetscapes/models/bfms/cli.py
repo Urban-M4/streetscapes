@@ -4,7 +4,7 @@ from typing import cast
 
 import imageio.v3 as iio
 import numpy as np
-import orjson as oj
+from ray import cloudpickle
 
 from streetscapes import CFG, utils
 from streetscapes.project import Project
@@ -64,12 +64,7 @@ def cli(
         # Extract the paths and open the images as NumPy arrays.
         path, _ = unprocessed[uid]
         img = np.asarray(iio.imread(path))
-        request = {
-            "image": oj.dumps(
-                img,
-                option=oj.OPT_SERIALIZE_NUMPY,
-            )
-        }
+        request = {"image": cloudpickle.dumps(img)}
 
         # Process the images
         logger.info(f"Segmenting image [{image_idx:>4d}/{len(unprocessed):>4d}]...")
@@ -77,14 +72,14 @@ def cli(
         logger.debug(f"Successfully segmented image {uid}, saving instances.")
 
         # Save the instances.
-        instances = oj.loads(response.instances)
+        instances = cloudpickle.loads(response.instances)
         # Save segmentation immediately
         proj.add_segmentation(
             run,
             uid,
             response.labels,
             polygons=mask2poly(
-                np.array(instances),
+                instances,
                 model="bfms",
                 image=img,
             ),

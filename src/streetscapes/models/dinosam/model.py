@@ -132,8 +132,13 @@ class DinoSAM:
 
             bboxes = dino_results["boxes"]
             if bboxes.numel() == 0 or bboxes.size()[0] == 0:
-                # No objects found, move on...
+                # No objects found, but still record the image as processed.
                 logger.debug(f"No objects found in image '{uid}'.")
+                segmentation["labels"] = []
+                segmentation["instances"] = np.zeros(
+                    (0, *image.shape[:2]), dtype=np.bool_
+                )
+                segmentations.append(segmentation)
                 continue
 
             # Bounding boxes

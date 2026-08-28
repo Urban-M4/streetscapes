@@ -183,7 +183,7 @@ class Project:
 
     @property
     def image_path(self) -> Path:
-        """ "Get the path to the images directory."""
+        """Get the path to the images directory."""
         return self.image_dir / "images"
 
     @property

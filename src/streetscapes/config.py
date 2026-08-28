@@ -19,6 +19,7 @@ class Configuration(BaseSettings):
     active_project: str = "streetscapes"
     mapillary_token: str = os.getenv("MAPILLARY_TOKEN", "")
     local_cache_dir_name: str = "local"
+    sam3_model_path: Path | None = None
 
     @field_validator("project_dir", mode="before")
     @classmethod
@@ -29,6 +30,16 @@ class Configuration(BaseSettings):
     @classmethod
     def _ensure_image_dir(cls, value: str | Path) -> Path:
         return ensure_dir(value)
+
+    @field_validator("sam3_model_path", mode="after")
+    @classmethod
+    def _validate_sam3_model_path(cls, value: Path | None) -> Path | None:
+        if value is not None:
+            if not value.is_absolute():
+                raise ValueError(f"SAM3 model path must be absolute: {value}")
+            if not value.is_file():
+                raise ValueError(f"SAM3 model path does not exist: {value}")
+        return value
 
     def save(self):
         """Save configuration to file."""

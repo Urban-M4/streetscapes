@@ -398,13 +398,18 @@ def show_image(id: str, source: str):
     plt.show()
 
 
-def extract_categories(prompt: str | list[str]) -> str:
+def extract_categories(
+    prompt: str | list[str],
+    as_list: bool = False,
+) -> str | list[str]:
     """Extract labels (object categories) to look for from a free-form prompt.
 
     Args:
         prompt: The labels as a string or a list of strings.
             If a string is provided, the categories should be
             separated by commas or full stops.
+        as_list: Return the prompt as a list of strings rather
+            than joining all the strings together into a single prompt.
 
     Returns:
         A list of labels (object categories).
@@ -431,6 +436,9 @@ def extract_categories(prompt: str | list[str]) -> str:
     prompt = ". ".join(
         [cat.strip() for cat in prompt.split(".") if len(cat.strip()) > 0]
     )
+
+    if as_list:
+        return [cat.strip() for cat in prompt.split(".") if len(cat.strip()) > 0]
 
     return f"{prompt.strip()}."
 
