@@ -46,7 +46,7 @@ class TestCLIHelp:
 
     def test_fetch_metadata_mapillary_help(self):
         result = run_cli("streetscapes fetch-metadata mapillary --help")
-        assert "--bbox" in result
+        assert "BBOX" in result
         assert "--tile-size" in result
         assert "--limit" in result
 
@@ -61,8 +61,8 @@ class TestCLIHelp:
 
     def test_export_table_help(self):
         result = run_cli("streetscapes export table --help")
-        assert "table-name" in result
-        assert "output" in result
+        assert "TABLE_NAME" in result
+        assert "OUTPUT" in result
 
 
 @pytest.mark.skip(reason="TODO use memisis data instead of fake_mapillary_data")
