@@ -76,9 +76,11 @@ def cli(
         "weights": str(CFG.sam3_model_path),
         "confidence": confidence,
         "quantisation": quantisation,
+        "prompt": prompt,
     }
 
     result = proj.add_run(run, model, model_params, overwrite)
+    model_params.pop("prompt")  # prompt is provided after model is served
     run = str(result.get("run")[0])  # type: ignore[index]
 
     # Get all images that need to be processed.
