@@ -13,6 +13,8 @@ export_cli = App(help="Export tables from the project.")
 def export_table(
     table_name: str,
     output: str,
+    /,
+    *,
     project: str | None = None,
 ):
     """Export a table to (Geo)Parquet, CSV, JSON, GPKG, or GeoJSON.

@@ -1,7 +1,8 @@
 from pprint import pp
 import sys
+from typing import Annotated
 
-from cyclopts import App
+from cyclopts import App, Parameter
 from rich.table import Table
 
 from streetscapes import CFG
@@ -60,7 +61,8 @@ def get_config(key: str):
 
 @config_cli.command(name="list")
 def list_config(
-    json_output: bool = False,
+    *,
+    json_output: Annotated[bool, Parameter(negative="")] = False,
     indent: int = 2,
 ):
     """List configuration settings.

@@ -51,6 +51,7 @@ def _existing_img_valid(
 
 @download_images_cli.command(name="mapillary")
 def mapillary(
+    *,
     skip_existing: bool = True,
     token: str | None = None,
     project: str | None = None,

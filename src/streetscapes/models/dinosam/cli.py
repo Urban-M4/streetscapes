@@ -2,11 +2,12 @@
 
 import logging
 from itertools import batched
-from typing import cast
+from typing import Annotated, cast
 
 import imageio.v3 as iio
 import numpy as np
 import orjson as oj
+from cyclopts import Parameter
 
 from streetscapes import CFG, utils
 from streetscapes.project import Project
@@ -18,6 +19,8 @@ logger = logging.getLogger(__name__)
 
 def cli(
     prompt: str,
+    /,
+    *,
     image_path: str | None = None,
     batch_size: int = 10,
     sam_model_id: str = "facebook/sam2.1-hiera-large",
@@ -26,8 +29,8 @@ def cli(
     text_threshold: float = 0.3,
     run: str | None = None,
     project: str = cast("str", CFG.active_project),
-    overwrite: bool = False,
-    verbose: bool = False,
+    overwrite: Annotated[bool, Parameter(negative="")] = False,
+    verbose: Annotated[bool, Parameter(negative="")] = False,
 ):
     """Segment images with DinoSAM.
 
@@ -41,7 +44,7 @@ def cli(
         box_threshold: Box threshold for Dino.
         text_threshold: Text threshold for Dino.
         overwrite: Whether to overwrite existing segmentations.
-        run: Model run ID.
+        run: Model run ID. Will be generated automatically if not provided.
         project: The project to use.
         overwrite: Overwrite an existing run.
         verbose: Print verbose log to the terminal. Useful for debugging models.
