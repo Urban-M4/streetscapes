@@ -1,6 +1,7 @@
+"""Bounding box utils."""
+
 from itertools import product
 from typing import Iterable
-
 
 Bbox = tuple[float, float, float, float]
 """west, south, easth, north"""

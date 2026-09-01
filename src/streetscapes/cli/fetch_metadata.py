@@ -1,8 +1,14 @@
+"""Metadata fetching CLI.
+
+Usage:
+> streetscapes fetch-metadata --help
+"""
+
 import logging
 
+import typer
 from cyclopts import App
 from rich.progress import track
-import typer
 
 from streetscapes import CFG
 from streetscapes.cli.console import console
@@ -32,15 +38,19 @@ def mapillary(
         token: Mapillary OAuth token (if not set via MAPILLARY_TOKEN).
         project: An optional project to attach to.
     """
+    import ibis
+
     from streetscapes.project import Project
     from streetscapes.sources.mapillary import MapillaryClient
-    import ibis
 
     logger.info(f"Fetching metadata for {bbox=}")
 
     token = token or CFG.mapillary_token
     if not token:
-        logger.error("Error: 'mapillary_token' missing, set with `streetscapes config set mapillary_token <your token>`")
+        logger.error(
+            "Error: 'mapillary_token' missing, set with `streetscapes config set"
+            " mapillary_token <your token>`"
+        )
         raise typer.Exit(code=1)
 
     m = MapillaryClient(token)
@@ -48,7 +58,7 @@ def mapillary(
 
     ntiles, tiles = split_bbox(bbox, tile_size)
     logger.info(f"Splitting bbox in {ntiles} tiles with {tile_size=}")
-    for tile, tile_id in track(
+    for tile, _tile_id in track(
         tiles, description="Fetching tiles", total=ntiles, console=console
     ):
         df = m.fetch_metadata_bbox(tile, limit)

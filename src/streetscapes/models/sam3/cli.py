@@ -1,12 +1,12 @@
 """Command line interface for BFMS model."""
 
+import importlib.util
 import logging
 from itertools import batched
-from typing import Annotated, cast
+from typing import cast
 
 import imageio.v3 as iio
 import numpy as np
-from cyclopts import Parameter
 from ray import cloudpickle
 
 from streetscapes import CFG, utils
@@ -19,47 +19,63 @@ logger = logging.getLogger(__name__)
 
 def cli(
     prompt: str,
-    /,
-    *,
     image_path: str | None = None,
     batch_size: int = 10,
-    sam_model_id: str = "facebook/sam2.1-hiera-large",
-    dino_model_id: str = "IDEA-Research/grounding-dino-base",
-    box_threshold: float = 0.3,
-    text_threshold: float = 0.3,
+    confidence: float = 0.25,
+    quantisation: str | None = None,
     run: str | None = None,
     project: str = cast("str", CFG.active_project),
-    overwrite: Annotated[bool, Parameter(negative="")] = False,
-    verbose: Annotated[bool, Parameter(negative="")] = False,
+    overwrite: bool = False,
+    verbose: bool = False,
 ):
-    """Segment images with DinoSAM.
+    """Segment images with SAM3.
+
+    Note: The SAM3 model weights cannot be downloaded from HuggingFace without
+    authentication. Instead download the SAM3 `.pt` file after signing up at:
+    https://huggingface.co/facebook/sam3
+    Set the absolute path to the downloaded SAM3 `.pt` file in the
+    streetscapes config:
+    > streetscapes config set sam3_model_path "/abs/path/to/file.pt".
 
     Args:
-        prompt: The prompt to use for this model.
+        prompt: The prompt to use for this model (e.g. "tree,bench,sign").
         image_path: Path to an image or a directory of images.
             If not provided uses all downloaded images in the project.
         batch_size: Batch size for the segmenter.
-        sam_model_id: SAM model ID (Huggingface format).
-        dino_model_id: Dino model ID (Huggingface format).
-        box_threshold: Box threshold for Dino.
-        text_threshold: Text threshold for Dino.
+        device: Specify a device to run the model on.
+        confidence: Confidence threshold for accepting segmentations.
+        quantisation: Quantisation level. Possible values are `FP16` (faster inference)
+            or `FP32`. `None` means that the default value will be used.
         overwrite: Whether to overwrite existing segmentations.
-        run: Model run ID. Will be generated automatically if not provided.
+        run: Model run ID.
         project: The project to use.
         overwrite: Overwrite an existing run.
         verbose: Print verbose log to the terminal. Useful for debugging models.
     """
+    if importlib.util.find_spec("ultralytics") is None:
+        msg = (
+            "SAM3 requires extra dependencies. "
+            "Install these with `pip install streetscapes[sam3]` or"
+            "`uv sync --all-extras`."
+        )
+        raise ImportError(msg)
+
+    if CFG.sam3_model_path is None:
+        raise ValueError(
+            "No SAM3 model weights configured. Configure the 'sam3_model_path' entry"
+            " in the streetscapes config."
+        )
+
     # Open the project
     proj = Project(project)
 
     # Save the run metadata.
     # ==================================================
-    model = "dinosam"
+    model = "sam3"
     model_params = {
-        "sam_model_id": sam_model_id,
-        "dino_model_id": dino_model_id,
-        "box_threshold": box_threshold,
-        "text_threshold": text_threshold,
+        "weights": str(CFG.sam3_model_path),
+        "confidence": confidence,
+        "quantisation": quantisation,
     }
 
     result = proj.add_run(run, model, model_params, overwrite)

@@ -1,3 +1,5 @@
+"""Identify buildings CLI (not implemented...)."""
+
 import typer
 
 identify_buildings_cli = typer.Typer(

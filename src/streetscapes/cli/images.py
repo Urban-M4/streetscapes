@@ -17,8 +17,7 @@ def add_images(
     shard: str | None = None,
     overwrite: Annotated[bool, Parameter(negative="")] = False,
 ):
-    """
-    Add images from a local directory.
+    """Add images from a local directory.
 
     This could be useful if you have a collection of images that have been
     acquired manually (not from an online source such as Mapillary or Kartaview).
@@ -29,7 +28,6 @@ def add_images(
         shard: Optional path shard (to a subpath for the images).
         overwrite: Overwrite images that have already been added.
     """
-
     from streetscapes.project import Project
 
     proj = Project(project)

@@ -1,5 +1,11 @@
-from pprint import pp
+"""Config handling CLI.
+
+Usage:
+> streetscapes config --help
+"""
+
 import sys
+from pprint import pp
 from typing import Annotated
 
 from cyclopts import App, Parameter
@@ -13,8 +19,7 @@ config_cli = App(name="config")
 
 @config_cli.command(name="set")
 def set_config(key: str, value: str):
-    """
-    Set a global streetscapes config value
+    """Set a global streetscapes config value.
 
     Args:
         key: The configuration option.
@@ -41,8 +46,7 @@ def set_config(key: str, value: str):
 
 @config_cli.command(name="get")
 def get_config(key: str):
-    """
-    Get a config value.
+    """Get a config value.
 
     Args:
         key: The configuration option.
@@ -50,7 +54,6 @@ def get_config(key: str):
     Raises:
         SystemExit: Raised if the configuration option does not exist.
     """
-
     value = getattr(CFG, key)
     if value is not None:
         print(value)
@@ -71,7 +74,6 @@ def list_config(
         json_output: Show configuration as JSON if True.
         indent: Indentation for JSON output.
     """
-
     if json_output:
         pp(CFG.model_dump_json(indent=indent))
         return

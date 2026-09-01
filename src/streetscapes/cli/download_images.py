@@ -1,5 +1,10 @@
+"""Image download CLI.
+
+usage:
+> streetscapes download-images --help
+"""
+
 import logging
-import os
 from pathlib import Path
 
 import typer
@@ -81,7 +86,10 @@ def mapillary(
 
     token = token or CFG.mapillary_token
     if not token:
-        logger.error("Error: 'mapillary_token' missing, set with `streetscapes config set mapillary_token <your token>`")
+        logger.error(
+            "Error: 'mapillary_token' missing, set with `streetscapes config set "
+            "mapillary_token <your token>`"
+        )
         raise typer.Exit(code=1)
 
     mapillary = MapillaryClient(token)
@@ -113,7 +121,9 @@ def mapillary(
             if output_dir is not None:
                 output_dir /= shard
 
-        if not skip_existing or not _existing_img_valid(uid, image_id, output_dir, skip_existing):
+        if not skip_existing or not _existing_img_valid(
+            uid, image_id, output_dir, skip_existing
+        ):
             try:
                 img_meta = mapillary.download_image(
                     url, output_dir, image_id, uid, skip_existing=skip_existing
@@ -123,18 +133,16 @@ def mapillary(
                 logger.error(e)
                 continue
 
-        tags = ['mapillary']
+        tags = ["mapillary"]
         if is_pano:
-            tags.append('panoramic')
+            tags.append("panoramic")
         if camera_type is not None:
             tags.append(camera_type)
 
         image_data.append(_format_image(uid, "mapillary", str(shard), tags=tags))
 
         # Update the Mapillary table
-        proj._con.raw_sql(
-            f"UPDATE mapillary SET image='{uid}' WHERE id={image_id};"
-        )
+        proj._con.raw_sql(f"UPDATE mapillary SET image='{uid}' WHERE id={image_id};")
 
         downloaded += 1
 
@@ -143,5 +151,6 @@ def mapillary(
     proj.add_images(image_data)
 
     console.print(
-        f"Download complete: {downloaded}/{total} images saved under {proj.get_image_dir_for_source('mapillary')}."
+        f"Download complete: {downloaded}/{total} images saved under "
+        f"{proj.get_image_dir_for_source('mapillary')}."
     )

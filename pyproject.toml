@@ -68,11 +68,25 @@ license = { file = "LICENCE" }
 streetscapes = "streetscapes.cli.main:app"
 streetscapes-explorer = "streetscapes.explorer.server:cli"
 
-[tool.ruff]
-lint.select = ["F", "E", "TYP", "B", "D", "C", "Q", "I"]
+[tool.ruff.lint]
+select = ["F", "E", "TYP", "B", "D", "C", "Q", "I"]
+ignore = [
+    "D101",
+    "B905",
+    "B911",
+    "E741",
+]
+
+[tool.ruff.lint.flake8-type-checking]
+"runtime-evaluated-base-classes" = [
+    "pydantic.BaseModel",
+    "cyclopts.App"
+]
 
 [tool.ruff.lint.per-file-ignores]
 "tests/*.py" = ["D"]
+"*/cli/*" = ["TC003"]  # fixing linter breaks cyclopts
+"*/explorer/*" = ["TC001", "TC003"]
 
 [tool.ruff.lint.pydocstyle]
 convention = "google"
@@ -88,6 +102,7 @@ exclude = '''(?x)(
 
 [project.optional-dependencies]
 explorer = ["fastapi", "uvicorn", "brotli-asgi"]
+rocm = ["torch", "torchvision", "triton-rocm"]
 dev = [
     "fastapi[standard]",
     "pytest>=8.4.2",
@@ -107,3 +122,14 @@ dev = [
     "types-shapely",
     "types-requests",
 ]
+sam3 = ["ultralytics>=8.3.237"]
+
+[tool.uv.sources]
+torch = [{ index = "pytorch-rocm", extra = "rocm" }]
+torchvision = [{ index = "pytorch-rocm", extra = "rocm" }]
+triton-rocm = [{ index = "pytorch-rocm", extra = "rocm" }]
+
+[[tool.uv.index]]
+name = "pytorch-rocm"
+url = "https://download.pytorch.org/whl/rocm7.1"
+explicit = true

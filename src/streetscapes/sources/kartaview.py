@@ -1,22 +1,23 @@
-# --------------------------------------
-from pathlib import Path
+"""KartaView functionality."""
 
-# --------------------------------------
+from typing import TYPE_CHECKING
+
 import ibis
 
-# --------------------------------------
 from streetscapes.sources.base import ImageSourceBase
+
+if TYPE_CHECKING:
+    from pathlib import Path
 
 
 class KartaView(ImageSourceBase):
-    """TODO: Add docstrings"""
+    """TODO: Add docstrings."""
 
     def __init__(
         self,
         root_dir: str | Path | None = None,
     ):
-        """An interface for downloading and manipulating
-        street view images from Kartaview.
+        """An interface for downloading and manipulating Kartaview images.
 
         Args:
             root_dir:
@@ -60,8 +61,9 @@ class KartaView(ImageSourceBase):
     def fetch_image_ids(self, lat, lon, radius):
         """Fetch Kartaview image ids within radius of a given point.
 
-        Uses old openstreecam API (https://api.openstreetcam.org/api/doc.html) as it seems not available on latest kartaview
-        API (https://doc.kartaview.org/#section/API-Resources).
+        Uses old openstreecam API (https://api.openstreetcam.org/api/doc.html)
+        as it seems not available on latest kartaview API
+        (https://doc.kartaview.org/#section/API-Resources).
 
         Returns:
             pd.DataFrame

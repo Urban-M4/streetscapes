@@ -1,12 +1,20 @@
+"""DinoSAM model."""
+
+from typing import TYPE_CHECKING
+
 import numpy as np
-import uuid
 from PIL import Image
 from tqdm import tqdm
+
 from streetscapes import utils
 from streetscapes.utils import logger
 
+if TYPE_CHECKING:
+    import uuid
+
 
 class DinoSAM:
+    """Model combining SAM2 and GroundingDINO for promptable instance segmentation."""
 
     def __init__(
         self,
@@ -15,11 +23,11 @@ class DinoSAM:
         box_threshold: float = 0.3,
         text_threshold: float = 0.3,
         device: str | None = None,
-        *args,
-        **kwargs,
     ):
-        """A model combining SAM2 and GroundingDINO for promptable instance segmentation.
-        Inspired by [LangSAM](https://github.com/luca-medeiros/lang-segment-anything) and [SamGeo](https://samgeo.gishub.org/samgeo/).
+        """Model combining SAM2 and GroundingDINO for promptable instance segmentation.
+
+        Inspired by [LangSAM](https://github.com/luca-medeiros/lang-segment-anything)
+        and [SamGeo](https://samgeo.gishub.org/samgeo/).
 
         Args:
             sam_model_id: SAM2 model. Possible options include:
@@ -27,29 +35,27 @@ class DinoSAM:
                 - facebook/sam2.1-hiera-small
                 - facebook/sam2.1-hiera-large
             dino_model_id: A GroundingDINO model.
-            box_threshold: This parameter is used for modulating the identification of objects in the images.
+            box_threshold: This parameter is used for modulating the identification of
+              objects in the images.
                 The box threshold is related to the model confidence,
                 so a higher value makes the model more selective because
                 it is equivalent to requiring the model to only select
                 objects that it feels confident about.
-            text_threshold: This parameter is also used for influencing the selectivity of the model
-                by requiring a stronger association between the prompt and the segment.
+            text_threshold: This parameter is also used for influencing the selectivity
+                of the model by requiring a stronger association between the prompt
+                and the segment.
             device: Specify a device to run the model on.
-
         """
         import transformers
 
         self.device = utils.get_device(device)
 
         # Model parameters
-        # ==================================================
         self.sam_model_id = sam_model_id
         self.dino_model_id = dino_model_id
         self.box_threshold = box_threshold
         self.text_threshold = text_threshold
 
-        # Processors and models
-        # ==================================================
         # GroundingDINO model.
         self.dino_processor = transformers.AutoProcessor.from_pretrained(
             self.dino_model_id,
@@ -99,7 +105,7 @@ class DinoSAM:
         # ==================================================
         segmentations = []
 
-        for idx, (uid, image) in tqdm(enumerate(zip(uids, images)), total=len(images)):
+        for _idx, (uid, image) in tqdm(enumerate(zip(uids, images)), total=len(images)):
             # Dictionary that will hold all the information about the segmentation
             segmentation = {"uid": uid}
 
@@ -126,8 +132,13 @@ class DinoSAM:
 
             bboxes = dino_results["boxes"]
             if bboxes.numel() == 0 or bboxes.size()[0] == 0:
-                # No objects found, move on...
+                # No objects found, but still record the image as processed.
                 logger.debug(f"No objects found in image '{uid}'.")
+                segmentation["labels"] = []
+                segmentation["instances"] = np.zeros(
+                    (0, *image.shape[:2]), dtype=np.bool_
+                )
+                segmentations.append(segmentation)
                 continue
 
             # Bounding boxes

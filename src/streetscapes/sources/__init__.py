@@ -1,0 +1,1 @@
+"""Streetscape image sources."""

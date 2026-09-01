@@ -1,11 +1,11 @@
 """CLI commands to view/manipulate the database."""
+
 from pathlib import Path
 from typing import TYPE_CHECKING
 
 from cyclopts import App
-
-from rich.table import Table
 from rich.console import Console
+from rich.table import Table
 
 from streetscapes import CFG
 
@@ -13,7 +13,9 @@ if TYPE_CHECKING:
     import ibis
 
 database_cli = App(help="Get info and delete entries from the database.")
-segmentations_cli = App(help="View and/or delete segmentation data in the currently active project.")
+segmentations_cli = App(
+    help="View and/or delete segmentation data in the currently active project."
+)
 database_cli.command(segmentations_cli, name="segmentations")
 
 
@@ -21,8 +23,7 @@ def _get_db(project: str | None = None) -> "ibis.BaseBackend":
     import ibis
 
     dbpath = Path(
-        f"{CFG.project_dir}/"
-        f"{CFG.active_project if project is None else project}.duckdb"
+        f"{CFG.project_dir}/{CFG.active_project if project is None else project}.duckdb"
     )
     return ibis.duckdb.connect(dbpath, extensions=["spatial", "json"])
 
@@ -41,7 +42,7 @@ def segmentation_stats():
         title = f"Segmentation runs in project '{CFG.active_project}' database:"
         tbl = Table("Run name", "Entries", title=title)
         for run in runs:
-            n_items = t_segs.filter(t_segs.run==run).nunique().to_pandas()
+            n_items = t_segs.filter(t_segs.run == run).nunique().to_pandas()
             tbl.add_row(run, str(n_items))
         con.print(tbl)
 
@@ -88,8 +89,10 @@ def list_projects():
     proj_dbs = list(Path(CFG.project_dir).glob("*.duckdb"))
 
     if len(proj_dbs) > 0:
-        projects = {proj.stem: _get_table_counts(_get_db(proj.stem)) for proj in proj_dbs}
-        title=f"Projects stored in directory '{CFG.project_dir}':"
+        projects = {
+            proj.stem: _get_table_counts(_get_db(proj.stem)) for proj in proj_dbs
+        }
+        title = f"Projects stored in directory '{CFG.project_dir}':"
         con = Console()
         tbl = Table("Name", "Images", "Segmentation runs", title=title)
         for proj, counts in projects.items():
@@ -98,4 +101,3 @@ def list_projects():
 
     else:
         print(f"No projects found in directory '{CFG.project_dir}'")
-

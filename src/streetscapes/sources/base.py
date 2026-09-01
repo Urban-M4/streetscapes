@@ -1,3 +1,5 @@
+"""TODO: add docstring."""
+
 from __future__ import annotations
 
 import os
@@ -12,15 +14,15 @@ from tqdm import tqdm
 from streetscapes import logger, utils
 
 
-class SourceBase(ABC):
-    """TODO: Add docstrings"""
+class SourceBase:
+    """TODO: Add docstrings."""
 
     def __init__(
         self,
         root_dir: str | Path | None = None,
     ):
-        """A generic interface used by all derived
-        interfaces to various data sources
+        """A generic interface used by all derived interfaces to various data sources.
+
         (HuggingFace, street view imagery, etc.)
 
         Args:
@@ -31,7 +33,6 @@ class SourceBase(ABC):
 
         """
         # Source name and environment variables
-        # ==================================================
         self.name = self.__class__.__name__.lower()
         load_dotenv()
 
@@ -60,7 +61,7 @@ class SourceBase(ABC):
 
 
 class ImageSourceBase(SourceBase, ABC):
-    """TODO: Add docstrings"""
+    """TODO: Add docstrings."""
 
     # Regex of extensions for some common image formats.
     # TODO: Parameterise the file extensions.
@@ -134,14 +135,15 @@ class ImageSourceBase(SourceBase, ABC):
         Returns:
             A tuple containing:
                 1. A set of paths to existing images.
-                2. A set of IDs of missing images (can be used to determine which images to download).
+                2. A set of IDs of missing images (can be used to determine which
+                   images to download).
 
         """
         # Check if images exist.
         # NOTE: This might not be generic.
         # It works for Mapillary and KartaView,
         # but it should be tested on other sources as well.
-        image_ids = set([str(r) for r in image_ids])
+        image_ids = {str(r) for r in image_ids}
         existing = {
             path
             for path in utils.filter_files(self.root_dir, ImageSourceBase.image_pattern)
@@ -233,11 +235,11 @@ class ImageSourceBase(SourceBase, ABC):
 
         if len(urls) != len(image_ids):
             raise AttributeError(
-                "Please ensure that the URL list is the same size as the list of image IDs."
+                "Please ensure that the URL list is the same "
+                "size as the list of image IDs."
             )
 
         # Download the images
-        # ==================================================
         results = []
         desc = f"Downloading images | {self.name}"
         with tqdm(total=len(image_ids), desc=desc) as pbar:
