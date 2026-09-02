@@ -1,10 +1,11 @@
 """MaskFormer CLI."""
 
 from itertools import batched
-from typing import cast
+from typing import Annotated, cast
 
 import imageio as iio
 import numpy as np
+from cyclopts import Parameter
 from ray import cloudpickle
 
 from streetscapes import CFG, utils
@@ -16,6 +17,7 @@ from streetscapes.utils.masks import mask2poly
 
 
 def cli(
+    *,
     image_path: str | None = None,
     labels: list[str] | None = None,
     batch_size: int = 10,
@@ -26,8 +28,8 @@ def cli(
     fuse_labels: list[str] | None = None,
     run: str | None = None,
     project: str = cast("str", CFG.active_project),
-    overwrite: bool = False,
-    verbose: bool = False,
+    overwrite: Annotated[bool, Parameter(negative="")] = False,
+    verbose: Annotated[bool, Parameter(negative="")] = False,
 ):
     """Segment images with MaskFormer.
 
@@ -44,7 +46,7 @@ def cli(
             disconnected parts within each binary instance mask.
         fuse_labels: The labels in this state will have all their instances fused
             together.
-        run: Model run ID.
+        run: Model run ID. Will be generated automatically if not provided.
         project: The project to use. Uses the active project by default.
         overwrite: Overwrite an existing run.
         verbose: Print verbose log to the terminal. Useful for debugging models.

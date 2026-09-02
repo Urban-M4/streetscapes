@@ -22,6 +22,8 @@ fetch_metadata_cli = App(help="Fetch metadata for a source")
 @fetch_metadata_cli.command(name="mapillary")
 def mapillary(
     bbox: Bbox,
+    /,
+    *,
     tile_size: float = 0.001,
     limit: int = 1000,
     token: str | None = None,
@@ -30,7 +32,7 @@ def mapillary(
     """Fetch metadata from the Mapillary API.
 
     Args:
-        bbox: Bounding box (west, south, east, north).
+        bbox: Bounding box (WEST EAST SOUTH NORTH).
         tile_size: Tile size in degrees.
         limit: Maximum number of images per tile.
         token: Mapillary OAuth token (if not set via MAPILLARY_TOKEN).

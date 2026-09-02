@@ -1,9 +1,10 @@
 """BFMS command line interface."""
 
-from typing import cast
+from typing import Annotated, cast
 
 import imageio.v3 as iio
 import numpy as np
+from cyclopts import Parameter
 from ray import cloudpickle
 
 from streetscapes import CFG, utils
@@ -14,12 +15,13 @@ from streetscapes.utils.masks import mask2poly
 
 
 def cli(
+    *,
     image_path: str | None = None,
     model_id: str = "jinfengxie/BFMS_1014",
     run: str | None = None,
     project: str = cast("str", CFG.active_project),
-    overwrite: bool = False,
-    verbose: bool = False,
+    overwrite: Annotated[bool, Parameter(negative="")] = False,
+    verbose: Annotated[bool, Parameter(negative="")] = False,
 ):
     """Segment images with BFMS.
 
@@ -27,7 +29,7 @@ def cli(
         image_path: Path to the images to be segmented.
             If not provided uses all downloaded images in the project.
         model_id: BFMS model ID (Huggingface format).
-        run: Model run name.
+        run: Model run ID. Will be generated automatically if not provided.
         project: The project to use.
         overwrite: Overwrite an existing run.
         verbose: Print verbose log to the terminal. Useful for debugging models.

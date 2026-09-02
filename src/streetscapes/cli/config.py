@@ -6,14 +6,18 @@ Usage:
 
 import sys
 from pprint import pp
+from typing import Annotated
 
-from cyclopts import App
+from cyclopts import App, Parameter
 from rich.table import Table
 
 from streetscapes import CFG
 from streetscapes.cli.console import console
 
-config_cli = App(name="config")
+config_cli = App(
+    name="config",
+    help="View and modify the streetscapes configuration."
+)
 
 
 @config_cli.command(name="set")
@@ -63,7 +67,8 @@ def get_config(key: str):
 
 @config_cli.command(name="list")
 def list_config(
-    json_output: bool = False,
+    *,
+    json_output: Annotated[bool, Parameter(negative="")] = False,
     indent: int = 2,
 ):
     """List configuration settings.
