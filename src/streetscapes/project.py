@@ -648,7 +648,14 @@ class Project:
             overwrite: Overwrite existing entries.
         """
         path = Path(path)
+        if not path.absolute():
+            path = path.resolve()
         image_paths = utils.get_image_paths(path)
+
+        if len(image_paths) == 0:
+            msg = f"No images found at path '{path}'"
+            raise FileNotFoundError(msg)
+
         image_data = []
         exif_data = []
         image_dir = self.get_image_dir_for_source(CFG.local_cache_dir_name, create=True)
