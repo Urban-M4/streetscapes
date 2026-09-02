@@ -19,6 +19,8 @@ wget -O test-images/img1.jpg -q "https://upload.wikimedia.org/wikipedia/commons/
 wget -O test-images/img2.jpg -q "https://upload.wikimedia.org/wikipedia/commons/2/20/Bad_S%C3%A4ckingen_%E2%80%94_Rathausplatz_3_und_M%C3%BCnsterplatz_34.JPG?utm_source=commons.wikimedia.org&utm_campaign=index&utm_content=original"
 ```
 
+If the download fails for some reason, the images are available [here](https://commons.wikimedia.org/wiki/File:Arnstorf_-_Schloss_Mariakirchen_westlich,_Aussenansicht.JPG) and [here](https://commons.wikimedia.org/wiki/File:Bad_S%C3%A4ckingen_%E2%80%94_Rathausplatz_3_und_M%C3%BCnsterplatz_34.JPG).
+
 These images can be added to the database with:
 
 ```sh
