@@ -122,7 +122,10 @@ dev = [
     "types-shapely",
     "types-requests",
 ]
-sam3 = ["ultralytics>=8.3.237"]
+sam3 = [
+    "ultralytics>=8.3.237",
+    "clip@git+https://github.com/ultralytics/CLIP.git"
+]
 
 [tool.uv.sources]
 torch = [{ index = "pytorch-rocm", extra = "rocm" }]
