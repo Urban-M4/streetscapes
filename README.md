@@ -17,17 +17,26 @@ Requirements: Python 3.14
 In a Python virtual environment, or conda environment do:
 
 ```bash
-pip install streetscapes[sam3]
+pip install streetscapes==1.0.0a0[sam3]
 ```
 
 To install for AMD GPUs (ROCm), do;
 ```bash
-uv pip install streetscapes --extra rocm,sam3
+uv pip install streetscapes==1.0.0a0 --extra rocm,sam3
 ```
 
 Retrieving image metadata and downloading images is performed using the command line interface.
 For a simple quickstart, see the [tutorial](https://streetscapes.readthedocs.io/en/latest/tutorial/tutorial/) in the documentation.
 The documentation also contains more elaborate examples and workflows.
+
+### SAM3
+
+SAM3 requires the ultralytics package and "CLIP". However, CLIP is not on the Python packaging index.
+If for some reason ultralytics fails to install CLIP on its own, install it in your environment with:
+
+```bash
+pip install git+https://github.com/ultralytics/CLIP.git
+```
 
 ## Contributing and publishing
 

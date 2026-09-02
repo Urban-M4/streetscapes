@@ -81,11 +81,13 @@ def get_image_path(
     file_shard = imgdata["shard"]
     source = imgdata["source"]
 
-    if file_shard is None:
+    if str(source) == "local":
+        file = CFG.image_dir / "images" / str(source) / uuid
+    elif file_shard is None:
         msg = "File shard not defined. Cannot find image"
         raise err(msg)
-
-    file = CFG.image_dir / "images" / str(source) / str(file_shard) / uuid
+    else:
+        file = CFG.image_dir / "images" / str(source) / str(file_shard) / uuid
 
     if file.with_suffix(".jpg").exists():
         file = file.with_suffix(".jpg")
