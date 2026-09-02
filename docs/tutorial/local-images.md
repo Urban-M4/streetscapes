@@ -25,6 +25,10 @@ These images can be added to the database with:
 streetscapes images add test-images/
 ```
 
+Streetscapes will infer metadata such as GPS coordinates, camera model, etc. from the
+[EXIF data](https://en.wikipedia.org/wiki/Exif) contained in the image file.
+If this data is not present or incorrect, this will lead to incorrect metadata.
+
 Note that all images in the working directory will be copied (to the image cache dir)
 and registered in the project database.
 
