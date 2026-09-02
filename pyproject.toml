@@ -124,7 +124,6 @@ dev = [
 ]
 sam3 = [
     "ultralytics>=8.3.237",
-    "clip@git+https://github.com/ultralytics/CLIP.git"
 ]
 
 [tool.uv.sources]

@@ -29,6 +29,15 @@ Retrieving image metadata and downloading images is performed using the command 
 For a simple quickstart, see the [tutorial](https://streetscapes.readthedocs.io/en/latest/tutorial/tutorial/) in the documentation.
 The documentation also contains more elaborate examples and workflows.
 
+### SAM3
+
+SAM3 requires the ultralytics package and "CLIP". However, CLIP is not on the Python packaging index.
+If for some reason ultralytics fails to install CLIP on its own, install it in your environment with:
+
+```bash
+pip install git+https://github.com/ultralytics/CLIP.git
+```
+
 ## Contributing and publishing
 
 If you want to contribute to the development of streetscapes,
