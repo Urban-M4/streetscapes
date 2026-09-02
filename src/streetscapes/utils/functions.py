@@ -428,9 +428,6 @@ def extract_categories(
     prompt = prompt.strip().lower()
 
     prompt = ".".join(
-        [cat.strip() for cat in prompt.split(" ") if len(cat.strip()) > 0]
-    )
-    prompt = ".".join(
         [cat.strip() for cat in prompt.split(",") if len(cat.strip()) > 0]
     )
     prompt = ". ".join(

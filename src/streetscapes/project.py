@@ -695,13 +695,14 @@ class Project:
     def ingest_mapillary(self, df: DataFrame, table: str = "mapillary"):
         """Ingest a DataFrame of Mapillary metadata."""
         # Ensure that that the camera_parameters column is a list of floats
-        df["camera_parameters"] = df["camera_parameters"].apply(
-            lambda params: (
-                [float(params)]
-                if isinstance(params, int | float)
-                else list(map(float, params))
+        if df.get("camera_parameters") is not None:
+            df["camera_parameters"] = df["camera_parameters"].apply(
+                lambda params: (
+                    [float(params)]
+                    if isinstance(params, int | float)
+                    else list(map(float, params))
+                )
             )
-        )
 
         df.insert(loc=0, column="uuid", value=None)
 
@@ -718,7 +719,14 @@ class Project:
 
         # TODO: consider configurable duplicate behaviour (REPLACE or IGNORE)
         # TODO do not depend of order in df columns, but used named columns in SQL query
-        self._con.raw_sql(f"INSERT OR IGNORE INTO {table} FROM metadata_tile")
+        try:
+            self._con.raw_sql(f"INSERT OR IGNORE INTO {table} FROM metadata_tile")
+        except Exception as err:
+            if "Conversion Error" in str(err):
+                logger.error("Failed to insert data into table.")
+                logger.error(str(err))
+            else:
+                raise err
 
     def ingest_image_records(self, records: list[dict]):
         """Batch insert local images into `images`.

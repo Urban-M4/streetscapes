@@ -3,10 +3,11 @@
 import importlib.util
 import logging
 from itertools import batched
-from typing import cast
+from typing import Annotated, cast
 
 import imageio.v3 as iio
 import numpy as np
+from cyclopts import Parameter
 from ray import cloudpickle
 
 from streetscapes import CFG, utils
@@ -19,14 +20,16 @@ logger = logging.getLogger(__name__)
 
 def cli(
     prompt: str,
+    /,
+    *,
     image_path: str | None = None,
     batch_size: int = 10,
     confidence: float = 0.25,
     quantisation: str | None = None,
     run: str | None = None,
     project: str = cast("str", CFG.active_project),
-    overwrite: bool = False,
-    verbose: bool = False,
+    overwrite: Annotated[bool, Parameter(negative="")] = False,
+    verbose: Annotated[bool, Parameter(negative="")] = False,
 ):
     """Segment images with SAM3.
 
@@ -47,7 +50,7 @@ def cli(
         quantisation: Quantisation level. Possible values are `FP16` (faster inference)
             or `FP32`. `None` means that the default value will be used.
         overwrite: Whether to overwrite existing segmentations.
-        run: Model run ID.
+        run: Model run ID. Will be generated automatically if not provided.
         project: The project to use.
         overwrite: Overwrite an existing run.
         verbose: Print verbose log to the terminal. Useful for debugging models.
@@ -78,7 +81,7 @@ def cli(
         "quantisation": quantisation,
     }
 
-    result = proj.add_run(run, model, model_params, overwrite)
+    result = proj.add_run(run, model, model_params | {"prompt": prompt}, overwrite)
     run = str(result.get("run")[0])  # type: ignore[index]
 
     # Get all images that need to be processed.
