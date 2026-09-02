@@ -26,7 +26,8 @@ pip install .[explorer]  # Install Streetscapes
 
 ### Step 2: configure streetscapes
 
-First we need to set the [Mapillary token](https://www.mapillary.com/developer/api-documentation) so we can fetch metadata and download images from Mapillary:
+First we need to set the [Mapillary token](https://www.mapillary.com/developer/api-documentation) so we can fetch metadata and download images from Mapillary.
+If you instead want to use local images, see the [documentation on importing and segmenting local images](local-images.md).
 
 ```                                     
 streetscapes config set mapillary_token MLY|00000000000000000|00000000000000000000000000000000  # use your token here

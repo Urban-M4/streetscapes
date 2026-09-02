@@ -5,6 +5,7 @@ nav:
   - Tutorials:
       - Introduction: tutorial/tutorial.md
       - Streetscapes CLI: tutorial/cli.md
+      - Local images: tutorial/local-images.md
       - Access database from Python: tutorial/manual-database-access.ipynb
   - Examples:
       - Exploring Global Streetscapes: examples/explore_global_streetscapes.ipynb
