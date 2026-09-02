@@ -104,18 +104,23 @@ class SAM3:
             result = self.model(text=_prompt)[0]
 
             # Process the model outputs
-            masks = result.masks.data.cpu().numpy().squeeze()
+            # `result.masks` is `None` when no instances match the prompt.
+            if result.masks is None:
+                instance_labels = []
+                instances = np.zeros((0, *image.shape[:2]), dtype=np.bool_)
+            else:
+                masks = result.masks.data.cpu().numpy()
 
-            # Instance labels extracted from the class IDs
-            instance_labels = [result.names[int(c)] for c in result.boxes.cls]
+                # Instance labels extracted from the class IDs
+                instance_labels = [result.names[int(c)] for c in result.boxes.cls]
 
-            # Populate the instance masks.
-            instances = np.zeros(
-                (len(instance_labels), *image.shape[:2]),
-                dtype=np.bool_,
-            )
-            for mask_idx, sam_mask in enumerate(masks):
-                instances[mask_idx][sam_mask > 0] = True
+                # Populate the instance masks.
+                instances = np.zeros(
+                    (len(instance_labels), *image.shape[:2]),
+                    dtype=np.bool_,
+                )
+                for mask_idx, sam_mask in enumerate(masks):
+                    instances[mask_idx][sam_mask > 0] = True
 
             # Extract and store the segmentations.
             segmentation["labels"] = instance_labels
