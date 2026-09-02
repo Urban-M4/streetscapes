@@ -17,12 +17,12 @@ Requirements: Python 3.14
 In a Python virtual environment, or conda environment do:
 
 ```bash
-pip install streetscapes[sam3]
+pip install streetscapes==1.0.0a0[sam3]
 ```
 
 To install for AMD GPUs (ROCm), do;
 ```bash
-uv pip install streetscapes --extra rocm,sam3
+uv pip install streetscapes==1.0.0a0 --extra rocm,sam3
 ```
 
 Retrieving image metadata and downloading images is performed using the command line interface.
