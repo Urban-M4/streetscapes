@@ -14,7 +14,10 @@ from rich.table import Table
 from streetscapes import CFG
 from streetscapes.cli.console import console
 
-config_cli = App(name="config")
+config_cli = App(
+    name="config",
+    help="View and modify the streetscapes configuration."
+)
 
 
 @config_cli.command(name="set")
