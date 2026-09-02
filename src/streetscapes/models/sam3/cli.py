@@ -81,7 +81,7 @@ def cli(
         "quantisation": quantisation,
     }
 
-    result = proj.add_run(run, model, model_params, overwrite)
+    result = proj.add_run(run, model, model_params | {"prompt": prompt}, overwrite)
     run = str(result.get("run")[0])  # type: ignore[index]
 
     # Get all images that need to be processed.
