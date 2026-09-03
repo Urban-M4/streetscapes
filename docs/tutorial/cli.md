@@ -14,7 +14,7 @@ Usage: streetscapes COMMAND
 Street view image analysis toolkit
 
 ╭─ Commands ────────────────────────────────────────────────────────────────────╮
-│ config                                                                        │
+│ config           View and modify the streetscapes configuration.              │
 │ database         Get info and delete entries from the database.               │
 │ download-images  Download images from various sources.                        │
 │ export           Export tables from the project.                              │
@@ -92,14 +92,17 @@ streetscapes download-images mapillary --help
 You should see the following output:
 
 ```bash
-Usage: streetscapes download-images mapillary [ARGS]
+Usage: streetscapes download-images mapillary [OPTIONS]
 
 Download Mapillary images to a local directory.
 
-╭─ Parameters ──────────────────────────────────────────────────────────────────────────────────────────────────────────────────╮
-│ SKIP-EXISTING --skip-existing --no-skip-existing  If true, only download missing images; otherwise overwrite. [default: True] │
-│ TOKEN --token                                     Mapillary OAuth token (if not set via MAPILLARY_TOKEN).                     │
-╰───────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────╯
+╭─ Parameters ─────────────────────────────────────────────────────────────────╮
+│ --skip-existing       If true, only download missing images; otherwise       │
+│   --no-skip-existing  overwrite. [default: True]                             │
+│ --token               Mapillary OAuth token (if not set via                  │
+│                       MAPILLARY_TOKEN).                                      │
+│ --project             An optional project to attach to.                      │
+╰────────────────────────────────────────────────────────────────────────────────╯
 ```
 
 ## Segmenting images
@@ -118,10 +121,10 @@ Usage: streetscapes segment-images COMMAND
 Segment images
 
 ╭─ Commands ───────────────────────────────────────────────────────────────────╮
-│ bfms                                                                         │
-│ dinosam                                                                      │
-│ maskformer                                                                   │
-│ sam3                                                                         │
+│ bfms        Segment images with BFMS.                                        │
+│ dinosam     Segment images with DinoSAM.                                     │
+│ maskformer  Segment images with MaskFormer.                                  │
+│ sam3        Segment images with SAM3.                                        │
 ╰──────────────────────────────────────────────────────────────────────────────╯
 ```
 
@@ -136,25 +139,36 @@ streetscapes segment-images maskformer --help
 You should see the following output:
 
 ```bash
-Usage: streetscapes segment-images maskformer [ARGS]
+Usage: streetscapes segment-images maskformer [OPTIONS]
 
 Segment images with MaskFormer.
 
-╭─ Parameters ──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────╮
-│ IMAGE-PATH --image-path                        Path to the images to be segmented. If not provided uses all downloaded images in the project.                             │
-│ LABELS --labels --empty-labels                 Labels to focus on.                                                                                                        │
-│ BATCH-SIZE --batch-size                        Batch size for the segmentation model. [default: 10]                                                                       │
-│ MODEL-ID --model-id                            Mask2Former model to load. [default: facebook/mask2former-swin-large-mapillary-vistas-panoptic]                            │
-│ THRESHOLD --threshold                          The probability score threshold to keep predicted instance masks. [default: 0.5]                                           │
-│ MASK-THRESHOLD --mask-threshold                Threshold to use when turning the predicted masks into binary values. [default: 0.5]                                       │
-│ OVERLAP-THRESHOLD --overlap-threshold          The overlap mask area threshold to merge or discard small disconnected parts within each binary instance mask. [default:   │
-│                                                0.8]                                                                                                                       │
-│ FUSE-LABELS --fuse-labels --empty-fuse-labels  The labels in this state will have all their instances fused together.                                                     │
-│ RUN --run                                      Model run ID.                                                                                                              │
-│ PROJECT --project                              The project to use. Uses the active project by default. [default: local-test]                                              │
-│ OVERWRITE --overwrite --no-overwrite           Overwrite an existing run. [default: False]                                                                                │
-│ VERBOSE --verbose --no-verbose                 Print verbose log to the terminal. Useful for debugging models. [default: False]                                           │
-╰───────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────╯
+╭─ Parameters ─────────────────────────────────────────────────────────────────╮
+│ --image-path             Path to the images to be segmented. If not provided │
+│                          uses all downloaded images in the project.          │
+│ --labels --empty-labels  Labels to focus on.                                 │
+│ --batch-size             Batch size for the segmentation model. [default:    │
+│                          10]                                                 │
+│ --model-id               Mask2Former model to load. [default:                │
+│                          facebook/mask2former-swin-large-mapillary-vistas-pa │
+│                          noptic]                                             │
+│ --threshold              The probability score threshold to keep predicted   │
+│                          instance masks. [default: 0.5]                      │
+│ --mask-threshold         Threshold to use when turning the predicted masks   │
+│                          into binary values. [default: 0.5]                  │
+│ --overlap-threshold      The overlap mask area threshold to merge or discard │
+│                          small disconnected parts within each binary         │
+│                          instance mask. [default: 0.8]                       │
+│ --fuse-labels            The labels in this state will have all their        │
+│   --empty-fuse-labels    instances fused together.                          │
+│ --run                    Model run ID. Will be generated automatically if    │
+│                          not provided.                                       │
+│ --project                The project to use. Uses the active project by      │
+│                          default. [default: local-test]                      │
+│ --overwrite              Overwrite an existing run. [default: False]         │
+│ --verbose                Print verbose log to the terminal. Useful for       │
+│                          debugging models. [default: False]                  │
+╰────────────────────────────────────────────────────────────────────────────────╯
 ```
 
 By default, all images in the current streetscapes project will be segmented. These will be processed in batches whose size can be specified with the `batch_size` option (the default is `10`) depending on your hardware it can be better to make that number smaller (laptop) or larger (HPC with GPU). You can also specify a (comma-separated) list of labels (categories of objects) that the model should focus on. By default, if the `--labels` argument is not provided, the model will try to find objects corresponding to ***all*** the categories that it can recognise.
