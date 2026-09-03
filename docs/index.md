@@ -8,3 +8,20 @@
 Streetscapes is a project within a project. The aim of the parent project ([Urban-M4](https://github.com/Urban-M4)) is to model the Urban Heat Island effect with the help of various software tools. As part of the `Urban-M4` ecosystem, Streetscapes provides a streamlined API for downloading, segmenting and analysing street view imagery (SVI). Specifically, the analysis is geared towards evaluating the properties of individual objects in the images (such as buildings, roads and sidewalks) that could help estimate the amount of heat trapped in urban environments. Streetscapes is based on and builds upon the results of the [Global Streetscapes](https://ual.sg/project/global-streetscapes/) project.
 
 This repository contains information and code for downloading, segmenting and analysing images from Mapillary and KartaView, using information from [global-streetscapes](https://github.com/ualsg/global-streetscapes/tree/main) dataset.
+
+## Installing streetscapes
+
+The streetscapes python package is available on PyPI. Install this in a Python 3.14 environment with:
+
+```
+pip install streetscapes[sam3,explorer]
+```
+
+To install streetscapes with support for AMD GPUs (ROCm), do;
+
+```
+pip install uv  # if you don't have uv yet
+uv pip install streetscapes==1.0.0a0 --extra rocm,sam3,explorer
+```
+
+For more information on the CLI, see [this page](tutorial/cli.md).
