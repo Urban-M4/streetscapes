@@ -70,6 +70,10 @@ def _populate_builder(
             lambda: {
                 "curated": field("development.boolean"),
                 "labels": fieldset("text.word", i=3),
+                "rating": field("numeric.integer_number", start=0, end=5),
+                "confidences": fieldset(
+                    "numeric.float_number", start=0.0, end=1.0, i=3
+                ),
                 "polygons": shp.GeometryCollection(
                     [
                         shp.MultiPolygon(
@@ -85,7 +89,9 @@ def _populate_builder(
                 "curated": item["curated"],
                 "image": ctx.pick_from("images", "uuid"),
                 "labels": item["labels"],
+                "rating": item["rating"],
                 "polygons": item["polygons"],
+                "confidences": item["confidences"],
             }
         ),
     )
