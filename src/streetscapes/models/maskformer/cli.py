@@ -112,6 +112,7 @@ def cli(
                     "run": run,
                     "image": response.uid,
                     "labels": response.labels,
+                    "confidences": response.confidences,
                     "polygons": mask2poly(instances, model="maskformer"),
                 }
             )

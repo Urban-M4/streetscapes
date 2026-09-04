@@ -21,6 +21,7 @@ class DinoSAMRequest(BaseModel):
 class DinoSAMResponse(BaseModel):
     uid: uuid.UUID
     labels: list[str]
+    confidences: list[float]
     instances: bytes
 
 

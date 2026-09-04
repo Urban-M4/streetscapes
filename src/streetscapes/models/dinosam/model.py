@@ -135,6 +135,7 @@ class DinoSAM:
                 # No objects found, but still record the image as processed.
                 logger.debug(f"No objects found in image '{uid}'.")
                 segmentation["labels"] = []
+                segmentation["confidences"] = []
                 segmentation["instances"] = np.zeros(
                     (0, *image.shape[:2]), dtype=np.bool_
                 )
@@ -168,6 +169,9 @@ class DinoSAM:
             # Instance labels from GroundingDINO
             instance_labels = dino_results["text_labels"]
 
+            # Detection confidence reported by GroundingDINO for each instance.
+            confidences = dino_results["scores"].cpu().numpy().astype(float).tolist()
+
             # Populate the instance masks.
             instances = np.zeros(
                 (len(instance_labels), *image.shape[:2]),
@@ -178,6 +182,7 @@ class DinoSAM:
 
             # Extract and store the segmentations.
             segmentation["labels"] = instance_labels
+            segmentation["confidences"] = confidences
             segmentation["instances"] = instances
             segmentations.append(segmentation)
 

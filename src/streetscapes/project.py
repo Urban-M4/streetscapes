@@ -88,6 +88,7 @@ class Project:
                 "labels": "STRING[]",
                 "rating": "INTEGER",  # 0-5
                 "polygons": "GEOMETRY",
+                "confidences": "FLOAT8[]",
             },
             "init": ["ALTER TABLE segmentations ADD PRIMARY KEY (run, curated, image)"],
         },
@@ -529,6 +530,7 @@ class Project:
         curated: bool = False,
         rating: int = 0,
         polygons: shp.GeometryCollection | None = None,
+        confidences: list[float] | None = None,
         overwrite: bool = False,
     ):
         """Add a new segmentation to the database.
@@ -540,6 +542,9 @@ class Project:
             curated: Curation status.
             rating: Segmentation rating.
             polygons: A Shapely GeometryCollection.
+            confidences: Model confidence for each instance, in the same order
+                as the labels and polygons. Only available for models that
+                report it.
             overwrite: Replace or ignore conflicting data.
         """
         data = {
@@ -549,6 +554,7 @@ class Project:
             "labels": [labels],
             "rating": [rating],
             "polygons": [polygons],
+            "confidences": [confidences],
         }
 
         result = self.update_table("segmentations", data, overwrite=True)

@@ -21,6 +21,7 @@ class SAM3Request(BaseModel):
 class SAM3Response(BaseModel):
     uid: uuid.UUID
     labels: list[str]
+    confidences: list[float]
     instances: bytes
 
 

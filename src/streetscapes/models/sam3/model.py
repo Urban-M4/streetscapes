@@ -107,12 +107,16 @@ class SAM3:
             # `result.masks` is `None` when no instances match the prompt.
             if result.masks is None:
                 instance_labels = []
+                confidences = []
                 instances = np.zeros((0, *image.shape[:2]), dtype=np.bool_)
             else:
                 masks = result.masks.data.cpu().numpy()
 
                 # Instance labels extracted from the class IDs
                 instance_labels = [result.names[int(c)] for c in result.boxes.cls]
+
+                # Confidence score reported by the model for each instance.
+                confidences = result.boxes.conf.cpu().numpy().astype(float).tolist()
 
                 # Populate the instance masks.
                 instances = np.zeros(
@@ -124,6 +128,7 @@ class SAM3:
 
             # Extract and store the segmentations.
             segmentation["labels"] = instance_labels
+            segmentation["confidences"] = confidences
             segmentation["instances"] = instances
             segmentations.append(segmentation)
 
