@@ -162,7 +162,6 @@ class MaskFormer:
         self,
         uids: list[uuid.UUID],
         images: list[np.ndarray],
-        labels: str | list[str] | None = None,
     ) -> list[dict]:
         """Segment the provided sequence of images.
 
@@ -171,7 +170,6 @@ class MaskFormer:
                 This is used for keeping track of which images have been segmented,
                 regardless of the file name and where they are stored.
             images: A list (batch) of images as NumPy arrays.
-            labels: A list of labels (object categories).
 
         Returns:
             A list of dictionaries containing instance-level segmentation information.
@@ -179,14 +177,6 @@ class MaskFormer:
         """
         import torch
 
-        if labels is None:
-            labels = list(MaskFormer.id_to_label.values())
-
-        # Flatten the label list
-        labels = common.extract_categories(labels)
-
-        # Eliminate labels that are not recognised by the model
-        labels = list(set(labels).intersection(MaskFormer.id_to_label))
         segmentations = []
 
         with torch.no_grad():
@@ -215,6 +205,9 @@ class MaskFormer:
                     "labels": [
                         MaskFormer.id_to_label[info["label_id"]]
                         for info in item["segments_info"]
+                    ],
+                    "confidences": [
+                        float(info["score"]) for info in item["segments_info"]
                     ],
                     "instances": item["segmentation"].detach().clone().cpu().numpy(),
                 }

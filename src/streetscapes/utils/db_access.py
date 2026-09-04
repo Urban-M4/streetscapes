@@ -156,6 +156,9 @@ def get_segmentations(
         segmentations = []
         for _, row in seg_data.iterrows():
             labels = row["labels"]
+            confidences = row["confidences"]
+            if confidences is None:
+                confidences = [None] * len(labels)
             multipoly = transform(_flip, row["polygons"])  # type: ignore[arg-type]
             polys = list(multipoly.geoms)
             if len(polys) > len(labels):
@@ -166,8 +169,11 @@ def get_segmentations(
                     poly
                     if poly_fmt == Polygon
                     else [list(points.exterior.coords) for points in poly.geoms],
+                    confidence,
                 )
-                for label, poly in zip(labels, polys, strict=True)
+                for label, poly, confidence in zip(
+                    labels, polys, confidences, strict=True
+                )
             ]
             runinfo = runs.filter(runs.run == row["run"]).to_pandas().squeeze()
             meta = runinfo["metadata"]

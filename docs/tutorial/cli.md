@@ -102,7 +102,7 @@ Download Mapillary images to a local directory.
 │ --token               Mapillary OAuth token (if not set via                  │
 │                       MAPILLARY_TOKEN).                                      │
 │ --project             An optional project to attach to.                      │
-╰────────────────────────────────────────────────────────────────────────────────╯
+╰──────────────────────────────────────────────────────────────────────────────╯
 ```
 
 ## Segmenting images
@@ -146,7 +146,6 @@ Segment images with MaskFormer.
 ╭─ Parameters ─────────────────────────────────────────────────────────────────╮
 │ --image-path             Path to the images to be segmented. If not provided │
 │                          uses all downloaded images in the project.          │
-│ --labels --empty-labels  Labels to focus on.                                 │
 │ --batch-size             Batch size for the segmentation model. [default:    │
 │                          10]                                                 │
 │ --model-id               Mask2Former model to load. [default:                │
@@ -160,7 +159,7 @@ Segment images with MaskFormer.
 │                          small disconnected parts within each binary         │
 │                          instance mask. [default: 0.8]                       │
 │ --fuse-labels            The labels in this state will have all their        │
-│   --empty-fuse-labels    instances fused together.                          │
+│   --empty-fuse-labels    instances fused together.                           │
 │ --run                    Model run ID. Will be generated automatically if    │
 │                          not provided.                                       │
 │ --project                The project to use. Uses the active project by      │
@@ -168,10 +167,10 @@ Segment images with MaskFormer.
 │ --overwrite              Overwrite an existing run. [default: False]         │
 │ --verbose                Print verbose log to the terminal. Useful for       │
 │                          debugging models. [default: False]                  │
-╰────────────────────────────────────────────────────────────────────────────────╯
+╰──────────────────────────────────────────────────────────────────────────────╯
 ```
 
-By default, all images in the current streetscapes project will be segmented. These will be processed in batches whose size can be specified with the `batch_size` option (the default is `10`) depending on your hardware it can be better to make that number smaller (laptop) or larger (HPC with GPU). You can also specify a (comma-separated) list of labels (categories of objects) that the model should focus on. By default, if the `--labels` argument is not provided, the model will try to find objects corresponding to ***all*** the categories that it can recognise.
+By default, all images in the current streetscapes project will be segmented. These will be processed in batches whose size can be specified with the `batch_size` option (the default is `10`) depending on your hardware it can be better to make that number smaller (laptop) or larger (HPC with GPU).
 
 For instance, assuming that you have downloaded images for the current project, use the following command to start segmentation:
 

@@ -15,12 +15,12 @@ class MaskFormerImage(BaseModel):
 
 class MaskFormerRequest(BaseModel):
     images: list[MaskFormerImage]
-    labels: list[str]
 
 
 class MaskFormerResponse(BaseModel):
     uid: uuid.UUID
     labels: list[str]
+    confidences: list[float]
     instances: bytes
 
 
@@ -65,7 +65,6 @@ class MaskFormerService:
         segmentations = self.model.segment_images(
             uids,
             images,
-            schema.labels,
         )
 
         # Construct the response
