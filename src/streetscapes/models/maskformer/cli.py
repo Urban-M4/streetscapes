@@ -1,7 +1,7 @@
 """MaskFormer CLI."""
 
 from itertools import batched
-from typing import Annotated, cast
+from typing import Annotated, Any, cast
 
 import imageio as iio
 import numpy as np
@@ -87,7 +87,7 @@ def cli(
     batches = list(batched(unprocessed, batch_size))
     for batch_idx, batch in enumerate(batches, 1):
         # Extract the paths and open the images as NumPy arrays.
-        request = {
+        request: dict[str, Any] = {
             "images": [],
         }
         for uid in batch:
