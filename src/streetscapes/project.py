@@ -98,7 +98,7 @@ class Project:
                 "altitude": "FLOAT8",
                 "atomic_scale": "FLOAT8",
                 "camera_type": "STRING",
-                "captured_at": "UBIGINT",
+                "captured_at": "TIMESTAMPTZ",
                 "compass_angle": "FLOAT8",
                 "computed_altitude": "FLOAT8",
                 "computed_compass_angle": "FLOAT8",
@@ -128,7 +128,7 @@ class Project:
                 "make": "STRING",
                 "model": "STRING",
                 "orientation": "UBIGINT",
-                "captured_at": "UBIGINT",
+                "captured_at": "TIMESTAMPTZ",
                 "compass_angle": "FLOAT8",
                 "width": "UBIGINT",
                 "height": "UBIGINT",
@@ -692,7 +692,7 @@ class Project:
             )
             image_data.append(entry)
             exif = utils.extract_exif_data(ip)
-            exif["captured_at"] = int(exif["timestamp"].timestamp() * 1000)
+            exif["captured_at"] = exif["timestamp"]
             exif["image"] = uid
             exif_data.append(exif)
 
@@ -700,6 +700,13 @@ class Project:
 
     def ingest_mapillary(self, df: DataFrame, table: str = "mapillary"):
         """Ingest a DataFrame of Mapillary metadata."""
+        # Convert times as milliseconds since the epoch
+        # (UTC) to tz aware timestamp
+        if df.get("captured_at") is not None:
+            df["captured_at"] = pd.to_datetime(
+                pd.to_numeric(df["captured_at"], errors="coerce"), unit="ms", utc=True
+            )
+
         # Ensure that that the camera_parameters column is a list of floats
         if df.get("camera_parameters") is not None:
             df["camera_parameters"] = df["camera_parameters"].apply(

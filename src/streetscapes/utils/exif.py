@@ -1,13 +1,49 @@
 """EXIF metadata extraction."""
 
-from datetime import datetime
+from datetime import UTC, datetime, tzinfo
+from functools import cache
 from typing import TYPE_CHECKING, Any, Literal
+from zoneinfo import ZoneInfo
 
 import exifread
 import shapely
 
+from streetscapes.utils.logging import logger
+
 if TYPE_CHECKING:
     from pathlib import Path
+
+
+@cache
+def _timezone_finder():
+    """Return a cached TimezoneFinder (it loads a sizeable lookup table)."""
+    from timezonefinder import TimezoneFinder
+
+    return TimezoneFinder()
+
+
+def _timezone_at(lon: float, lat: float) -> tzinfo:
+    """Guess the timezone a photograph was taken in from its GPS coordinates.
+
+    EXIF capture times are recorded in the camera's local time without any
+    indication of the offset, so the coordinates are the only clue available.
+
+    Args:
+        lon: Longitude in decimal degrees.
+        lat: Latitude in decimal degrees.
+
+    Returns:
+        The timezone of the location, defaulting to UTC if it can't be determined.
+    """
+    zone = _timezone_finder().timezone_at(lng=lon, lat=lat)
+
+    if zone is None:
+        logger.warning(
+            f"No timezone found for coordinates ({lat}, {lon}). Assuming UTC."
+        )
+        return UTC
+
+    return ZoneInfo(zone)
 
 
 def _to_deg(
@@ -57,13 +93,16 @@ def extract_exif_data(impath: Path) -> dict[str, Any]:
         lat_ref = lat_ref.values
     lat = _to_deg(lat, lat_ref)
 
+    # EXIF timestamps carry no offset, so the location decides how to interpret them.
+    tz = _timezone_at(lon, lat)
+
     mapping = {
         "make": ("Image Make", str),
         "model": ("Image Model", str),
         "orientation": ("Image Orientation", int),
         "timestamp": (
             "Image DateTime",
-            lambda x: datetime.strptime(x, "%Y:%m:%d %H:%M:%S"),
+            lambda x: datetime.strptime(x, "%Y:%m:%d %H:%M:%S").replace(tzinfo=tz),
         ),
         "width": ("EXIF ExifImageWidth", int),
         "height": ("EXIF ExifImageLength", int),

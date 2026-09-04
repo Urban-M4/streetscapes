@@ -105,7 +105,7 @@ def _get_metadata(uuid: str) -> ImageMetadata:
         width=int(metadata["width"]),
         height=int(metadata["height"]),
         altitude=metadata["altitude"],
-        captured_at=datetime.fromtimestamp(metadata["captured_at"] / 1000),
+        captured_at=metadata["captured_at"],
         panoramic=bool(metadata["is_pano"]),
         source=imgdata["source"],
         tags=imgdata["tags"],
@@ -150,8 +150,8 @@ def _fetch_images(filter: FilterParams | None) -> list[Image]:
             if filter.date_range is not None:
                 start = filter.date_range[0]
                 end = filter.date_range[1]
-                match_start = src.captured_at >= (start.timestamp() * 1000)
-                match_end = src.captured_at <= (end.timestamp() * 1000)
+                match_start = src.captured_at >= start
+                match_end = src.captured_at <= end
                 src = src.filter(match_start).filter(match_end)
 
             _match = src.geometry.within(_bbox_to_polygon(filter))
@@ -263,12 +263,17 @@ def _get_daterange(con: ibis.BaseBackend) -> tuple[datetime, datetime]:
 
     for source in sources:
         source_table = con.table(source)
-        mintimes.append(source_table.captured_at.min().to_pandas() / 1000)
-        maxtimes.append(source_table.captured_at.max().to_pandas() / 1000)
+        mintimes.append(source_table.captured_at.min().to_pandas())
+        maxtimes.append(source_table.captured_at.max().to_pandas())
 
-    start = datetime.fromtimestamp(np.min(mintimes))
-    end = datetime.fromtimestamp(np.max(maxtimes))
-    return (start, end)
+    # Tables without any capture times yield NaT
+    mintimes = [t for t in mintimes if not pd.isna(t)]
+    maxtimes = [t for t in maxtimes if not pd.isna(t)]
+    if len(mintimes) == 0 or len(maxtimes) == 0:
+        msg = "No capture times found in database"
+        raise HTTPException(status_code=404, detail=msg)
+
+    return (min(mintimes), max(maxtimes))
 
 
 @app.get("/")
