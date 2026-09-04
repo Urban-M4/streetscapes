@@ -1,7 +1,7 @@
 """MaskFormer CLI."""
 
 from itertools import batched
-from typing import Annotated, cast
+from typing import Annotated, Any, cast
 
 import imageio as iio
 import numpy as np
@@ -9,7 +9,6 @@ from cyclopts import Parameter
 from ray import cloudpickle
 
 from streetscapes import CFG, utils
-from streetscapes.models.maskformer.model import MaskFormer
 from streetscapes.project import Project
 from streetscapes.serve.server import serve_model
 from streetscapes.utils import logger
@@ -19,7 +18,6 @@ from streetscapes.utils.masks import mask2poly
 def cli(
     *,
     image_path: str | None = None,
-    labels: list[str] | None = None,
     batch_size: int = 10,
     model_id: str = "facebook/mask2former-swin-large-mapillary-vistas-panoptic",
     threshold: float = 0.5,
@@ -36,7 +34,6 @@ def cli(
     Args:
         image_path: Path to the images to be segmented. If not provided uses all
             downloaded images in the project.
-        labels: Labels to focus on.
         batch_size: Batch size for the segmentation model.
         model_id: Mask2Former model to load.
         threshold: The probability score threshold to keep predicted instance masks.
@@ -85,17 +82,13 @@ def cli(
         logger.info("Nothing to process.")
         return
 
-    if labels is None:
-        labels = list(MaskFormer.id_to_label.values())
-
     handle = serve_model(model, verbose, **model_params)
     logger.info(f"Segmenting {len(unprocessed)} images using {model}...")
     batches = list(batched(unprocessed, batch_size))
     for batch_idx, batch in enumerate(batches, 1):
         # Extract the paths and open the images as NumPy arrays.
-        request = {
+        request: dict[str, Any] = {
             "images": [],
-            "labels": labels,
         }
         for uid in batch:
             path, _ = unprocessed[uid]
