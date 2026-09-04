@@ -170,7 +170,7 @@ Segment images with MaskFormer.
 ╰──────────────────────────────────────────────────────────────────────────────╯
 ```
 
-By default, all images in the current streetscapes project will be segmented. These will be processed in batches whose size can be specified with the `batch_size` option (the default is `10`) depending on your hardware it can be better to make that number smaller (laptop) or larger (HPC with GPU). You can also specify a (comma-separated) list of labels (categories of objects) that the model should focus on. By default, if the `--labels` argument is not provided, the model will try to find objects corresponding to ***all*** the categories that it can recognise.
+By default, all images in the current streetscapes project will be segmented. These will be processed in batches whose size can be specified with the `batch_size` option (the default is `10`) depending on your hardware it can be better to make that number smaller (laptop) or larger (HPC with GPU).
 
 For instance, assuming that you have downloaded images for the current project, use the following command to start segmentation:
 
