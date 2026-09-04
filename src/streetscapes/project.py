@@ -18,7 +18,7 @@ from streetscapes import CFG, logger, utils
 if TYPE_CHECKING:
     import shapely as shp
 
-    from streetscapes.utils.bbox import Bbox
+    from streetscapes.utils.geo import Bbox
 
 
 def _format_image(

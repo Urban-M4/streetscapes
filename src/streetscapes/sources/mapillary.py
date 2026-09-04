@@ -16,7 +16,7 @@ from streetscapes.project import Project
 if TYPE_CHECKING:
     import uuid
 
-    from streetscapes.utils.bbox import Bbox
+    from streetscapes.utils.geo import Bbox
     from streetscapes.utils.metadata import ImageMeta
 
 logger = logging.getLogger(__name__)

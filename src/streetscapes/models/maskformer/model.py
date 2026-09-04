@@ -2,7 +2,8 @@
 
 from typing import TYPE_CHECKING
 
-from streetscapes import logger, utils
+from streetscapes import logger
+from streetscapes.models import common
 
 if TYPE_CHECKING:
     import uuid
@@ -119,7 +120,7 @@ class MaskFormer:
         """
         import transformers as tform
 
-        self.device = utils.get_device(device)
+        self.device = common.get_device(device)
         logger.info(f"Model '{self.name}' using device '{self.device}'")
 
         # Create the reverse mapping of label to label ID
@@ -182,7 +183,7 @@ class MaskFormer:
             labels = list(MaskFormer.id_to_label.values())
 
         # Flatten the label list
-        labels = utils.extract_categories(labels)
+        labels = common.extract_categories(labels)
 
         # Eliminate labels that are not recognised by the model
         labels = list(set(labels).intersection(MaskFormer.id_to_label))
