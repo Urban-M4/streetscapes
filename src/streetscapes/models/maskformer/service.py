@@ -21,6 +21,7 @@ class MaskFormerRequest(BaseModel):
 class MaskFormerResponse(BaseModel):
     uid: uuid.UUID
     labels: list[str]
+    confidences: list[float]
     instances: bytes
 
 

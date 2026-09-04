@@ -215,6 +215,9 @@ class MaskFormer:
                         MaskFormer.id_to_label[info["label_id"]]
                         for info in item["segments_info"]
                     ],
+                    "confidences": [
+                        float(info["score"]) for info in item["segments_info"]
+                    ],
                     "instances": item["segmentation"].detach().clone().cpu().numpy(),
                 }
                 for idx, item in enumerate(segmented)
