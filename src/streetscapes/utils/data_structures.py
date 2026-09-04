@@ -14,6 +14,7 @@ class Instance[T]:
 
     label: str
     polygon: list[T] = field(default_factory=list)
+    confidence: float | None = None
 
 
 @dataclass
