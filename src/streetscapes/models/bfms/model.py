@@ -7,8 +7,8 @@ import numpy as np
 import torch
 from PIL import Image
 
-from streetscapes import utils
 from streetscapes.config import CFG
+from streetscapes.models import common
 
 
 class BFMS:
@@ -27,7 +27,7 @@ class BFMS:
         """
         import transformers as tform
 
-        self.device = utils.get_device(device)
+        self.device = common.get_device(device)
 
         config = tform.Mask2FormerConfig.from_pretrained(model_id)
 

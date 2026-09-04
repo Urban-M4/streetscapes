@@ -12,7 +12,7 @@ from rich.progress import track
 
 from streetscapes import CFG
 from streetscapes.cli.console import console
-from streetscapes.utils.bbox import Bbox, split_bbox
+from streetscapes.utils.geo import Bbox, split_bbox
 
 logger = logging.getLogger(__name__)
 

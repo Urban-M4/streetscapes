@@ -35,6 +35,7 @@ dependencies = [
     "scikit-image",
     "scipy",
     "seedir",
+    "timezonefinder",
     "torch",
     "torchvision",
     "tqdm",
