@@ -13,7 +13,6 @@ if TYPE_CHECKING:
     from pathlib import Path
 
 
-
 def uuid7(as_str: bool = False) -> uuid.UUID | str:
     """Return a UUID7 instance, optionally converted to string.
 
