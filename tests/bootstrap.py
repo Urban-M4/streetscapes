@@ -1,4 +1,5 @@
 import uuid
+from datetime import UTC
 
 import ibis
 import shapely as shp
@@ -105,7 +106,12 @@ def _populate_builder(
                 "altitude": field("numeric.float_number", start=0.0, end=10000.0),
                 "atomic_scale": field("numeric.float_number", start=0.0, end=1.0),
                 "camera_type": field("text.word"),
-                "captured_at": field("numeric.integer_number", start=0, end=1000000),
+                "captured_at": field(
+                    "datetime.datetime",
+                    start=2015,
+                    end=2025,
+                    key=lambda dt: dt.replace(tzinfo=UTC),
+                ),
                 "compass_angle": field("numeric.float_number", start=0.0, end=360.0),
                 "computed_altitude": field(
                     "numeric.float_number", start=0.0, end=10000.0

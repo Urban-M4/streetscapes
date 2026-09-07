@@ -1,4 +1,4 @@
-from streetscapes.utils.bbox import split_bbox
+from streetscapes.utils.geo import split_bbox
 
 
 def test_split_bbox_basic():

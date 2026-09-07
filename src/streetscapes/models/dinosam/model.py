@@ -6,7 +6,7 @@ import numpy as np
 from PIL import Image
 from tqdm import tqdm
 
-from streetscapes import utils
+from streetscapes.models import common
 from streetscapes.utils import logger
 
 if TYPE_CHECKING:
@@ -48,7 +48,7 @@ class DinoSAM:
         """
         import transformers
 
-        self.device = utils.get_device(device)
+        self.device = common.get_device(device)
 
         # Model parameters
         self.sam_model_id = sam_model_id
@@ -99,7 +99,7 @@ class DinoSAM:
         import torch
 
         # Flatten the label dictionary
-        _prompt = utils.extract_categories(prompt)
+        _prompt = common.extract_categories(prompt)
 
         # Detect objects with GroundingDINO
         # ==================================================

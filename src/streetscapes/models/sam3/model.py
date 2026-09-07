@@ -7,7 +7,7 @@ import numpy as np
 from PIL import Image
 from tqdm import tqdm
 
-from streetscapes import utils
+from streetscapes.models import common
 
 if TYPE_CHECKING:
     import uuid
@@ -40,7 +40,7 @@ class SAM3:
         """
         from ultralytics.models.sam import SAM3SemanticPredictor
 
-        self.device = utils.get_device(device)
+        self.device = common.get_device(device)
 
         # Model parameters
         # ==================================================
@@ -89,7 +89,7 @@ class SAM3:
             A list of dictionaries containing instance-level segmentation information.
         """
         # Flatten the label dictionary
-        _prompt = utils.extract_categories(prompt, as_list=True)
+        _prompt = common.extract_categories(prompt, as_list=True)
 
         segmentations = []
 

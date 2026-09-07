@@ -14,6 +14,23 @@ from tqdm import tqdm
 from streetscapes import logger, utils
 
 
+def _camel2snake(string: str) -> str:
+    """Convert a CamelCase string into a snake_case version.
+
+    Args:
+        string:
+            The input CamelCase string.
+
+    Returns:
+        The output snake_case string.
+
+    """
+    # Replace each character with an underscore and its lowercase version:
+    return "".join(
+        [f"_{x.lower()}" if x.isupper() else x for x in string]
+    ).removeprefix("_")
+
+
 class SourceBase:
     """TODO: Add docstrings."""
 
@@ -47,7 +64,7 @@ class SourceBase:
 
         # An access token associated with this source
         # ==================================================
-        env_prefix = utils.camel2snake(self.name).upper()
+        env_prefix = _camel2snake(self.name).upper()
         self.token = os.getenv(f"{env_prefix}_TOKEN", None)
 
     def __repr__(self) -> str:

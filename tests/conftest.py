@@ -40,7 +40,7 @@ def fake_mapillary_client(monkeypatch):
                 "id": "1",
                 "geometry": {"coordinates": [4.9, 52.37]},
                 "computed_geometry": {"coordinates": [4.9, 52.37]},
-                "captured_at": "2023-01-01T00:00:00Z",
+                "captured_at": 1672531200000,  # ms since epoch
                 "thumb_2048_url": "https://example.com/image1.jpg",
             }
         ]
