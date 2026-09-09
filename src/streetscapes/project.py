@@ -699,41 +699,30 @@ class Project:
         return self.add_images(image_data, exif_data, overwrite)
 
     def ingest_mapillary(self, df: DataFrame, table: str = "mapillary"):
-        """Ingest a DataFrame of Mapillary metadata."""
-        # Convert times as milliseconds since the epoch
-        # (UTC) to tz aware timestamp
-        if df.get("captured_at") is not None:
-            df["captured_at"] = pd.to_datetime(
-                pd.to_numeric(df["captured_at"], errors="coerce"), unit="ms", utc=True
-            )
+        """Ingest a DataFrame of Mapillary metadata.
 
-        # Ensure that that the camera_parameters column is a list of floats
-        if df.get("camera_parameters") is not None:
-            df["camera_parameters"] = df["camera_parameters"].apply(
-                lambda params: (
-                    [float(params)]
-                    if isinstance(params, int | float)
-                    else list(map(float, params))
-                )
-            )
+        The DataFrame is expected to have been produced and validated by
+        `MapillaryClient.fetch_metadata_bbox`.
 
-        df.insert(loc=0, column="uuid", value=None)
+        Args:
+            df: Validated Mapillary metadata.
+            table: The table to ingest into.
+        """
+        if df.empty:
+            return None
 
-        expected_colcount = len(self.core_tables["mapillary"]["schema"])
-        if df.columns.size != expected_colcount:
-            msg = (
-                "Missing columns in image. Skipping..."
-                f"Image is available at {df.get('thumb_2048_url')}"
-            )
-            logger.error(msg)
+        unknown = set(df.columns) - set(self.core_tables["mapillary"]["schema"])
+        if unknown:
+            logger.error(f"Unknown columns for table '{table}': {sorted(unknown)}")
             return None
 
         self._con.con.register("metadata_tile", df)
 
         # TODO: consider configurable duplicate behaviour (REPLACE or IGNORE)
-        # TODO do not depend of order in df columns, but used named columns in SQL query
         try:
-            self._con.raw_sql(f"INSERT OR IGNORE INTO {table} FROM metadata_tile")
+            self._con.raw_sql(
+                f"INSERT OR IGNORE INTO {table} BY NAME SELECT * FROM metadata_tile"
+            )
         except Exception as err:
             if "Conversion Error" in str(err):
                 logger.error("Failed to insert data into table.")
