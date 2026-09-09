@@ -1,7 +1,38 @@
-# Connect database on HPC to streetscapes-explorer
+# Streetscapes Explorer
 
-This guide is written for the Snellius HPC system, but is largely
-reusable for any other system.
+To easy visualizing results from streetscapes (images, segmentations) we developed
+the Streetscapes Explorer, a browser based tool.
+
+To run it you will need to have installed streetscapes with the extra `explorer`
+dependencies:
+
+```bash
+pip install streetscapes==1.0.0a0[explorer]
+```
+
+If you have a project set up with some images and segmentations, you start the
+explorer "back end" with:
+
+```bash
+streetscapes-explorer
+```
+
+This will also try to open a webpage. If this fails, visit the webpage manually
+at https://urban-m4.github.io/streetscapes-explorer/
+When connecting to streetscapes, the webpage will likely ask for permission to
+access the local device. This needs to be granted for the explorer to work.
+
+If the explorer does not seem to work, please try a different browser. Firefox and
+Chrome have been tested.
+
+For additional options (such as port configuration) see
+`streetscapes-explorer --help`.
+
+
+## Connect Streetscapes Explorer to a project on HPC
+
+This guide is written for the [Snellius HPC system](https://servicedesk.surf.nl/wiki/spaces/WIKI/pages/30660184/Snellius),
+but is largely reusable for any other system.
 
 The usecase here is to use the streetscapes explorer while the back-end is running
 remotely.
@@ -9,10 +40,15 @@ remotely.
 You first need to login to snellius, e.g.;
 
 ```bash
-ssh snellius
+ssh -L 5001:localhost:5001 snellius
 ```
 
-Next install streetscapes:
+The `-L` option sets up an SSH tunnel from your machine to the login node,
+on the specified port.
+
+If you haven't yet, install streetscapes. Note that you only need to do
+this the first time. If you already have a streetscapes environment set up,
+reuse that one.
 
 ```bash
 # Install uv if you don't have it yet:
@@ -29,8 +65,20 @@ uv pip install streetscapes[sam3,explorer] --pre
 ```
 
 After this, download images and (optionally) run a segmentation.
+Once you have some data to visualize, start the explorer with:
 
-To connect to the project data files on HPC, create a new file on snellius called `run_explorer_snellius.sh`:
+```bash
+streetscapes-explorer --no-open-webpage
+```
+
+And navigate to https://urban-m4.github.io/streetscapes-explorer/?s=http://localhost:5001
+The explorer should then display the data of your active streetscapes
+project on Snellius.
+
+### Connecting to a compute node
+
+If, for some reason, you need to run the streetscapes explorer backend on a compute
+node instead of a login node, create a new file on snellius called `run_explorer_snellius.sh`:
 
 ```bash
 #!/bin/bash
@@ -55,6 +103,7 @@ source streetscapes/bin/activate
 set -euo pipefail
 
 # Choose random port and print instructions to connect
+#   Note that the `int5` part of the hostname may be outdated at some point
 PORT=`shuf -i 5000-5999 -n 1`
 LOGIN_HOST_EXT=int5-pub.snellius.surf.nl
 LOGIN_HOST_INT=int5
