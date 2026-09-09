@@ -30,7 +30,7 @@ uv pip install streetscapes[sam3,explorer] --pre
 
 After this, download images and (optionally) run a segmentation.
 
-To connect to the HPC database, create a new file on snellius called `run_explorer_snellius.sh`:
+To connect to the project data files on HPC, create a new file on snellius called `run_explorer_snellius.sh`:
 
 ```bash
 #!/bin/bash
