@@ -23,6 +23,11 @@ authors:
     email: p.kalverla@esciencecenter.nl
     affiliation: Netherlands eScience Center
     orcid: 'https://orcid.org/0000-0002-5025-7862'
+  - given-names: Bart
+    family-names: Schilperoort
+    affiliation: Netherlands eScience Center
+    email: b.schilperoort@esciencecenter.nl
+    orcid: "https://orcid.org/0000-0003-4487-9822"
 repository-code: 'https://github.com/Urban-M4/streetscapes'
 abstract: >-
   Streetscapes is a package for retrieving and using data
