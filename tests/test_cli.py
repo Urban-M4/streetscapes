@@ -43,17 +43,36 @@ class TestCLIHelp:
     def test_fetch_metadata_help(self):
         result = run_cli("streetscapes fetch-metadata --help")
         assert "mapillary" in result
+        assert "kartaview" in result
 
     def test_fetch_metadata_mapillary_help(self):
         result = run_cli("streetscapes fetch-metadata mapillary --help")
         assert "BBOX" in result
         assert "--tile-size" in result
-        assert "--limit" in result
+        assert "--tile-limit" in result
+
+    def test_fetch_metadata_kartaview_help(self):
+        result = run_cli("streetscapes fetch-metadata kartaview --help")
+        assert "BBOX" in result
+        assert "--image-limit" in result
+        # The limit is for the whole bounding box, not per tile.
+        assert "--tile-limit" not in result
+
+    def test_download_images_help(self):
+        result = run_cli("streetscapes download-images --help")
+        assert "mapillary" in result
+        assert "kartaview" in result
 
     def test_download_images_mapillary_help(self):
         result = run_cli("streetscapes download-images mapillary --help")
         assert "--skip-existing" in result
         assert "--token" in result
+
+    def test_download_images_kartaview_help(self):
+        result = run_cli("streetscapes download-images kartaview --help")
+        assert "--skip-existing" in result
+        # KartaView needs no authentication.
+        assert "--token" not in result
 
     def test_export_help(self):
         result = run_cli("streetscapes export --help")

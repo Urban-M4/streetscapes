@@ -54,10 +54,12 @@ The `project_dir` directory is where Streetscapes will be storing its projects, 
 
 ## Downloading images
 
-The Streetscapes CLI supports downloading images from [Mapillary](https://www.mapillary.com/) ([KartaView](https://kartaview.org/landing) and the [Amsterdam](https://api.data.amsterdam.nl/) collection are currently not yet supported). The available options can be displayed with the `--help` option via the subcommand for Mapillary:
+The Streetscapes CLI supports downloading images from [Mapillary](https://www.mapillary.com/) and [KartaView](https://kartaview.org/landing) (the [Amsterdam](https://api.data.amsterdam.nl/) collection is currently not yet supported). Both follow the same two steps — fetch the metadata for a bounding box, then download the images it describes. The available options can be displayed with the `--help` option via the subcommand for each source:
+
+### Mapillary
 
 For Mapillary, we first need to fetch image metadata. For this you will need to define a spatial bounding box.
-Some areas have enormous amounts of images available. To only get a certain number of images per spatial "tile", set the `--limit` argument.
+Some areas have enormous amounts of images available. To only get a certain number of images per spatial "tile", set the `--tile-limit` argument.
 
 Note that a [token](https://www.mapillary.com/developer/api-documentation/) is needed to use the Mapillary API.
 Register on Mapillary, and register your token with `streetscapes config set mapillary_token YOUR_TOKEN`.
@@ -72,13 +74,13 @@ Usage: streetscapes fetch-metadata mapillary [OPTIONS] BBOX
 Fetch metadata from the Mapillary API.
 
 ╭─ Arguments ────────────────────────────────────────────────────────────────────╮
-│ *  BBOX  Bounding box (WEST EAST SOUTH NORTH). [required]                      │
+│ *  BBOX  Bounding box (WEST SOUTH EAST NORTH). [required]                      │
 ╰────────────────────────────────────────────────────────────────────────────────╯
 ╭─ Parameters ───────────────────────────────────────────────────────────────────╮
-│ --tile-size  Tile size in degrees. [default: 0.001]                            │
-│ --limit      Maximum number of images per tile. [default: 1000]                │
-│ --token      Mapillary OAuth token (if not set via MAPILLARY_TOKEN).           │
-│ --project    An optional project to attach to.                                 │
+│ --tile-size   Tile size in degrees. [default: 0.001]                           │
+│ --tile-limit  Maximum number of images per tile. [default: 1000]               │
+│ --token       Mapillary OAuth token (if not set via MAPILLARY_TOKEN).          │
+│ --project     An optional project to attach to.                                │
 ╰────────────────────────────────────────────────────────────────────────────────╯
 ```
 
@@ -104,6 +106,42 @@ Download Mapillary images to a local directory.
 │ --project             An optional project to attach to.                      │
 ╰──────────────────────────────────────────────────────────────────────────────╯
 ```
+
+### KartaView
+
+KartaView works the same way, but needs no token, and its API pages through a
+bounding box of any size, so there is no tiling and `--image-limit` caps the number
+of images for the whole bounding box (use `--image-limit 0` to fetch all of them):
+
+```bash
+streetscapes fetch-metadata kartaview --help
+```
+
+```bash
+Usage: streetscapes fetch-metadata kartaview [OPTIONS] BBOX
+
+Fetch metadata from the KartaView API.
+
+╭─ Arguments ────────────────────────────────────────────────────────────────────╮
+│ *  BBOX  Bounding box (WEST SOUTH EAST NORTH). [required]                      │
+╰────────────────────────────────────────────────────────────────────────────────╯
+╭─ Parameters ───────────────────────────────────────────────────────────────────╮
+│ --image-limit  Maximum number of images to fetch (0 for no limit). [default:   │
+│                1000]                                                           │
+│ --project      An optional project to attach to.                               │
+╰────────────────────────────────────────────────────────────────────────────────╯
+```
+
+The images are then downloaded in the same way:
+
+```bash
+streetscapes download-images kartaview
+```
+
+KartaView serves its images at full resolution, which for recent cameras means 4K.
+Segmenting those needs a correspondingly large amount of memory, because the models
+scale their masks back up to the size of the image they were given — so on a machine
+with limited RAM, segment KartaView images in small batches (`--batch-size 1`).
 
 ## Segmenting images
 

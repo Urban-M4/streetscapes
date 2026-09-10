@@ -43,6 +43,25 @@ def epoch_ms_to_datetime(value: Any) -> Any:
     return value
 
 
+def timestamp_to_datetime(value: Any) -> Any:
+    """Convert a timestamp string without a zone into a UTC-aware datetime.
+
+    APIs that report timestamps as strings (`"2021-10-17 19:45:05.000"`) do so in
+    UTC without saying so, hence the explicit zone.
+    """
+    if isinstance(value, datetime):
+        return value if value.tzinfo is not None else value.replace(tzinfo=UTC)
+
+    if isinstance(value, str):
+        try:
+            parsed = datetime.fromisoformat(value.strip())
+        except ValueError as err:
+            raise ValueError(f"Malformed timestamp: {value!r}") from err
+        return parsed if parsed.tzinfo is not None else parsed.replace(tzinfo=UTC)
+
+    return value
+
+
 def as_float_list(value: Any) -> Any:
     """Normalise a scalar or a sequence of numbers into a list of floats."""
     if isinstance(value, (int, float)) and not isinstance(value, bool):
@@ -67,6 +86,9 @@ WktPoint = Annotated[str, BeforeValidator(point_to_wkt)]
 
 # timezone-aware timestamp, converted from ms since epoch (TIMESTAMPTZ column)
 EpochMs = Annotated[datetime, BeforeValidator(epoch_ms_to_datetime)]
+
+# timezone-aware timestamp, converted from a UTC string (TIMESTAMPTZ column)
+UtcTimestamp = Annotated[datetime, BeforeValidator(timestamp_to_datetime)]
 
 # list of floats, tolerating a bare JSON scalar (FLOAT8[] column)
 FloatList = Annotated[list[float], BeforeValidator(as_float_list)]

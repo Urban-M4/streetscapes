@@ -268,10 +268,10 @@ class GlobalStreetscapesSource(HFSourceBase):
         df_urls = table.execute()
         for index, row in df_urls.iterrows():
             if row["source"] == "Mapillary":
-                image_url = mp.get_image_url(row["image_id"])
+                image_url = mp.fetch_image_url(row["image_id"])
                 df_urls.at[index, "image_url"] = image_url
             elif row["source"] == "KartaView":
-                image_url = kv.get_image_url(row["image_id"])
+                image_url = kv.fetch_image_url(row["image_id"])
                 df_urls.at[index, "image_url"] = image_url
             else:
                 logger.warning(f"Source not recognised for image {row['image_id']}.")

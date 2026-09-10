@@ -1,7 +1,6 @@
 """Mapillary related functionality."""
 
 import logging
-from pathlib import Path
 from time import sleep
 from typing import TYPE_CHECKING, Any
 
@@ -10,8 +9,8 @@ import pandas as pd
 import requests
 from pydantic import BaseModel, ConfigDict, ValidationError
 
-from streetscapes import utils
 from streetscapes.project import Project
+from streetscapes.sources.common import download_image
 from streetscapes.utils.db_types import (
     EpochMs,
     FloatList,
@@ -23,6 +22,7 @@ from streetscapes.utils.db_types import (
 
 if TYPE_CHECKING:
     import uuid
+    from pathlib import Path
 
     from streetscapes.utils.geo import Bbox
     from streetscapes.utils.metadata import ImageMeta
@@ -196,45 +196,15 @@ class MapillaryClient:
         Returns:
             Image metadata.
         """
-        output_path = output_dir
-        if output_dir is not None:
-            output_dir = Path(output_dir)
-
-        content = None
-        if uid is not None:
-            if output_dir is not None:
-                image_path = list(output_dir.glob(f"*{uid}*"))
-                if len(image_path) > 0:
-                    content = image_path[0].read_bytes()
-            if content is None:
-                # The image is missing, download it again.
-                skip_existing = False
-
-        if uid is None or not skip_existing:
-            response = self.session.get(url)
-            response.raise_for_status()
-            content = response.content
-
-        if content is None:
-            raise ValueError(
-                f"Failed to download image with UUID '{uid}': empty content"
-            )
-
-        meta = utils.get_image_metadata(content)
-
-        if uid is None and output_dir is not None:
-            utils.ensure_dir(output_dir)
-            output_path = output_dir / f"{meta.uid}.{meta.ext}"
-            output_path.write_bytes(meta.content)
-            # write mapillary-id -> uuid mapping
-            if image_id is not None:
-                with (output_dir / str(image_id)).open("w") as f:
-                    f.write(str(meta.uid))
-
-        meta.fpath = output_path
-        meta.source = "mapillary"
-
-        return meta
+        return download_image(
+            self.session,
+            url,
+            output_dir,
+            image_id,
+            source="mapillary",
+            uid=uid,
+            skip_existing=skip_existing,
+        )
 
     def _fetch_bbox(self, bbox: Bbox, limit: int = 1000) -> list[dict]:
         """Perform the raw API request to Mapillary for a single bounding box tile."""

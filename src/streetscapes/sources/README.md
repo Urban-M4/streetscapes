@@ -32,6 +32,23 @@ streetscapes fetch-metadata mapillary \
 * `output-file`: Path to save the GeoParquet manifest.
 * `token`: OAuth token for Mapillary API.
 
+### KartaView
+
+```bash
+streetscapes fetch-metadata kartaview \
+    W S E N \
+    --image-limit 1000
+```
+
+* `bbox`: Bounding box `[west, south, east, north]` to fetch images from.
+* `image-limit`: Maximum number of images to fetch for the bounding box (`0` for
+  no limit). The KartaView API pages through a bounding box of any size, so there
+  is no tiling, and the limit is not per tile as it is for Mapillary.
+
+No token is required. Metadata is collected in two steps, as no single public
+endpoint both covers a bounding box and returns complete records: the photos in
+the box are listed first, then their full records are fetched in batches by ID.
+
 ### Amsterdam Panorama
 
 ```bash
@@ -64,6 +81,17 @@ streetscapes download-images mapillary \
 * `output-dir`: Directory to store downloaded images.
 * `overwrite`: Whether to overwrite existing images.
 * `token`: OAuth token for Mapillary API.
+
+### KartaView
+
+```bash
+streetscapes download-images kartaview \
+    --skip-existing
+```
+
+* `skip-existing`: Only download the images that are missing.
+
+Images are downloaded at full resolution, which for recent cameras means 4K.
 
 ### Amsterdam Panorama
 
