@@ -109,6 +109,67 @@ def kartaview(
     _report(proj, "kartaview", bbox)
 
 
+@fetch_metadata_cli.command(name="panoramax")
+def panoramax(
+    bbox: Bbox,
+    /,
+    *,
+    tile_size: float = 0.05,
+    tile_limit: int = 1000,
+    instance: str | None = None,
+    project: str | None = None,
+):
+    """Fetch metadata from the Panoramax API.
+
+    Queries the federated catalogue by default, which indexes every Panoramax
+    instance taking part in the federation, so one query covers them all. Pass
+    `--instance` to search a single instance instead.
+
+    The API returns no more than 32767 images per request and offers no paging,
+    so the bounding box is split into tiles, as it is for Mapillary. Panoramax
+    tiles can be much larger than Mapillary's, as its limit is far higher.
+
+    Args:
+        bbox: Bounding box (WEST SOUTH EAST NORTH).
+        tile_size: Tile size in degrees.
+        tile_limit: Maximum number of images per tile (at most 32767, which is
+            also what 0 means: the most the API will return).
+        instance: A single Panoramax instance to query, such as
+            'https://panoramax.openstreetmap.fr'. Defaults to the federated
+            catalogue.
+        project: An optional project to attach to.
+    """
+    from streetscapes.project import Project
+    from streetscapes.sources.panoramax import (
+        FEDERATED_CATALOGUE,
+        PanoramaxClient,
+        PanoramaxError,
+    )
+
+    logger.info(f"Fetching metadata for {bbox=}")
+
+    client = PanoramaxClient(instance or FEDERATED_CATALOGUE)
+    proj = Project(project)
+
+    ntiles, tiles = split_bbox(bbox, tile_size)
+    logger.info(f"Splitting bbox in {ntiles} tiles with {tile_size=}")
+    try:
+        for tile, _tile_id in track(
+            tiles, description="Fetching tiles", total=ntiles, console=console
+        ):
+            df = client.fetch_metadata_bbox(tile, tile_limit)
+
+            if len(df) == 0:
+                continue
+
+            proj.ingest_metadata(df, "panoramax")
+    except PanoramaxError as err:
+        logger.error(str(err))
+        raise SystemExit(1) from err
+
+    _report(proj, "panoramax", bbox)
+
+
 def _report(proj: "Project", table: str, bbox: Bbox):
     """Show the user what ended up in the table for the requested bounding box."""
     import ibis

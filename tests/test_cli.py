@@ -44,6 +44,7 @@ class TestCLIHelp:
         result = run_cli("streetscapes fetch-metadata --help")
         assert "mapillary" in result
         assert "kartaview" in result
+        assert "panoramax" in result
 
     def test_fetch_metadata_mapillary_help(self):
         result = run_cli("streetscapes fetch-metadata mapillary --help")
@@ -58,10 +59,18 @@ class TestCLIHelp:
         # The limit is for the whole bounding box, not per tile.
         assert "--tile-limit" not in result
 
+    def test_fetch_metadata_panoramax_help(self):
+        result = run_cli("streetscapes fetch-metadata panoramax --help")
+        assert "BBOX" in result
+        assert "--tile-size" in result
+        assert "--tile-limit" in result
+        assert "--instance" in result
+
     def test_download_images_help(self):
         result = run_cli("streetscapes download-images --help")
         assert "mapillary" in result
         assert "kartaview" in result
+        assert "panoramax" in result
 
     def test_download_images_mapillary_help(self):
         result = run_cli("streetscapes download-images mapillary --help")
@@ -73,6 +82,14 @@ class TestCLIHelp:
         assert "--skip-existing" in result
         # KartaView needs no authentication.
         assert "--token" not in result
+
+    def test_download_images_panoramax_help(self):
+        result = run_cli("streetscapes download-images panoramax --help")
+        assert "--skip-existing" in result
+        # Panoramax needs no authentication, and the instance to download from
+        # is whichever one the metadata came from.
+        assert "--token" not in result
+        assert "--instance" not in result
 
     def test_export_help(self):
         result = run_cli("streetscapes export --help")

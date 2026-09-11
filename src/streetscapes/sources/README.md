@@ -49,6 +49,31 @@ No token is required. Metadata is collected in two steps, as no single public
 endpoint both covers a bounding box and returns complete records: the photos in
 the box are listed first, then their full records are fetched in batches by ID.
 
+### Panoramax
+
+```bash
+streetscapes fetch-metadata panoramax \
+    W S E N \
+    --tile-size 0.05 \
+    --tile-limit 1000 \
+    --instance https://panoramax.openstreetmap.fr
+```
+
+* `bbox`: Bounding box `[west, south, east, north]` to fetch images from.
+* `tile-size`: Tiling of the bounding box, in degrees (default 0.05°). Tiles can
+  be much larger than Mapillary's, as Panoramax returns far more per request.
+* `tile-limit`: Maximum number of images per tile, at most 32767 — which is also
+  what `0` means, the most the API will return.
+* `instance`: A single Panoramax instance to query. Optional — defaults to the
+  federated catalogue.
+
+No token is required. Panoramax is a federation of instances rather than one
+server, so by default the [federated catalogue](https://docs.panoramax.fr/federated-catalog/)
+at `https://api.panoramax.xyz` is queried, which indexes every participating
+instance; `--instance` restricts the search to one of them, or reaches one that is
+not federated. The search endpoint is STAC and offers no paging, so 32767 images is
+the most one request can yield; a fetch that hits the limit says so.
+
 ### Amsterdam Panorama
 
 ```bash
@@ -93,6 +118,19 @@ streetscapes download-images kartaview \
 
 Images are downloaded at full resolution, which for recent cameras means 4K.
 
+### Panoramax
+
+```bash
+streetscapes download-images panoramax \
+    --skip-existing
+```
+
+* `skip-existing`: Only download the images that are missing.
+
+No instance is given here: each picture is downloaded from whichever instance
+hosts it, which is recorded in the `instance` column when the metadata is fetched.
+Much of Panoramax is 360° imagery at up to 8000×4000.
+
 ### Amsterdam Panorama
 
 ```bash
@@ -110,7 +148,7 @@ streetscapes download-images amsterdam \
 
 ## Implementation Notes
 
-* **Sources**: Raw sources (Mapillary, KartaView) and derived datasets (e.g., global streetscapes metadata) implement `fetch_metadata` and provide a standardized manifest writer.
+* **Sources**: Raw sources (Mapillary, KartaView, Panoramax) and derived datasets (e.g., global streetscapes metadata) implement `fetch_metadata` and provide a standardized manifest writer.
 * **Manifest Writer**: `PyArrowGeoParquetWriter` ensures output manifests are compatible with spatial operations.
 * **Transparency**: Each CLI call is fully self-contained; there are no hidden global states or complicated initialization chains.
 * **Extensible**: New sources can be added by implementing `fetch_metadata` and optionally a downloader. The CLI can then expose them as a separate subcommand.

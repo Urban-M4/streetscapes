@@ -14,7 +14,14 @@ Bbox = tuple[float, float, float, float]
 def split_bbox(
     bbox: Bbox, tile_size: float = 0.001
 ) -> tuple[int, Iterable[tuple[Bbox, str]]]:
-    """Split bounding box into set of smaller tiles with fixed tile size."""
+    """Split bounding box into set of smaller tiles with fixed tile size.
+
+    Tiles are aligned to a fixed grid, so that the same patch of the world always
+    gets the same tile ID, and are then clipped to the bounding box. Without the
+    clipping a tile would reach up to `tile_size` beyond the box on every side,
+    which for a box smaller than a tile means asking the source for a far larger
+    area than was requested, and spending any per-tile limit out there.
+    """
     import numpy as np
 
     west, south, east, north = bbox
@@ -35,19 +42,23 @@ def split_bbox(
 
     def iter_tiles():
         for wi, si in product(lon_indices, lat_indices):
-            w = wi * tile_size
-            s = si * tile_size
-            e = (wi + 1) * tile_size
-            n = (si + 1) * tile_size
-
-            tile = [
-                round(w, precision),
-                round(s, precision),
-                round(e, precision),
-                round(n, precision),
+            cell = [
+                round(wi * tile_size, precision),
+                round(si * tile_size, precision),
+                round((wi + 1) * tile_size, precision),
+                round((si + 1) * tile_size, precision),
             ]
 
-            tile_id = "_".join(f"{v:.{precision}f}" for v in tile)
+            # The ID names the grid cell, so it stays the same however the cell
+            # is clipped, while the tile covers only the requested area.
+            tile_id = "_".join(f"{v:.{precision}f}" for v in cell)
+            tile = [
+                max(cell[0], west),
+                max(cell[1], south),
+                min(cell[2], east),
+                min(cell[3], north),
+            ]
+
             yield tile, tile_id
 
     return total, iter_tiles()
