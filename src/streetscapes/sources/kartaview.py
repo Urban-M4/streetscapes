@@ -66,6 +66,13 @@ def _point(lon: Any, lat: Any) -> dict | None:
     return {"coordinates": [lon, lat]}
 
 
+def _is_pano(projection: Any) -> bool | None:
+    """Tell whether a projection is panoramic; KartaView has no flag for it."""
+    if projection is None:
+        return None
+    return str(projection).upper() != "PLANE"
+
+
 def _timestamp(value: Any) -> Any:
     """Discard the placeholders KartaView uses for a missing timestamp."""
     if isinstance(value, str) and (not value.strip() or value.startswith("0000")):
@@ -140,9 +147,9 @@ class KartaViewImage(BaseModel):
                 "computed_geometry", _point(record["matchLng"], record["matchLat"])
             )
 
-        projection = record.get("projection")
-        if projection is not None:
-            record.setdefault("is_pano", str(projection).upper() != "PLANE")
+        is_pano = _is_pano(record.get("projection"))
+        if is_pano is not None:
+            record.setdefault("is_pano", is_pano)
 
         username = record.get("username")
         if username is not None:
@@ -303,12 +310,17 @@ class KartaViewClient:
             " worth retrying."
         )
 
-    def _list_bbox(self, bbox: Bbox, limit: int = 1000) -> list[dict]:
+    def _list_bbox(
+        self, bbox: Bbox, limit: int = 1000, pano_only: bool = False
+    ) -> list[dict]:
         """List the photos in a bounding box, paging through the results.
 
         Args:
             bbox: Bounding box as (west, south, east, north).
             limit: Maximum number of photos to list (0 for no limit).
+            pano_only: Only list panoramic photos. The API cannot filter on this,
+                so the listing is filtered as it comes in, and paging continues
+                until `limit` panoramas have been found.
 
         Returns:
             The (partial) photo records returned by the listing endpoint.
@@ -316,7 +328,12 @@ class KartaViewClient:
         logger.debug(f"Listing photos for bounding box: {bbox}")
 
         west, south, east, north = bbox
-        page_size = self.PAGE_SIZE if limit <= 0 else min(limit, self.PAGE_SIZE)
+        # When filtering there is no telling how much of a page is kept, so a
+        # small page would only mean many more requests for the same photos.
+        if limit <= 0 or pano_only:
+            page_size = self.PAGE_SIZE
+        else:
+            page_size = min(limit, self.PAGE_SIZE)
 
         photos: list[dict] = []
         page = 1
@@ -336,8 +353,12 @@ class KartaViewClient:
             )
 
             items = data.get("currentPageItems") or []
-            photos.extend(items)
+            if pano_only:
+                photos.extend(p for p in items if _is_pano(p.get("projection")))
+            else:
+                photos.extend(items)
 
+            # A short page is the last one, whatever was kept of it.
             if len(items) < page_size or (0 < limit <= len(photos)):
                 break
 
@@ -364,17 +385,23 @@ class KartaViewClient:
 
         return records
 
-    def _fetch_bbox(self, bbox: Bbox, limit: int = 1000) -> list[dict]:
+    def _fetch_bbox(
+        self, bbox: Bbox, limit: int = 1000, pano_only: bool = False
+    ) -> list[dict]:
         """Fetch the full photo records for a bounding box.
 
         Args:
             bbox: Bounding box as (west, south, east, north).
             limit: Maximum number of images to fetch (0 for no limit).
+            pano_only: Only fetch panoramic images.
 
         Returns:
             Raw photo records, enriched with the listing's `username`.
         """
-        listed = {photo["id"]: photo for photo in self._list_bbox(bbox, limit)}
+        listed = {
+            photo["id"]: photo
+            for photo in self._list_bbox(bbox, limit, pano_only=pano_only)
+        }
 
         if not listed:
             return []
@@ -389,7 +416,9 @@ class KartaViewClient:
 
         return records
 
-    def fetch_metadata_bbox(self, bbox: Bbox, limit: int = 1000) -> pd.DataFrame:
+    def fetch_metadata_bbox(
+        self, bbox: Bbox, limit: int = 1000, pano_only: bool = False
+    ) -> pd.DataFrame:
         """Fetch metadata for a bounding box and convert to a pandas DataFrame.
 
         Every record is validated against `KartaViewImage` before being included;
@@ -400,13 +429,15 @@ class KartaViewClient:
                 Bounding box as (west, south, east, north).
             limit : int
                 Maximum number of images to fetch (default 1000, 0 for no limit).
+            pano_only : bool
+                Only fetch panoramic images (default False).
 
         Returns:
             pd.DataFrame
                 DataFrame with KartaView metadata.
         """
         columns = list(self.db_fields)
-        images = validate_records(self._fetch_bbox(bbox, limit))
+        images = validate_records(self._fetch_bbox(bbox, limit, pano_only=pano_only))
 
         if not images:
             return pd.DataFrame(columns=columns)
@@ -414,7 +445,7 @@ class KartaViewClient:
         return pd.DataFrame([image.to_row() for image in images], columns=columns)
 
     def fetch_metadata_bbox_gpd(
-        self, bbox: Bbox, limit: int = 1000
+        self, bbox: Bbox, limit: int = 1000, pano_only: bool = False
     ) -> gpd.GeoDataFrame:
         """Fetch metadata for a bounding box and convert to a GeoDataFrame.
 
@@ -425,12 +456,14 @@ class KartaViewClient:
                 Bounding box as (west, south, east, north).
             limit : int
                 Maximum number of images to fetch (default 1000, 0 for no limit).
+            pano_only : bool
+                Only fetch panoramic images (default False).
 
         Returns:
             gpd.GeoDataFrame
                 GeoDataFrame with KartaView metadata and geometry columns.
         """
-        df = self.fetch_metadata_bbox(bbox, limit)
+        df = self.fetch_metadata_bbox(bbox, limit, pano_only)
 
         gdf = gpd.GeoDataFrame(df, geometry=gpd.GeoSeries.from_wkt(df["geometry"]))
         return gdf.set_crs("EPSG:4326")

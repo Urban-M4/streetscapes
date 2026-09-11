@@ -1,8 +1,13 @@
 import pytest
+import requests
 from pydantic import ValidationError
 
 from streetscapes.project import Project
-from streetscapes.sources.mapillary import MapillaryImage, validate_records
+from streetscapes.sources.mapillary import (
+    MapillaryClient,
+    MapillaryImage,
+    validate_records,
+)
 
 
 @pytest.fixture
@@ -40,12 +45,37 @@ def test_fetch_metadata_bbox_matches_db_schema(fake_mapillary_client):
 def test_fetch_metadata_bbox_empty(fake_mapillary_client, monkeypatch):
     """An empty tile still yields a DataFrame with the schema's columns."""
     monkeypatch.setattr(
-        type(fake_mapillary_client), "_fetch_bbox", lambda self, bbox, limit=1000: []
+        type(fake_mapillary_client), "_fetch_bbox", lambda self, bbox, *a, **kw: []
     )
     df = fake_mapillary_client.fetch_metadata_bbox((4.89, 52.37, 4.91, 52.38))
 
     assert df.empty
     assert list(df.columns) == list(Project.core_tables["mapillary"]["schema"])
+
+
+@pytest.mark.parametrize("pano_only", [False, True])
+def test_fetch_filters_panoramas_in_the_api(monkeypatch, pano_only):
+    """The API filters on `is_pano`, so the limit counts panoramas only."""
+    seen: dict = {}
+
+    class _Response:
+        def raise_for_status(self):
+            pass
+
+        def json(self):
+            return {"data": []}
+
+    def spy(self, url, params, **kwargs):
+        seen.update(params)
+        return _Response()
+
+    monkeypatch.setattr(requests.Session, "get", spy)
+
+    MapillaryClient("fake_token").fetch_metadata_bbox(
+        (4.89, 52.37, 4.91, 52.38), pano_only=pano_only
+    )
+
+    assert seen.get("is_pano") == ("true" if pano_only else None)
 
 
 def test_model_matches_db_schema():

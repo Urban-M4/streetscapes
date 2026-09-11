@@ -344,12 +344,25 @@ class PanoramaxClient:
             f" {self.retries} attempts."
         )
 
-    def _fetch_bbox(self, bbox: Bbox, limit: int = 1000) -> list[dict]:
+    @property
+    def filters_pano(self) -> bool:
+        """Tell whether the search endpoint can filter on panoramas itself.
+
+        The federated catalogue accepts a filter on the field of view, but single
+        instances reject it as unsupported.
+        """
+        return self.instance == FEDERATED_CATALOGUE
+
+    def _fetch_bbox(
+        self, bbox: Bbox, limit: int = 1000, pano_only: bool = False
+    ) -> list[dict]:
         """Fetch the STAC items for a bounding box.
 
         Args:
             bbox: Bounding box as (west, south, east, north).
             limit: Maximum number of images to fetch.
+            pano_only: Have the API return panoramic images only, if it can (see
+                `filters_pano`). The items are not filtered otherwise.
 
         Returns:
             Raw STAC items.
@@ -361,9 +374,11 @@ class PanoramaxClient:
             # The endpoint rejects a larger limit outright.
             limit = self.MAX_LIMIT
 
-        data = self._request(
-            {"bbox": ",".join(map(str, bbox)), "limit": limit},
-        )
+        params: dict[str, Any] = {"bbox": ",".join(map(str, bbox)), "limit": limit}
+        if pano_only and self.filters_pano:
+            params["filter"] = f"field_of_view={PANORAMIC_FIELD_OF_VIEW}"
+
+        data = self._request(params)
         items = data.get("features") or []
 
         # Hitting a limit the user chose is expected; only warn when the API cap
@@ -376,7 +391,9 @@ class PanoramaxClient:
 
         return items  # type: ignore[no-any-return]
 
-    def fetch_metadata_bbox(self, bbox: Bbox, limit: int = 1000) -> pd.DataFrame:
+    def fetch_metadata_bbox(
+        self, bbox: Bbox, limit: int = 1000, pano_only: bool = False
+    ) -> pd.DataFrame:
         """Fetch metadata for a bounding box and convert to a pandas DataFrame.
 
         Every record is validated against `PanoramaxImage` before being included;
@@ -393,13 +410,21 @@ class PanoramaxClient:
                 Bounding box as (west, south, east, north).
             limit : int
                 Maximum number of images to fetch (default 1000).
+            pano_only : bool
+                Only fetch panoramic images (default False). A single instance
+                cannot filter on this itself, so there the limit applies before
+                the other images are dropped, and fewer may be returned.
 
         Returns:
             pd.DataFrame
                 DataFrame with Panoramax metadata.
         """
         columns = list(self.db_fields)
-        images = validate_records(self._fetch_bbox(bbox, limit))
+        images = validate_records(self._fetch_bbox(bbox, limit, pano_only=pano_only))
+
+        if pano_only:
+            # Needed where the API could not filter
+            images = [image for image in images if image.is_pano]
 
         if not images:
             return pd.DataFrame(columns=columns)
@@ -407,7 +432,7 @@ class PanoramaxClient:
         return pd.DataFrame([image.to_row() for image in images], columns=columns)
 
     def fetch_metadata_bbox_gpd(
-        self, bbox: Bbox, limit: int = 1000
+        self, bbox: Bbox, limit: int = 1000, pano_only: bool = False
     ) -> gpd.GeoDataFrame:
         """Fetch metadata for a bounding box and convert to a GeoDataFrame.
 
@@ -418,12 +443,14 @@ class PanoramaxClient:
                 Bounding box as (west, south, east, north).
             limit : int
                 Maximum number of images to fetch (default 1000).
+            pano_only : bool
+                Only fetch panoramic images (default False).
 
         Returns:
             gpd.GeoDataFrame
                 GeoDataFrame with Panoramax metadata and geometry columns.
         """
-        df = self.fetch_metadata_bbox(bbox, limit)
+        df = self.fetch_metadata_bbox(bbox, limit, pano_only)
 
         gdf = gpd.GeoDataFrame(df, geometry=gpd.GeoSeries.from_wkt(df["geometry"]))
         return gdf.set_crs("EPSG:4326")

@@ -5,9 +5,9 @@ Usage:
 """
 
 import logging
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Annotated
 
-from cyclopts import App
+from cyclopts import App, Parameter
 from rich.progress import track
 
 from streetscapes import CFG
@@ -29,6 +29,7 @@ def mapillary(
     *,
     tile_size: float = 0.001,
     tile_limit: int = 1000,
+    pano_only: Annotated[bool, Parameter(negative="")] = False,
     token: str | None = None,
     project: str | None = None,
 ):
@@ -38,6 +39,7 @@ def mapillary(
         bbox: Bounding box (WEST SOUTH EAST NORTH).
         tile_size: Tile size in degrees.
         tile_limit: Maximum number of images per tile.
+        pano_only: Only fetch panoramic images.
         token: Mapillary OAuth token (if not set via MAPILLARY_TOKEN).
         project: An optional project to attach to.
     """
@@ -62,7 +64,7 @@ def mapillary(
     for tile, _tile_id in track(
         tiles, description="Fetching tiles", total=ntiles, console=console
     ):
-        df = m.fetch_metadata_bbox(tile, tile_limit)
+        df = m.fetch_metadata_bbox(tile, tile_limit, pano_only)
 
         # TODO: maybe this failsafe/optimization is not necessary?
         if len(df) == 0:
@@ -79,6 +81,7 @@ def kartaview(
     /,
     *,
     image_limit: int = 1000,
+    pano_only: Annotated[bool, Parameter(negative="")] = False,
     project: str | None = None,
 ):
     """Fetch metadata from the KartaView API.
@@ -86,6 +89,8 @@ def kartaview(
     Args:
         bbox: Bounding box (WEST SOUTH EAST NORTH).
         image_limit: Maximum number of images to fetch (0 for no limit).
+        pano_only: Only fetch panoramic images. The API cannot filter on this,
+            so the whole listing may be paged through to find them.
         project: An optional project to attach to.
     """
     from streetscapes.project import Project
@@ -98,7 +103,7 @@ def kartaview(
 
     try:
         with console.status("Fetching images..."):
-            df = client.fetch_metadata_bbox(bbox, image_limit)
+            df = client.fetch_metadata_bbox(bbox, image_limit, pano_only)
     except KartaViewError as err:
         logger.error(str(err))
         raise SystemExit(1) from err
@@ -116,6 +121,7 @@ def panoramax(
     *,
     tile_size: float = 0.05,
     tile_limit: int = 1000,
+    pano_only: Annotated[bool, Parameter(negative="")] = False,
     instance: str | None = None,
     project: str | None = None,
 ):
@@ -134,6 +140,9 @@ def panoramax(
         tile_size: Tile size in degrees.
         tile_limit: Maximum number of images per tile (at most 32767, which is
             also what 0 means: the most the API will return).
+        pano_only: Only fetch panoramic images. Not ever instance can filter
+            on this itself, so there the tile limit applies before the
+            non-pano images are dropped.
         instance: A single Panoramax instance to query, such as
             'https://panoramax.openstreetmap.fr'. Defaults to the federated
             catalogue.
@@ -157,7 +166,7 @@ def panoramax(
         for tile, _tile_id in track(
             tiles, description="Fetching tiles", total=ntiles, console=console
         ):
-            df = client.fetch_metadata_bbox(tile, tile_limit)
+            df = client.fetch_metadata_bbox(tile, tile_limit, pano_only)
 
             if len(df) == 0:
                 continue

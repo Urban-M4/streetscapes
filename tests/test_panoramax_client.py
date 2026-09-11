@@ -83,6 +83,59 @@ def test_fetch_queries_the_bbox_as_given(fake_panoramax_client, spy_request):
     assert spy_request["bbox"] == "2.336698,48.865696,2.346236,48.87065"
 
 
+def test_pano_only_filters_in_the_federated_catalogue(
+    fake_panoramax_client, spy_request
+):
+    """The catalogue filters on the field of view, so the limit counts panoramas."""
+    fake_panoramax_client.fetch_metadata_bbox(
+        (2.34, 48.85, 2.35, 48.86), pano_only=True
+    )
+
+    assert spy_request["filter"] == "field_of_view=360"
+
+
+@pytest.mark.parametrize(
+    ("instance", "pano_only"),
+    [
+        (FEDERATED_CATALOGUE, False),
+        # A single instance rejects the filter as unsupported.
+        ("https://panoramax.openstreetmap.fr", True),
+    ],
+)
+def test_pano_only_sends_no_filter(spy_request, instance, pano_only):
+    PanoramaxClient(instance).fetch_metadata_bbox(
+        (2.34, 48.85, 2.35, 48.86), pano_only=pano_only
+    )
+
+    assert "filter" not in spy_request
+
+
+@pytest.mark.parametrize("instance", [FEDERATED_CATALOGUE, "https://example.com"])
+def test_pano_only_drops_narrow_pictures(panoramax_item, monkeypatch, instance):
+    """Whether or not the API could filter, only panoramas are returned."""
+    narrow = {
+        **panoramax_item,
+        "id": "narrow",
+        "properties": {
+            **panoramax_item["properties"],
+            "pers:interior_orientation": {"field_of_view": 95},
+        },
+    }
+    unknown = {**panoramax_item, "id": "unknown", "properties": {}}
+    monkeypatch.setattr(
+        PanoramaxClient,
+        "_request",
+        lambda self, params: {"features": [panoramax_item, narrow, unknown]},
+    )
+    client = PanoramaxClient(instance)
+    bbox = (2.34, 48.85, 2.35, 48.86)
+
+    assert list(client.fetch_metadata_bbox(bbox, pano_only=True)["id"]) == [
+        panoramax_item["id"]
+    ]
+    assert len(client.fetch_metadata_bbox(bbox)) == 3
+
+
 def test_model_matches_db_schema():
     """The model and the `panoramax` table must not drift apart."""
     schema = Project.core_tables["panoramax"]["schema"]
