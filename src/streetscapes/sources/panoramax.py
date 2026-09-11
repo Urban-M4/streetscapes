@@ -356,7 +356,8 @@ class PanoramaxClient:
         """
         logger.debug(f"Fetching metadata for bounding box: {bbox}")
 
-        if limit <= 0 or limit > self.MAX_LIMIT:
+        capped = limit <= 0 or limit > self.MAX_LIMIT
+        if capped:
             # The endpoint rejects a larger limit outright.
             limit = self.MAX_LIMIT
 
@@ -365,11 +366,12 @@ class PanoramaxClient:
         )
         items = data.get("features") or []
 
-        if len(items) == limit:
+        # Hitting a limit the user chose is expected; only warn when the API cap
+        # cut the results short of what was asked for.
+        if capped and len(items) == limit:
             logger.warning(
-                f"Reached the limit of {limit} images for bounding box {bbox};"
-                " some pictures were left behind. Raise the limit (up to"
-                f" {self.MAX_LIMIT}) or use smaller tiles to get them."
+                f"Reached the API cap of {limit} images for bounding box {bbox};"
+                " some pictures were left behind. Use smaller tiles to get them."
             )
 
         return items  # type: ignore[no-any-return]
