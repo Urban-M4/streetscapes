@@ -1,9 +1,10 @@
 """FastAPI server implementation."""
 
+import math
 import webbrowser
 from datetime import datetime
 from itertools import chain
-from typing import TYPE_CHECKING, Annotated, Any
+from typing import TYPE_CHECKING, Annotated, Any, Callable
 
 import numpy as np
 import pandas as pd
@@ -14,6 +15,7 @@ from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.params import Query
 from fastapi.responses import FileResponse
+from PIL import Image as PILImage
 from shapely.geometry import Polygon
 
 from streetscapes import CFG
@@ -24,6 +26,7 @@ from streetscapes.explorer.data import (
     Image,
     ImageMetadata,
 )
+from streetscapes.project import SOURCE_TABLES
 from streetscapes.utils.db_access import (
     _open_db,
     _validate_rating,
@@ -54,9 +57,18 @@ app.add_middleware(
 PROJECT = CFG.active_project
 
 
+def _source_tables(con: ibis.BaseBackend) -> dict[str, ibis.Table]:
+    """Get the source tables that the project database actually holds.
+
+    A database created before a source was added does not have that source's
+    table until the project is bootstrapped again, so missing ones are skipped.
+    """
+    available = set(con.list_tables())
+    return {name: con.table(name) for name in SOURCE_TABLES if name in available}
+
+
 def _get_all_images(con: ibis.BaseBackend):
-    tables = [con.table("mapillary"), con.table("local")]
-    return _get_images(tables)
+    return _get_images(list(_source_tables(con).values()))
 
 
 def _get_images(tables: list[ibis.Table]):
@@ -75,9 +87,47 @@ def _get_images(tables: list[ibis.Table]):
     ]
 
 
-def raise_httpexception(msg: str) -> None:
-    """Raise 404 error with the provided error message."""
-    HTTPException(status_code=404, detail=msg)
+def _http_not_found(msg: str) -> HTTPException:
+    """Build a 404 error with the provided error message.
+
+    `get_image_path` raises whatever this returns, so it has to return the error
+    rather than raise it itself.
+    """
+    return HTTPException(status_code=404, detail=msg)
+
+
+def _missing(value: Any) -> bool:
+    """Check whether a value read back from the database is a NULL.
+
+    Depending on the column type, a NULL surfaces as None, NaN or NaT once it has
+    been through pandas, and neither NaN nor NaT survives JSON encoding.
+    """
+    if value is None or value is pd.NaT or value is pd.NA:
+        return True
+    # NumPy's floats subclass Python's, so this covers both.
+    return isinstance(value, float) and math.isnan(value)
+
+
+def _identity(value: Any) -> Any:
+    return value
+
+
+def _optional(value: Any, cast: Callable[[Any], Any] = _identity) -> Any:
+    """Cast a value for the response, passing NULLs through as None."""
+    return None if _missing(value) else cast(value)
+
+
+def _image_size(image_id: str) -> tuple[int, int]:
+    """Read an image's dimensions off disk.
+
+    Not every source reports img dimensions, but the frontend needs them to place
+    segmentations, so they are read from the image itself when they are missing.
+
+    Raises:
+        HTTPException: If the image is not on disk.
+    """
+    with PILImage.open(get_image_path(image_id, err=_http_not_found)) as img:
+        return img.size  # type: ignore[no-any-return]
 
 
 def _get_metadata(uuid: str) -> ImageMetadata:
@@ -97,20 +147,24 @@ def _get_metadata(uuid: str) -> ImageMetadata:
         else:
             metadata = metatable.to_pandas().squeeze()
 
+    width, height = metadata["width"], metadata["height"]
+    if _missing(width) or _missing(height):
+        width, height = _image_size(uuid)
+
     segmentations = get_segmentations(uuid, poly_fmt=str)
     return ImageMetadata(
         id=str(metadata["image"]),
         lat=metadata["geometry"].y,
         lon=metadata["geometry"].x,
-        width=int(metadata["width"]),
-        height=int(metadata["height"]),
-        altitude=metadata["altitude"],
-        captured_at=metadata["captured_at"],
-        panoramic=bool(metadata["is_pano"]),
+        width=int(width),
+        height=int(height),
+        altitude=_optional(metadata["altitude"], float),
+        captured_at=_optional(metadata["captured_at"]),
+        panoramic=int(bool(_optional(metadata["is_pano"]))),
         source=imgdata["source"],
         tags=imgdata["tags"],
         rating=_validate_rating(imgdata["rating"]),
-        compass_angle=float(metadata["compass_angle"]),
+        compass_angle=_optional(metadata["compass_angle"], float),
         notes="" if imgdata["notes"] in [None, np.nan] else imgdata["notes"],
         segmentation=segmentations,
     )
@@ -141,11 +195,10 @@ def _fetch_images(filter: FilterParams | None) -> list[Image]:
             match = con.table("images").tags.contains(tag)
             images = images.filter(match)
 
-        # Next filter on mapillary/local table info
+        # Next filter on the per-source metadata table info
         sources: dict[str, ibis.Table] = {}
-        for source in ("mapillary", "local"):
-            src = con.table(source)
-            src = src.filter(src.image.isin(images.uuid))
+        for source, table in _source_tables(con).items():
+            src = table.filter(table.image.isin(images.uuid))
 
             if filter.date_range is not None:
                 start = filter.date_range[0]
@@ -324,7 +377,7 @@ async def fetch_image_metadata(image_id: str) -> ImageMetadata:
 async def fetch_image(image_id: str) -> FileResponse:
     """Get all metadata associated with a certain image, including segmentations."""
     return FileResponse(
-        get_image_path(image_id, err=raise_httpexception),
+        get_image_path(image_id, err=_http_not_found),
         media_type="image/jpeg",
         headers={"Cache-Control": "public, max-age=31536000, immutable"},
     )

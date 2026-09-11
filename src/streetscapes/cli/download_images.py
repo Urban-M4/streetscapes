@@ -6,8 +6,8 @@ usage:
 
 import logging
 from pathlib import Path
+from typing import TYPE_CHECKING, Any, Protocol
 
-import typer
 from cyclopts import App
 from rich.progress import track
 
@@ -15,9 +15,30 @@ from streetscapes import CFG, utils
 from streetscapes.cli.console import console
 from streetscapes.project import _format_image
 
+if TYPE_CHECKING:
+    import uuid
+
+    from streetscapes.project import Project
+    from streetscapes.utils.metadata import ImageMeta
+
 logger = logging.getLogger(__name__)
 
 download_images_cli = App(help="Download images from various sources.")
+
+
+class SourceClient(Protocol):
+    """The part of a source's client that the download command relies on."""
+
+    def download_image(
+        self,
+        url: str,
+        output_dir: str | Path,
+        image_id: int | None,
+        uid: "uuid.UUID | None" = None,
+        skip_existing: bool = True,
+    ) -> "ImageMeta":
+        """Download an image and return its metadata."""
+        ...
 
 
 def _validate_uuid(uid: str, output_dir: Path) -> bool:
@@ -54,6 +75,87 @@ def _existing_img_valid(
     return False
 
 
+def _download_images(
+    proj: "Project",
+    client: SourceClient,
+    source: str,
+    records: list[tuple[Any, ...]],
+    skip_existing: bool,
+):
+    """Download a source's images and register them with the project.
+
+    Args:
+        proj: The project to download for.
+        client: The source's client.
+        source: The source name (e.g. 'mapillary', 'kartaview').
+        records: The records to download, as returned by
+            `Project.get_download_records`.
+        skip_existing: If true, only download missing images.
+    """
+    total = len(records)
+    image_dir = proj.get_image_dir_for_source(source)
+    console.print(f"Downloading {total} image(s) to {image_dir}.")
+
+    # Add metadata to batch
+    image_data = []
+    downloaded = 0
+
+    for rec in track(records, "Downloading images..."):
+        (
+            uid,
+            image_id,
+            url,
+            _shard,
+            location,
+            is_pano,
+        ) = rec
+
+        # Determine the shard
+        output_dir = Path(image_dir)
+        shard = None
+        if location is not None:
+            shard = str(utils.get_geohash_shard_path(location))
+            output_dir /= shard
+
+        if not skip_existing or not _existing_img_valid(
+            uid, image_id, output_dir, skip_existing
+        ):
+            try:
+                img_meta = client.download_image(
+                    url, output_dir, image_id, uid, skip_existing=skip_existing
+                )
+                uid = img_meta.uid
+            except Exception as e:
+                logger.error(e)
+                continue
+
+        tags = [source]
+        if is_pano:
+            tags.append("panoramic")
+
+        image_data.append(_format_image(uid, source, shard, tags=tags))
+
+        # Update the source table
+        proj._con.raw_sql(f"UPDATE {source} SET image='{uid}' WHERE id={image_id};")
+
+        downloaded += 1
+
+    console.print(f"Registering {len(image_data)} images...")
+
+    proj.add_images(image_data)
+
+    console.print(
+        f"Download complete: {downloaded}/{total} images saved under {image_dir}."
+    )
+
+
+def _show_project(proj: "Project"):
+    # TODO: perhaps move this to context in main cli?
+    console.rule("Streetscapes")
+    console.print(f"Active project: {proj.name}")
+    console.print(f"Data home: {proj.image_dir}")
+
+
 @download_images_cli.command(name="mapillary")
 def mapillary(
     *,
@@ -72,13 +174,9 @@ def mapillary(
     from streetscapes.sources.mapillary import MapillaryClient
 
     proj = Project(project or CFG.active_project)
+    _show_project(proj)
 
-    # TODO: perhaps move this to context in main cli?
-    console.rule("Streetscapes")
-    console.print(f"Active project: {proj.name}")
-    console.print(f"Data home: {proj.image_dir}")
-
-    records = proj.get_mapillary_download_records(skip_existing)
+    records = proj.get_download_records("mapillary", "thumb_2048_url", skip_existing)
 
     if not records:
         logger.info("No new images to download.")
@@ -90,67 +188,33 @@ def mapillary(
             "Error: 'mapillary_token' missing, set with `streetscapes config set "
             "mapillary_token <your token>`"
         )
-        raise typer.Exit(code=1)
+        raise SystemExit(1)
 
-    mapillary = MapillaryClient(token)
+    _download_images(proj, MapillaryClient(token), "mapillary", records, skip_existing)
 
-    total = len(records)
-    image_dir = proj.get_image_dir_for_source("mapillary")
-    console.print(f"Downloading {len(records)} image(s) to {image_dir}.")
 
-    # Add metadata to batch
-    image_data = []
-    downloaded = 0
+@download_images_cli.command(name="kartaview")
+def kartaview(
+    *,
+    skip_existing: bool = True,
+    project: str | None = None,
+):
+    """Download KartaView images to a local directory.
 
-    for rec in track(records, "Downloading images..."):
-        (
-            uid,
-            image_id,
-            url,
-            shard,
-            location,
-            is_pano,
-            camera_type,
-        ) = rec
+    Args:
+        skip_existing: If true, only download missing images; otherwise overwrite.
+        project: An optional project to attach to.
+    """
+    from streetscapes.project import Project
+    from streetscapes.sources.kartaview import KartaViewClient
 
-        # Determine the shard
-        output_dir = Path(image_dir)
-        shard = None
-        if location is not None:
-            shard = utils.get_geohash_shard_path(location)
-            if output_dir is not None:
-                output_dir /= shard
+    proj = Project(project or CFG.active_project)
+    _show_project(proj)
 
-        if not skip_existing or not _existing_img_valid(
-            uid, image_id, output_dir, skip_existing
-        ):
-            try:
-                img_meta = mapillary.download_image(
-                    url, output_dir, image_id, uid, skip_existing=skip_existing
-                )
-                uid = img_meta.uid
-            except Exception as e:
-                logger.error(e)
-                continue
+    records = proj.get_download_records("kartaview", "image_url", skip_existing)
 
-        tags = ["mapillary"]
-        if is_pano:
-            tags.append("panoramic")
-        if camera_type is not None:
-            tags.append(camera_type)
+    if not records:
+        logger.info("No new images to download.")
+        return
 
-        image_data.append(_format_image(uid, "mapillary", str(shard), tags=tags))
-
-        # Update the Mapillary table
-        proj._con.raw_sql(f"UPDATE mapillary SET image='{uid}' WHERE id={image_id};")
-
-        downloaded += 1
-
-    console.print(f"Registering {len(image_data)} images...")
-
-    proj.add_images(image_data)
-
-    console.print(
-        f"Download complete: {downloaded}/{total} images saved under "
-        f"{proj.get_image_dir_for_source('mapillary')}."
-    )
+    _download_images(proj, KartaViewClient(), "kartaview", records, skip_existing)
