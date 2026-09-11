@@ -79,6 +79,7 @@ Fetch metadata from the Mapillary API.
 ╭─ Parameters ───────────────────────────────────────────────────────────────────╮
 │ --tile-size   Tile size in degrees. [default: 0.001]                           │
 │ --tile-limit  Maximum number of images per tile. [default: 1000]               │
+│ --pano-only   Only fetch panoramic images. [default: False]                    │
 │ --token       Mapillary OAuth token (if not set via MAPILLARY_TOKEN).          │
 │ --project     An optional project to attach to.                                │
 ╰────────────────────────────────────────────────────────────────────────────────╯
@@ -128,6 +129,9 @@ Fetch metadata from the KartaView API.
 ╭─ Parameters ───────────────────────────────────────────────────────────────────╮
 │ --image-limit  Maximum number of images to fetch (0 for no limit). [default:   │
 │                1000]                                                           │
+│ --pano-only    Only fetch panoramic images. The API cannot filter on this,     │
+│                so the whole listing may be paged through to find them.         │
+│                [default: False]                                                │
 │ --project      An optional project to attach to.                               │
 ╰────────────────────────────────────────────────────────────────────────────────╯
 ```
@@ -186,6 +190,9 @@ much larger than Mapillary's, as its limit is far higher.
 │ --tile-size   Tile size in degrees. [default: 0.05]                            │
 │ --tile-limit  Maximum number of images per tile (at most 32767, which is also  │
 │               what 0 means: the most the API will return). [default: 1000]     │
+│ --pano-only   Only fetch panoramic images. A single --instance cannot          │
+│               filter on this itself, so there the tile limit applies           │
+│               before the other images are dropped. [default: False]            │
 │ --instance    A single Panoramax instance to query, such as                    │
 │               'https://panoramax.openstreetmap.fr'. Defaults to the federated  │
 │               catalogue.                                                       │

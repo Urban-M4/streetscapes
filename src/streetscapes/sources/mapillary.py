@@ -206,7 +206,9 @@ class MapillaryClient:
             skip_existing=skip_existing,
         )
 
-    def _fetch_bbox(self, bbox: Bbox, limit: int = 1000) -> list[dict]:
+    def _fetch_bbox(
+        self, bbox: Bbox, limit: int = 1000, pano_only: bool = False
+    ) -> list[dict]:
         """Perform the raw API request to Mapillary for a single bounding box tile."""
         logger.debug(f"Fetching metadata for bounding box: {bbox}")
 
@@ -215,6 +217,9 @@ class MapillaryClient:
             "fields": ",".join(MapillaryImage.api_fields()),
             "limit": limit,
         }
+        if pano_only:
+            # Filtered by the Mapillary API
+            params["is_pano"] = "true"
 
         for attempt in range(self.retries):
             try:
@@ -230,7 +235,9 @@ class MapillaryClient:
         logger.warning(f"Failed to retrieve metadata for bounding box: {bbox}")
         return []
 
-    def fetch_metadata_bbox(self, bbox: Bbox, limit: int = 1000) -> pd.DataFrame:
+    def fetch_metadata_bbox(
+        self, bbox: Bbox, limit: int = 1000, pano_only: bool = False
+    ) -> pd.DataFrame:
         """Fetch metadata for a bounding box and convert to a pandas DataFrame.
 
         Every record is validated against `MapillaryImage` before being included;
@@ -247,13 +254,15 @@ class MapillaryClient:
                 Bounding box as (west, south, east, north).
             limit : int
                 Maximum number of images to fetch (default 1000).
+            pano_only : bool
+                Only fetch panoramic images (default False).
 
         Returns:
             pd.DataFrame
                 DataFrame with Mapillary metadata.
         """
         columns = list(self.db_fields)
-        images = validate_records(self._fetch_bbox(bbox, limit))
+        images = validate_records(self._fetch_bbox(bbox, limit, pano_only=pano_only))
 
         if not images:
             return pd.DataFrame(columns=columns)
@@ -261,7 +270,7 @@ class MapillaryClient:
         return pd.DataFrame([image.to_row() for image in images], columns=columns)
 
     def fetch_metadata_bbox_gpd(
-        self, bbox: Bbox, limit: int = 1000
+        self, bbox: Bbox, limit: int = 1000, pano_only: bool = False
     ) -> gpd.GeoDataFrame:
         """Fetch metadata for a bounding box and convert to a GeoDataFrame.
 
@@ -278,12 +287,14 @@ class MapillaryClient:
                 Bounding box as (west, south, east, north).
             limit : int
                 Maximum number of images to fetch (default 1000).
+            pano_only : bool
+                Only fetch panoramic images (default False).
 
         Returns:
             gpd.GeoDataFrame
                 GeoDataFrame with Mapillary metadata and geometry columns.
         """
-        df = self.fetch_metadata_bbox(bbox, limit)
+        df = self.fetch_metadata_bbox(bbox, limit, pano_only)
 
         gdf = gpd.GeoDataFrame(df, geometry=gpd.GeoSeries.from_wkt(df["geometry"]))
         return gdf.set_crs("EPSG:4326")

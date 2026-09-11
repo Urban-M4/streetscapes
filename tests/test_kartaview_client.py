@@ -61,12 +61,64 @@ def test_fetch_metadata_bbox_matches_db_schema(fake_kartaview_client):
 def test_fetch_metadata_bbox_empty(fake_kartaview_client, monkeypatch):
     """An empty bounding box still yields a DataFrame with the schema's columns."""
     monkeypatch.setattr(
-        type(fake_kartaview_client), "_list_bbox", lambda self, bbox, limit=1000: []
+        type(fake_kartaview_client), "_list_bbox", lambda self, bbox, *a, **kw: []
     )
     df = fake_kartaview_client.fetch_metadata_bbox((4.89, 52.37, 4.91, 52.38))
 
     assert df.empty
     assert list(df.columns) == list(Project.core_tables["kartaview"]["schema"])
+
+
+@pytest.fixture
+def paged_listing(monkeypatch):
+    """Serve a listing of full pages alternating flat photos and panoramas."""
+    pages = []
+
+    def fake_request(self, method, url, **kwargs):
+        page = int(kwargs["files"]["page"][1])
+        size = int(kwargs["files"]["ipp"][1])
+        pages.append(page)
+        # Page 3 is the last, and short.
+        count = size if page < 3 else size // 2
+        items = [
+            {
+                "id": str(page * 10_000 + i),
+                "projection": "SPHERE" if i % 2 else "PLANE",
+            }
+            for i in range(count)
+        ]
+        return {"currentPageItems": items}
+
+    monkeypatch.setattr(KartaViewClient, "_request", fake_request)
+    return pages
+
+
+def test_list_pano_only_keeps_panoramas(paged_listing):
+    photos = KartaViewClient()._list_bbox((4.89, 52.37, 4.91, 52.38), 0, True)
+
+    assert photos
+    assert {photo["projection"] for photo in photos} == {"SPHERE"}
+    # A filtered page is not a short page: paging runs to the real last one.
+    assert paged_listing == [1, 2, 3]
+
+
+def test_list_pano_only_limit_counts_panoramas(paged_listing):
+    """Paging continues until the limit is met by panoramas, not by photos."""
+    limit = KartaViewClient.PAGE_SIZE
+    photos = KartaViewClient()._list_bbox((4.89, 52.37, 4.91, 52.38), limit, True)
+
+    assert len(photos) == limit
+    assert {photo["projection"] for photo in photos} == {"SPHERE"}
+    assert paged_listing == [1, 2]
+
+
+def test_list_pano_only_requests_full_pages(paged_listing):
+    """A small limit must not shrink the pages that are being filtered."""
+    photos = KartaViewClient()._list_bbox((4.89, 52.37, 4.91, 52.38), 5, True)
+
+    assert len(photos) == 5
+    # The first full page already holds enough panoramas.
+    assert paged_listing == [1]
 
 
 def test_fetch_metadata_bbox_adds_uploader(fake_kartaview_client):

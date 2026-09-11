@@ -30,6 +30,8 @@ streetscapes fetch-metadata mapillary \
 * `bbox`: Bounding box `[west, south, east, north]` to fetch images from.
 * `tile-size`: Optional tiling of the bounding box (default 0.01°).
 * `output-file`: Path to save the GeoParquet manifest.
+* `pano-only`: Only fetch panoramic images. The API filters on `is_pano` itself, so
+  `tile-limit` counts panoramas only.
 * `token`: OAuth token for Mapillary API.
 
 ### KartaView
@@ -44,6 +46,10 @@ streetscapes fetch-metadata kartaview \
 * `image-limit`: Maximum number of images to fetch for the bounding box (`0` for
   no limit). The KartaView API pages through a bounding box of any size, so there
   is no tiling, and the limit is not per tile as it is for Mapillary.
+* `pano-only`: Only fetch panoramic images, i.e. those whose `projection` is not
+  `PLANE`. The API cannot filter on this, so the listing is filtered as it comes
+  in and paged through until `image-limit` panoramas are found — in an area with
+  few of them, that can mean listing the whole bounding box.
 
 No token is required. Metadata is collected in two steps, as no single public
 endpoint both covers a bounding box and returns complete records: the photos in
@@ -66,6 +72,10 @@ streetscapes fetch-metadata panoramax \
   what `0` means, the most the API will return.
 * `instance`: A single Panoramax instance to query. Optional — defaults to the
   federated catalogue.
+* `pano-only`: Only fetch panoramic images, i.e. those with a 360° field of view.
+  The federated catalogue filters on this itself, but single instances reject the
+  filter, so with `--instance` the results are filtered afterwards and
+  `tile-limit` applies before the other images are dropped.
 
 No token is required. Panoramax is a federation of instances rather than one
 server, so by default the [federated catalogue](https://docs.panoramax.fr/federated-catalog/)

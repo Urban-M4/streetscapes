@@ -51,11 +51,13 @@ class TestCLIHelp:
         assert "BBOX" in result
         assert "--tile-size" in result
         assert "--tile-limit" in result
+        assert "--pano-only" in result
 
     def test_fetch_metadata_kartaview_help(self):
         result = run_cli("streetscapes fetch-metadata kartaview --help")
         assert "BBOX" in result
         assert "--image-limit" in result
+        assert "--pano-only" in result
         # The limit is for the whole bounding box, not per tile.
         assert "--tile-limit" not in result
 
@@ -65,6 +67,7 @@ class TestCLIHelp:
         assert "--tile-size" in result
         assert "--tile-limit" in result
         assert "--instance" in result
+        assert "--pano-only" in result
 
     def test_download_images_help(self):
         result = run_cli("streetscapes download-images --help")

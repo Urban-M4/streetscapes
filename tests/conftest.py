@@ -36,7 +36,7 @@ def fake_mapillary_client(monkeypatch):
     """Patch only the API-call methods of MapillaryClient, keep the rest intact."""
 
     # Fake implementations
-    def fake_fetch_bbox(self, bbox, limit=1000):
+    def fake_fetch_bbox(self, bbox, limit=1000, pano_only=False):
         return [
             {
                 "id": "1",
@@ -67,7 +67,7 @@ def fake_kartaview_client(monkeypatch):
     into the detailed records is still exercised.
     """
 
-    def fake_list_bbox(self, bbox, limit=1000):
+    def fake_list_bbox(self, bbox, limit=1000, pano_only=False):
         # The listing endpoint reports the uploader, the photo endpoint doesn't.
         return [{"id": "1234567890", "username": "someone"}]
 
