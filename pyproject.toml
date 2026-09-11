@@ -24,6 +24,7 @@ dependencies = [
     "pandas",
     "pillow>=11.3.0",
     "pyarrow",
+    "pydantic",
     "pydantic-settings",
     "pygeohash>=3.2.0",
     "pyproj",
