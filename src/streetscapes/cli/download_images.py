@@ -33,7 +33,7 @@ class SourceClient(Protocol):
         self,
         url: str,
         output_dir: str | Path,
-        image_id: int | None,
+        image_id: int | str | None,
         uid: "uuid.UUID | None" = None,
         skip_existing: bool = True,
     ) -> "ImageMeta":
@@ -50,7 +50,7 @@ def _validate_uuid(uid: str, output_dir: Path) -> bool:
 
 def _existing_img_valid(
     uid: str | None,
-    image_id: int | None,
+    image_id: int | str | None,
     output_dir: Path,
     skip_existing: bool,
 ) -> bool:
@@ -135,8 +135,9 @@ def _download_images(
 
         image_data.append(_format_image(uid, source, shard, tags=tags))
 
-        # Update the source table
-        proj._con.raw_sql(f"UPDATE {source} SET image='{uid}' WHERE id={image_id};")
+        # Update the source table. The ID is quoted because Panoramax identifies
+        # its pictures by UUID; the numeric IDs of the other sources still cast.
+        proj._con.raw_sql(f"UPDATE {source} SET image='{uid}' WHERE id='{image_id}';")
 
         downloaded += 1
 
@@ -218,3 +219,33 @@ def kartaview(
         return
 
     _download_images(proj, KartaViewClient(), "kartaview", records, skip_existing)
+
+
+@download_images_cli.command(name="panoramax")
+def panoramax(
+    *,
+    skip_existing: bool = True,
+    project: str | None = None,
+):
+    """Download Panoramax images to a local directory.
+
+    Images are downloaded from the instance hosting them, which is recorded when
+    the metadata is fetched, so no instance needs to be given here.
+
+    Args:
+        skip_existing: If true, only download missing images; otherwise overwrite.
+        project: An optional project to attach to.
+    """
+    from streetscapes.project import Project
+    from streetscapes.sources.panoramax import PanoramaxClient
+
+    proj = Project(project or CFG.active_project)
+    _show_project(proj)
+
+    records = proj.get_download_records("panoramax", "image_url", skip_existing)
+
+    if not records:
+        logger.info("No new images to download.")
+        return
+
+    _download_images(proj, PanoramaxClient(), "panoramax", records, skip_existing)

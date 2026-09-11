@@ -21,7 +21,7 @@ if TYPE_CHECKING:
     from streetscapes.utils.geo import Bbox
 
 
-SOURCE_TABLES = ("mapillary", "kartaview", "local")
+SOURCE_TABLES = ("mapillary", "kartaview", "panoramax", "local")
 
 
 def _format_image(
@@ -151,6 +151,35 @@ class Project:
                 "thumb_url": "STRING",
                 "uploaded_at": "TIMESTAMPTZ",
                 "way_id": "UBIGINT",
+            },
+            "init": [],
+        },
+        "panoramax": {
+            "schema": {
+                "image": "UUID",
+                # Panoramax reports no altitude; the column is kept for consistency
+                "altitude": "FLOAT8",
+                "captured_at": "TIMESTAMPTZ",
+                "compass_angle": "FLOAT8",
+                "creator": "JSON",
+                "field_of_view": "FLOAT8",
+                "geometry": "GEOMETRY",
+                "gps_accuracy": "FLOAT8",
+                "width": "UBIGINT",
+                "height": "UBIGINT",
+                # Panoramax identifies its pictures by UUID rather than by number
+                "id": "UUID PRIMARY KEY",
+                "image_url": "STRING",
+                # The instance hosting the picture, which the federated
+                # catalogue draws from.
+                "instance": "STRING",
+                "is_pano": "BOOL",
+                "license": "STRING",
+                "sequence": "STRING",
+                "sequence_index": "UBIGINT",
+                "thumb_large_url": "STRING",
+                "thumb_url": "STRING",
+                "uploaded_at": "TIMESTAMPTZ",
             },
             "init": [],
         },

@@ -248,7 +248,7 @@ class KartaViewClient:
         self,
         url: str,
         output_dir: str | Path,
-        image_id: int | None,
+        image_id: int | str | None,
         uid: uuid.UUID | None = None,
         skip_existing: bool = True,
     ) -> ImageMeta:
