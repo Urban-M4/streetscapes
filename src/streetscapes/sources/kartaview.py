@@ -10,7 +10,7 @@ import requests
 from pydantic import BaseModel, ConfigDict, ValidationError, model_validator
 
 from streetscapes.project import Project
-from streetscapes.sources.common import download_image
+from streetscapes.sources.common import captured_in_daylight, download_image
 from streetscapes.utils.db_types import (
     FloatList,
     JsonString,
@@ -60,7 +60,7 @@ def _point(lon: Any, lat: Any) -> dict | None:
         return {"coordinates": [lon, lat]}
 
     if lon == 0.0 and lat == 0.0:
-        # KartaView reports unmatched photos as (0, 0) rather than as null.
+        # KartaView reports unmatched images as (0, 0) rather than as null.
         return None
 
     return {"coordinates": [lon, lat]}
@@ -193,6 +193,55 @@ def validate_records(records: list[dict]) -> list[KartaViewImage]:
     return images
 
 
+def _listed_image(image: dict) -> KartaViewImage | None:
+    """Validate the position and capture time reported by the listing endpoint."""
+    try:
+        # The listing spells its fields differently from the image endpoint.
+        return KartaViewImage.model_validate(
+            {
+                "id": image.get("id"),
+                "lat": image.get("lat"),
+                "lng": image.get("lng"),
+                "shotDate": image.get("shot_date"),
+            }
+        )
+    except ValidationError:
+        return None
+
+
+def filter_listed(
+    images: list[dict], pano_only: bool = False, daytime_only: bool = False
+) -> list[dict]:
+    """Filter listed images on what the listing endpoint already reports.
+
+    Doing so before the full records are fetched saves requests, and lets a
+    limit count only the images that are kept.
+
+    Args:
+        images: Image records as returned by the listing endpoint.
+        pano_only: Only keep panoramic images.
+        daytime_only: Only keep images captured in daylight (see
+            `captured_in_daylight`). An image that cannot be placed in time and
+            space is dropped too.
+
+    Returns:
+        The images that were kept.
+    """
+    if pano_only:
+        images = [image for image in images if _is_pano(image.get("projection"))]
+
+    if daytime_only:
+        placed = [
+            (record, listed)
+            for record in images
+            if (listed := _listed_image(record)) is not None
+        ]
+        mask = captured_in_daylight([listed for _, listed in placed])
+        images = [record for (record, _), daytime in zip(placed, mask) if daytime]
+
+    return images
+
+
 class KartaViewClient:
     """Client for fetching KartaView image metadata via bounding boxes.
 
@@ -215,13 +264,14 @@ class KartaViewClient:
     """
 
     # https://doc.kartaview.org/#section/API-Resources
+    # (KartaView calls images "photos", which its endpoint paths keep.)
     LIST_URL = "https://api.openstreetcam.org/1.0/list/nearby-photos/"
     DETAIL_URL = "https://api.openstreetcam.org/2.0/photo/"
 
-    # Maximum number of photos the listing endpoint returns per page.
+    # Maximum number of images the listing endpoint returns per page.
     PAGE_SIZE = 1000
 
-    # Maximum number of image IDs the photo endpoint accepts per request.
+    # Maximum number of image IDs the image endpoint accepts per request.
     DETAIL_BATCH_SIZE = 150
 
     def __init__(self, retries: int = 3, timeout: int = 60):
@@ -311,31 +361,38 @@ class KartaViewClient:
         )
 
     def _list_bbox(
-        self, bbox: Bbox, limit: int = 1000, pano_only: bool = False
+        self,
+        bbox: Bbox,
+        limit: int = 1000,
+        pano_only: bool = False,
+        daytime_only: bool = False,
     ) -> list[dict]:
-        """List the photos in a bounding box, paging through the results.
+        """List the images in a bounding box, paging through the results.
+
+        The API cannot filter on panoramas or daylight, so the listing is
+        filtered as it comes in (see `filter_listed`), and paging continues until
+        `limit` images have been kept.
 
         Args:
             bbox: Bounding box as (west, south, east, north).
-            limit: Maximum number of photos to list (0 for no limit).
-            pano_only: Only list panoramic photos. The API cannot filter on this,
-                so the listing is filtered as it comes in, and paging continues
-                until `limit` panoramas have been found.
+            limit: Maximum number of images to list (0 for no limit).
+            pano_only: Only list panoramic images.
+            daytime_only: Only list images captured in daylight.
 
         Returns:
-            The (partial) photo records returned by the listing endpoint.
+            The (partial) image records returned by the listing endpoint.
         """
-        logger.debug(f"Listing photos for bounding box: {bbox}")
+        logger.debug(f"Listing images for bounding box: {bbox}")
 
         west, south, east, north = bbox
         # When filtering there is no telling how much of a page is kept, so a
-        # small page would only mean many more requests for the same photos.
-        if limit <= 0 or pano_only:
+        # small page would only mean many more requests for the same images.
+        if limit <= 0 or pano_only or daytime_only:
             page_size = self.PAGE_SIZE
         else:
             page_size = min(limit, self.PAGE_SIZE)
 
-        photos: list[dict] = []
+        images: list[dict] = []
         page = 1
         while True:
             # The listing endpoint takes a north-west and a south-east corner,
@@ -353,22 +410,19 @@ class KartaViewClient:
             )
 
             items = data.get("currentPageItems") or []
-            if pano_only:
-                photos.extend(p for p in items if _is_pano(p.get("projection")))
-            else:
-                photos.extend(items)
+            images.extend(filter_listed(items, pano_only, daytime_only))
 
             # A short page is the last one, whatever was kept of it.
-            if len(items) < page_size or (0 < limit <= len(photos)):
+            if len(items) < page_size or (0 < limit <= len(images)):
                 break
 
             page += 1
 
         # Trim, as limit that isnt a multiple of the page size overshoots on last page
-        return photos[:limit] if limit > 0 else photos
+        return images[:limit] if limit > 0 else images
 
     def _fetch_details(self, image_ids: list[str]) -> list[dict]:
-        """Fetch full photo records for the given image IDs, in batches."""
+        """Fetch full image records for the given image IDs, in batches."""
         records: list[dict] = []
         for start in range(0, len(image_ids), self.DETAIL_BATCH_SIZE):
             batch = image_ids[start : start + self.DETAIL_BATCH_SIZE]
@@ -386,21 +440,28 @@ class KartaViewClient:
         return records
 
     def _fetch_bbox(
-        self, bbox: Bbox, limit: int = 1000, pano_only: bool = False
+        self,
+        bbox: Bbox,
+        limit: int = 1000,
+        pano_only: bool = False,
+        daytime_only: bool = False,
     ) -> list[dict]:
-        """Fetch the full photo records for a bounding box.
+        """Fetch the full image records for a bounding box.
 
         Args:
             bbox: Bounding box as (west, south, east, north).
             limit: Maximum number of images to fetch (0 for no limit).
             pano_only: Only fetch panoramic images.
+            daytime_only: Only fetch images captured in daylight.
 
         Returns:
-            Raw photo records, enriched with the listing's `username`.
+            Raw image records, enriched with the listing's `username`.
         """
         listed = {
-            photo["id"]: photo
-            for photo in self._list_bbox(bbox, limit, pano_only=pano_only)
+            image["id"]: image
+            for image in self._list_bbox(
+                bbox, limit, pano_only=pano_only, daytime_only=daytime_only
+            )
         }
 
         if not listed:
@@ -408,7 +469,7 @@ class KartaViewClient:
 
         records = self._fetch_details(list(listed))
 
-        # The photo endpoint reports no uploader, so carry it over.
+        # The image endpoint reports no uploader, so carry it over.
         for record in records:
             username = listed.get(record.get("id"), {}).get("username")
             if username is not None:
@@ -417,7 +478,11 @@ class KartaViewClient:
         return records
 
     def fetch_metadata_bbox(
-        self, bbox: Bbox, limit: int = 1000, pano_only: bool = False
+        self,
+        bbox: Bbox,
+        limit: int = 1000,
+        pano_only: bool = False,
+        daytime_only: bool = False,
     ) -> pd.DataFrame:
         """Fetch metadata for a bounding box and convert to a pandas DataFrame.
 
@@ -431,13 +496,20 @@ class KartaViewClient:
                 Maximum number of images to fetch (default 1000, 0 for no limit).
             pano_only : bool
                 Only fetch panoramic images (default False).
+            daytime_only : bool
+                Only fetch images captured with the sun at least
+                2 degrees high (default False).
 
         Returns:
             pd.DataFrame
                 DataFrame with KartaView metadata.
         """
         columns = list(self.db_fields)
-        images = validate_records(self._fetch_bbox(bbox, limit, pano_only=pano_only))
+        images = validate_records(
+            self._fetch_bbox(
+                bbox, limit, pano_only=pano_only, daytime_only=daytime_only
+            )
+        )
 
         if not images:
             return pd.DataFrame(columns=columns)
@@ -445,7 +517,11 @@ class KartaViewClient:
         return pd.DataFrame([image.to_row() for image in images], columns=columns)
 
     def fetch_metadata_bbox_gpd(
-        self, bbox: Bbox, limit: int = 1000, pano_only: bool = False
+        self,
+        bbox: Bbox,
+        limit: int = 1000,
+        pano_only: bool = False,
+        daytime_only: bool = False,
     ) -> gpd.GeoDataFrame:
         """Fetch metadata for a bounding box and convert to a GeoDataFrame.
 
@@ -458,12 +534,14 @@ class KartaViewClient:
                 Maximum number of images to fetch (default 1000, 0 for no limit).
             pano_only : bool
                 Only fetch panoramic images (default False).
+            daytime_only : bool
+                Only fetch images captured in daylight (default False).
 
         Returns:
             gpd.GeoDataFrame
                 GeoDataFrame with KartaView metadata and geometry columns.
         """
-        df = self.fetch_metadata_bbox(bbox, limit, pano_only)
+        df = self.fetch_metadata_bbox(bbox, limit, pano_only, daytime_only)
 
         gdf = gpd.GeoDataFrame(df, geometry=gpd.GeoSeries.from_wkt(df["geometry"]))
         return gdf.set_crs("EPSG:4326")

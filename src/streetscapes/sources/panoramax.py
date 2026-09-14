@@ -10,7 +10,7 @@ import requests
 from pydantic import BaseModel, ConfigDict, ValidationError, model_validator
 
 from streetscapes.project import Project
-from streetscapes.sources.common import download_image
+from streetscapes.sources.common import download_image, keep_daytime
 from streetscapes.utils.db_types import (
     JsonString,
     UBigInt,
@@ -392,7 +392,11 @@ class PanoramaxClient:
         return items  # type: ignore[no-any-return]
 
     def fetch_metadata_bbox(
-        self, bbox: Bbox, limit: int = 1000, pano_only: bool = False
+        self,
+        bbox: Bbox,
+        limit: int = 1000,
+        pano_only: bool = False,
+        daytime_only: bool = False,
     ) -> pd.DataFrame:
         """Fetch metadata for a bounding box and convert to a pandas DataFrame.
 
@@ -414,6 +418,11 @@ class PanoramaxClient:
                 Only fetch panoramic images (default False). A single instance
                 cannot filter on this itself, so there the limit applies before
                 the other images are dropped, and fewer may be returned.
+            daytime_only : bool
+                Only keep images captured with the sun at least
+                2 degrees high. The API cannot filter
+                on this, so the limit applies before the other images are
+                dropped, and fewer may be returned.
 
         Returns:
             pd.DataFrame
@@ -426,13 +435,20 @@ class PanoramaxClient:
             # Needed where the API could not filter
             images = [image for image in images if image.is_pano]
 
+        if daytime_only:
+            images = keep_daytime(images)
+
         if not images:
             return pd.DataFrame(columns=columns)
 
         return pd.DataFrame([image.to_row() for image in images], columns=columns)
 
     def fetch_metadata_bbox_gpd(
-        self, bbox: Bbox, limit: int = 1000, pano_only: bool = False
+        self,
+        bbox: Bbox,
+        limit: int = 1000,
+        pano_only: bool = False,
+        daytime_only: bool = False,
     ) -> gpd.GeoDataFrame:
         """Fetch metadata for a bounding box and convert to a GeoDataFrame.
 
@@ -445,12 +461,14 @@ class PanoramaxClient:
                 Maximum number of images to fetch (default 1000).
             pano_only : bool
                 Only fetch panoramic images (default False).
+            daytime_only : bool
+                Only keep images captured in daylight (default False).
 
         Returns:
             gpd.GeoDataFrame
                 GeoDataFrame with Panoramax metadata and geometry columns.
         """
-        df = self.fetch_metadata_bbox(bbox, limit, pano_only)
+        df = self.fetch_metadata_bbox(bbox, limit, pano_only, daytime_only)
 
         gdf = gpd.GeoDataFrame(df, geometry=gpd.GeoSeries.from_wkt(df["geometry"]))
         return gdf.set_crs("EPSG:4326")

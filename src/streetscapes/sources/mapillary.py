@@ -10,7 +10,7 @@ import requests
 from pydantic import BaseModel, ConfigDict, ValidationError
 
 from streetscapes.project import Project
-from streetscapes.sources.common import download_image
+from streetscapes.sources.common import download_image, keep_daytime
 from streetscapes.utils.db_types import (
     EpochMs,
     FloatList,
@@ -236,7 +236,11 @@ class MapillaryClient:
         return []
 
     def fetch_metadata_bbox(
-        self, bbox: Bbox, limit: int = 1000, pano_only: bool = False
+        self,
+        bbox: Bbox,
+        limit: int = 1000,
+        pano_only: bool = False,
+        daytime_only: bool = False,
     ) -> pd.DataFrame:
         """Fetch metadata for a bounding box and convert to a pandas DataFrame.
 
@@ -256,6 +260,11 @@ class MapillaryClient:
                 Maximum number of images to fetch (default 1000).
             pano_only : bool
                 Only fetch panoramic images (default False).
+            daytime_only : bool
+                Only keep images captured with the sun at least
+                2 degrees high. The API cannot filter
+                on this, so the limit applies before the other images are
+                dropped, and fewer may be returned.
 
         Returns:
             pd.DataFrame
@@ -264,13 +273,20 @@ class MapillaryClient:
         columns = list(self.db_fields)
         images = validate_records(self._fetch_bbox(bbox, limit, pano_only=pano_only))
 
+        if daytime_only:
+            images = keep_daytime(images)
+
         if not images:
             return pd.DataFrame(columns=columns)
 
         return pd.DataFrame([image.to_row() for image in images], columns=columns)
 
     def fetch_metadata_bbox_gpd(
-        self, bbox: Bbox, limit: int = 1000, pano_only: bool = False
+        self,
+        bbox: Bbox,
+        limit: int = 1000,
+        pano_only: bool = False,
+        daytime_only: bool = False,
     ) -> gpd.GeoDataFrame:
         """Fetch metadata for a bounding box and convert to a GeoDataFrame.
 
@@ -289,12 +305,14 @@ class MapillaryClient:
                 Maximum number of images to fetch (default 1000).
             pano_only : bool
                 Only fetch panoramic images (default False).
+            daytime_only : bool
+                Only keep images captured in daylight (default False).
 
         Returns:
             gpd.GeoDataFrame
                 GeoDataFrame with Mapillary metadata and geometry columns.
         """
-        df = self.fetch_metadata_bbox(bbox, limit, pano_only)
+        df = self.fetch_metadata_bbox(bbox, limit, pano_only, daytime_only)
 
         gdf = gpd.GeoDataFrame(df, geometry=gpd.GeoSeries.from_wkt(df["geometry"]))
         return gdf.set_crs("EPSG:4326")

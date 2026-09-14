@@ -7,13 +7,14 @@ from streetscapes.sources.kartaview import (
     KartaViewClient,
     KartaViewError,
     KartaViewImage,
+    filter_listed,
     validate_records,
 )
 
 
 @pytest.fixture
 def valid_record():
-    """A photo record as returned by the KartaView photo endpoint.
+    """An image record as returned by the KartaView photo endpoint.
 
     Every value is a string, as KartaView reports them.
     """
@@ -71,7 +72,10 @@ def test_fetch_metadata_bbox_empty(fake_kartaview_client, monkeypatch):
 
 @pytest.fixture
 def paged_listing(monkeypatch):
-    """Serve a listing of full pages alternating flat photos and panoramas."""
+    """Serve a listing of full pages alternating flat images and panoramas.
+
+    Every other pair of images is captured at night.
+    """
     pages = []
 
     def fake_request(self, method, url, **kwargs):
@@ -83,6 +87,9 @@ def paged_listing(monkeypatch):
         items = [
             {
                 "id": str(page * 10_000 + i),
+                "lat": "52.37",
+                "lng": "4.9",
+                "shot_date": f"2025-01-15 {'12' if i % 4 < 2 else '20'}:00:00.000",
                 "projection": "SPHERE" if i % 2 else "PLANE",
             }
             for i in range(count)
@@ -94,31 +101,70 @@ def paged_listing(monkeypatch):
 
 
 def test_list_pano_only_keeps_panoramas(paged_listing):
-    photos = KartaViewClient()._list_bbox((4.89, 52.37, 4.91, 52.38), 0, True)
+    images = KartaViewClient()._list_bbox((4.89, 52.37, 4.91, 52.38), 0, True)
 
-    assert photos
-    assert {photo["projection"] for photo in photos} == {"SPHERE"}
+    assert images
+    assert {image["projection"] for image in images} == {"SPHERE"}
     # A filtered page is not a short page: paging runs to the real last one.
     assert paged_listing == [1, 2, 3]
 
 
 def test_list_pano_only_limit_counts_panoramas(paged_listing):
-    """Paging continues until the limit is met by panoramas, not by photos."""
+    """Paging continues until the limit is met by panoramas, not by images."""
     limit = KartaViewClient.PAGE_SIZE
-    photos = KartaViewClient()._list_bbox((4.89, 52.37, 4.91, 52.38), limit, True)
+    images = KartaViewClient()._list_bbox((4.89, 52.37, 4.91, 52.38), limit, True)
 
-    assert len(photos) == limit
-    assert {photo["projection"] for photo in photos} == {"SPHERE"}
+    assert len(images) == limit
+    assert {image["projection"] for image in images} == {"SPHERE"}
     assert paged_listing == [1, 2]
 
 
 def test_list_pano_only_requests_full_pages(paged_listing):
     """A small limit must not shrink the pages that are being filtered."""
-    photos = KartaViewClient()._list_bbox((4.89, 52.37, 4.91, 52.38), 5, True)
+    images = KartaViewClient()._list_bbox((4.89, 52.37, 4.91, 52.38), 5, True)
 
-    assert len(photos) == 5
+    assert len(images) == 5
     # The first full page already holds enough panoramas.
     assert paged_listing == [1]
+
+
+def test_list_daytime_only_limit_counts_daytime(paged_listing):
+    """Paging continues until the limit is met by daytime images."""
+    limit = KartaViewClient.PAGE_SIZE
+    images = KartaViewClient()._list_bbox(
+        (4.89, 52.37, 4.91, 52.38), limit, daytime_only=True
+    )
+
+    assert len(images) == limit
+    assert {image["shot_date"][11:13] for image in images} == {"12"}
+    assert paged_listing == [1, 2]
+
+
+def test_list_combines_filters(paged_listing):
+    images = KartaViewClient()._list_bbox(
+        (4.89, 52.37, 4.91, 52.38), 5, pano_only=True, daytime_only=True
+    )
+
+    assert len(images) == 5
+    assert {(p["projection"], p["shot_date"][11:13]) for p in images} == {
+        ("SPHERE", "12")
+    }
+    assert paged_listing == [1]
+
+
+def test_filter_listed_daytime_drops_what_cannot_be_placed():
+    """A listed image without a usable capture time or position is dropped."""
+    day = {"id": "1", "lat": "52.37", "lng": "4.9", "shot_date": "2025-01-15 12:00:00"}
+    images = [
+        day,
+        {**day, "id": "2", "shot_date": "2025-01-15 17:30:00"},
+        {**day, "id": "3", "shot_date": "0000-00-00 00:00:00"},
+        {**day, "id": "4", "shot_date": None},
+        {**day, "id": "5", "lat": "0", "lng": "0"},
+    ]
+
+    assert filter_listed(images, daytime_only=True) == [day]
+    assert filter_listed(images) == images
 
 
 def test_fetch_metadata_bbox_adds_uploader(fake_kartaview_client):
@@ -215,7 +261,7 @@ def test_model_derives_pano_from_projection(valid_record):
 
 
 def test_model_drops_unmatched_position(valid_record):
-    """An unmatched photo is reported at (0, 0) rather than as a NULL."""
+    """An unmatched image is reported at (0, 0) rather than as a NULL."""
     unmatched = {"matchLat": "0.000000000000000", "matchLng": "0.000000000000000"}
     image = KartaViewImage.model_validate({**valid_record, **unmatched})
 

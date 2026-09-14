@@ -78,6 +78,24 @@ def test_fetch_filters_panoramas_in_the_api(monkeypatch, pano_only):
     assert seen.get("is_pano") == ("true" if pano_only else None)
 
 
+def test_fetch_daytime_only(fake_mapillary_client, monkeypatch, valid_record):
+    """Images captured after dark, or at an unknown time, are dropped."""
+    day = {**valid_record, "id": 1, "captured_at": 1736942400000}  # 2025-01-15 12:00Z
+    night = {**valid_record, "id": 2, "captured_at": 1736962200000}  # 17:30Z
+    unknown = {**valid_record, "id": 3, "captured_at": None}
+    monkeypatch.setattr(
+        type(fake_mapillary_client),
+        "_fetch_bbox",
+        lambda self, bbox, *a, **kw: [day, night, unknown],
+    )
+    bbox = (4.89, 52.37, 4.91, 52.38)
+
+    df = fake_mapillary_client.fetch_metadata_bbox(bbox, daytime_only=True)
+
+    assert list(df["id"]) == [1]
+    assert len(fake_mapillary_client.fetch_metadata_bbox(bbox)) == 3
+
+
 def test_model_matches_db_schema():
     """The model and the `mapillary` table must not drift apart."""
     schema = Project.core_tables["mapillary"]["schema"]

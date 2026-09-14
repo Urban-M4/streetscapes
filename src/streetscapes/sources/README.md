@@ -32,6 +32,10 @@ streetscapes fetch-metadata mapillary \
 * `output-file`: Path to save the GeoParquet manifest.
 * `pano-only`: Only fetch panoramic images. The API filters on `is_pano` itself, so
   `tile-limit` counts panoramas only.
+* `daytime-only`: Only keep images captured with the sun at least 2° above the
+  horizon, so that their colours are those of the scene rather than of dusk. The
+  API cannot filter on this, so `tile-limit` applies before the images captured
+  after dark are dropped.
 * `token`: OAuth token for Mapillary API.
 
 ### KartaView
@@ -50,6 +54,10 @@ streetscapes fetch-metadata kartaview \
   `PLANE`. The API cannot filter on this, so the listing is filtered as it comes
   in and paged through until `image-limit` panoramas are found — in an area with
   few of them, that can mean listing the whole bounding box.
+* `daytime-only`: Only fetch images captured with the sun at least 2° above the
+  horizon. The listing reports both the position and the capture time, so this is
+  filtered as the listing comes in, like `pano-only`, and `image-limit` counts
+  the images captured in daylight.
 
 No token is required. Metadata is collected in two steps, as no single public
 endpoint both covers a bounding box and returns complete records: the photos in
@@ -76,6 +84,9 @@ streetscapes fetch-metadata panoramax \
   The federated catalogue filters on this itself, but single instances reject the
   filter, so with `--instance` the results are filtered afterwards and
   `tile-limit` applies before the other images are dropped.
+* `daytime-only`: Only keep images captured with the sun at least 2° above the
+  horizon. No instance can filter on this, so the results are filtered afterwards
+  and `tile-limit` applies before the images captured after dark are dropped.
 
 No token is required. Panoramax is a federation of instances rather than one
 server, so by default the [federated catalogue](https://docs.panoramax.fr/federated-catalog/)

@@ -30,6 +30,7 @@ def mapillary(
     tile_size: float = 0.001,
     tile_limit: int = 1000,
     pano_only: Annotated[bool, Parameter(negative="")] = False,
+    daytime_only: Annotated[bool, Parameter(negative="")] = False,
     token: str | None = None,
     project: str | None = None,
 ):
@@ -40,6 +41,9 @@ def mapillary(
         tile_size: Tile size in degrees.
         tile_limit: Maximum number of images per tile.
         pano_only: Only fetch panoramic images.
+        daytime_only: Only keep images captured with the sun at least 2° above
+            the horizon. The API cannot filter on this, so the tile limit applies
+            before the other images are dropped.
         token: Mapillary OAuth token (if not set via MAPILLARY_TOKEN).
         project: An optional project to attach to.
     """
@@ -64,7 +68,7 @@ def mapillary(
     for tile, _tile_id in track(
         tiles, description="Fetching tiles", total=ntiles, console=console
     ):
-        df = m.fetch_metadata_bbox(tile, tile_limit, pano_only)
+        df = m.fetch_metadata_bbox(tile, tile_limit, pano_only, daytime_only)
 
         # TODO: maybe this failsafe/optimization is not necessary?
         if len(df) == 0:
@@ -82,6 +86,7 @@ def kartaview(
     *,
     image_limit: int = 1000,
     pano_only: Annotated[bool, Parameter(negative="")] = False,
+    daytime_only: Annotated[bool, Parameter(negative="")] = False,
     project: str | None = None,
 ):
     """Fetch metadata from the KartaView API.
@@ -91,6 +96,9 @@ def kartaview(
         image_limit: Maximum number of images to fetch (0 for no limit).
         pano_only: Only fetch panoramic images. The API cannot filter on this,
             so the whole listing may be paged through to find them.
+        daytime_only: Only fetch images captured with the sun at least 2° above
+            the horizon. The API cannot filter on this, so the whole listing may
+            be paged through to find them.
         project: An optional project to attach to.
     """
     from streetscapes.project import Project
@@ -103,7 +111,7 @@ def kartaview(
 
     try:
         with console.status("Fetching images..."):
-            df = client.fetch_metadata_bbox(bbox, image_limit, pano_only)
+            df = client.fetch_metadata_bbox(bbox, image_limit, pano_only, daytime_only)
     except KartaViewError as err:
         logger.error(str(err))
         raise SystemExit(1) from err
@@ -122,6 +130,7 @@ def panoramax(
     tile_size: float = 0.05,
     tile_limit: int = 1000,
     pano_only: Annotated[bool, Parameter(negative="")] = False,
+    daytime_only: Annotated[bool, Parameter(negative="")] = False,
     instance: str | None = None,
     project: str | None = None,
 ):
@@ -140,9 +149,12 @@ def panoramax(
         tile_size: Tile size in degrees.
         tile_limit: Maximum number of images per tile (at most 32767, which is
             also what 0 means: the most the API will return).
-        pano_only: Only fetch panoramic images. Not ever instance can filter
+        pano_only: Only fetch panoramic images. Not every instance can filter
             on this itself, so there the tile limit applies before the
             non-pano images are dropped.
+        daytime_only: Only keep images captured with the sun at least 2° above
+            the horizon. The API cannot filter on this, so the tile limit applies
+            before the other images are dropped.
         instance: A single Panoramax instance to query, such as
             'https://panoramax.openstreetmap.fr'. Defaults to the federated
             catalogue.
@@ -166,7 +178,7 @@ def panoramax(
         for tile, _tile_id in track(
             tiles, description="Fetching tiles", total=ntiles, console=console
         ):
-            df = client.fetch_metadata_bbox(tile, tile_limit, pano_only)
+            df = client.fetch_metadata_bbox(tile, tile_limit, pano_only, daytime_only)
 
             if len(df) == 0:
                 continue

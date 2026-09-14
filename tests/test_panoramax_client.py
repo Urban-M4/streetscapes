@@ -136,6 +136,30 @@ def test_pano_only_drops_narrow_pictures(panoramax_item, monkeypatch, instance):
     assert len(client.fetch_metadata_bbox(bbox)) == 3
 
 
+def test_daytime_only_drops_images_after_dark(panoramax_item, monkeypatch):
+    """Images captured after dark, or at an unknown time, are dropped."""
+    night = {
+        **panoramax_item,
+        "id": "night",
+        "properties": {**panoramax_item["properties"], "datetime": "2024-10-05T22:00Z"},
+    }
+    properties = dict(panoramax_item["properties"])
+    del properties["datetime"]
+    unknown = {**panoramax_item, "id": "unknown", "properties": properties}
+    monkeypatch.setattr(
+        PanoramaxClient,
+        "_request",
+        lambda self, params: {"features": [panoramax_item, night, unknown]},
+    )
+    client = PanoramaxClient()
+    bbox = (2.34, 48.85, 2.35, 48.86)
+
+    assert list(client.fetch_metadata_bbox(bbox, daytime_only=True)["id"]) == [
+        panoramax_item["id"]
+    ]
+    assert len(client.fetch_metadata_bbox(bbox)) == 3
+
+
 def test_model_matches_db_schema():
     """The model and the `panoramax` table must not drift apart."""
     schema = Project.core_tables["panoramax"]["schema"]

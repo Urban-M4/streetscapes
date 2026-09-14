@@ -2,17 +2,75 @@
 
 from __future__ import annotations
 
+import logging
 from pathlib import Path
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Protocol, TypeVar
+
+import shapely
 
 from streetscapes import utils
+from streetscapes.utils.sun import solar_altitude
 
 if TYPE_CHECKING:
     import uuid
+    from collections.abc import Sequence
+    from datetime import datetime
 
     import requests
 
     from streetscapes.utils.metadata import ImageMeta
+
+logger = logging.getLogger(__name__)
+
+# How high the sun has to be, in degrees, for an image to count as captured in
+# daylight. Any lower, and its colours are those of dusk rather than of the scene.
+MIN_SUN_ALTITUDE = 2.0
+
+
+class CapturedImage(Protocol):
+    """An image record that says when and where it was captured."""
+
+    captured_at: datetime | None
+    geometry: str
+
+
+_Image = TypeVar("_Image", bound=CapturedImage)
+
+
+def captured_in_daylight(images: Sequence[CapturedImage]) -> list[bool]:
+    """Tell which images were captured with the sun at least `MIN_SUN_ALTITUDE` high.
+
+    An image without a capture time cannot be placed, so it does not count as
+    captured in daylight.
+
+    Args:
+        images: Validated image records, with a WKT point as their geometry.
+
+    Returns:
+        A boolean mask over the images.
+    """
+    points = shapely.from_wkt([image.geometry for image in images])
+    # A missing capture time gives a NaN altitude, which compares as False.
+    return [
+        solar_altitude(image.captured_at, point.x, point.y) >= MIN_SUN_ALTITUDE
+        for image, point in zip(images, points, strict=True)
+    ]
+
+
+def keep_daytime(images: list[_Image]) -> list[_Image]:
+    """Keep the images captured with the sun at least `MIN_SUN_ALTITUDE` high.
+
+    Args:
+        images: Validated image records, with a WKT point as their geometry.
+
+    Returns:
+        The images captured in daylight, see `captured_in_daylight`.
+    """
+    mask = captured_in_daylight(images)
+    kept = [image for image, daytime in zip(images, mask, strict=True) if daytime]
+
+    logger.debug(f"Dropped {len(images) - len(kept)} images not captured in daylight.")
+    return kept
 
 
 def download_image(
