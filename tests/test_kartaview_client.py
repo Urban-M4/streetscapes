@@ -305,6 +305,21 @@ def test_model_drops_unmatched_position(valid_record):
     assert image.computed_geometry is None
 
 
+def test_model_drops_null_unmatched_position(valid_record):
+    """An unmatched image may also be reported with null coordinates."""
+    unmatched = {"matchLat": None, "matchLng": None}
+    image = KartaViewImage.model_validate({**valid_record, **unmatched})
+
+    assert image.computed_geometry is None
+    assert image.id == 1234567890
+
+
+def test_model_rejects_null_position(valid_record):
+    """Unlike the matched position, the position itself is required."""
+    with pytest.raises(ValidationError):
+        KartaViewImage.model_validate({**valid_record, "lat": None, "lng": None})
+
+
 def test_model_drops_placeholder_timestamp(valid_record):
     """A zeroed timestamp is a missing one, not a reason to drop the image."""
     image = KartaViewImage.model_validate(

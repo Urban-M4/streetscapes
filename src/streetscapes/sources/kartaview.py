@@ -54,6 +54,10 @@ class KartaViewError(RuntimeError):
 
 def _point(lon: Any, lat: Any) -> dict | None:
     """Build a GeoJSON-style point, treating a null island position as missing."""
+    if lon is None and lat is None:
+        # Unmatched images are also reported with null coordinates.
+        return None
+
     try:
         lon, lat = float(lon), float(lat)
     except TypeError, ValueError:
