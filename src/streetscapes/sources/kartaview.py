@@ -246,12 +246,13 @@ class KartaViewClient:
     """Client for fetching KartaView image metadata via bounding boxes.
 
     Records are validated against `KartaViewImage` and malformed ones are skipped
-    individually. No authentication is required.
+    individually. No authentication is required, but authenticated requests get a
+    higher rate limit (1000 rather than 100 requests per hour).
 
     Usage example:
         from streetscapes.sources.kartaview import KartaViewClient
 
-        client = KartaViewClient()
+        client = KartaViewClient()  # or KartaViewClient(token) to authenticate
 
         # bbox: (west, south, east, north)
         bbox = (4.899, 52.372, 4.901, 52.374)
@@ -274,10 +275,12 @@ class KartaViewClient:
     # Maximum number of image IDs the image endpoint accepts per request.
     DETAIL_BATCH_SIZE = 150
 
-    def __init__(self, retries: int = 3, timeout: int = 60):
+    def __init__(self, token: str | None = None, retries: int = 3, timeout: int = 60):
         """Instantiate the client.
 
         Args:
+            token : str, optional
+                KartaView access token. Not required, but raises the rate limit.
             retries : int, optional
                 Number of request retries on failure (default is 3).
             timeout : int, optional
@@ -286,6 +289,7 @@ class KartaViewClient:
                 much longer than that.
         """
         self.session = requests.Session()
+        self.token = token or None
         self.retries = retries
         self.timeout = timeout
 
@@ -340,13 +344,25 @@ class KartaViewClient:
         Raises:
             KartaViewError: If every attempt failed.
         """
+        # The token goes in the query string of API requests only, so that it is
+        # not also sent along to wherever the images are hosted.
+        if self.token:
+            kwargs["params"] = {
+                **(kwargs.get("params") or {}),
+                "access_token": self.token,
+            }
+
         for attempt in range(self.retries):
             try:
                 res = self.session.request(method, url, timeout=self.timeout, **kwargs)
                 res.raise_for_status()
                 return res.json()  # type: ignore[no-any-return]
             except (requests.RequestException, ValueError) as e:
-                logger.error(e)
+                # HTTP errors quote the full URL, token included.
+                message = str(e)
+                if self.token:
+                    message = message.replace(self.token, "***")
+                logger.error(message)
                 if attempt == self.retries - 1:
                     break
                 # The API tends to stall rather than refuse, so back off.

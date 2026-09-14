@@ -67,7 +67,7 @@ def fake_kartaview_client(monkeypatch):
     into the detailed records is still exercised.
     """
 
-    def fake_list_bbox(self, bbox, limit=1000, pano_only=False):
+    def fake_list_bbox(self, bbox, limit=1000, pano_only=False, daytime_only=False):
         # The listing endpoint reports the uploader, the photo endpoint doesn't.
         return [{"id": "1234567890", "username": "someone"}]
 

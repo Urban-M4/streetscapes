@@ -214,6 +214,43 @@ def test_retries_recover_from_a_failure(monkeypatch):
     assert len(calls) == 2
 
 
+def test_token_is_sent_as_query_parameter(monkeypatch):
+    """An access token raises the rate limit, and goes in the query string."""
+    calls = []
+
+    def record(self, method, url, **kwargs):
+        calls.append(kwargs)
+        return _ok_response()
+
+    monkeypatch.setattr(requests.Session, "request", record)
+
+    KartaViewClient("secret")._request(
+        "GET", KartaViewClient.DETAIL_URL, params={"id": "1"}
+    )
+    KartaViewClient()._request("GET", KartaViewClient.DETAIL_URL, params={"id": "1"})
+
+    assert calls[0]["params"] == {"id": "1", "access_token": "secret"}
+    assert calls[1]["params"] == {"id": "1"}
+
+
+def test_token_is_not_logged(monkeypatch, caplog):
+    """Errors quote the request URL, which must not leak the token."""
+
+    def fail(self, method, url, **kwargs):
+        raise requests.HTTPError(
+            f"429 Too Many Requests for url: {url}?access_token=secret"
+        )
+
+    monkeypatch.setattr(requests.Session, "request", fail)
+    monkeypatch.setattr("streetscapes.sources.kartaview.sleep", lambda _: None)
+
+    with pytest.raises(KartaViewError):
+        KartaViewClient("secret", retries=1)._request("GET", KartaViewClient.DETAIL_URL)
+
+    assert "429" in caplog.text
+    assert "secret" not in caplog.text
+
+
 def _ok_response():
     class _Response:
         def raise_for_status(self):

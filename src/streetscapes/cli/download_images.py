@@ -198,12 +198,15 @@ def mapillary(
 def kartaview(
     *,
     skip_existing: bool = True,
+    token: str | None = None,
     project: str | None = None,
 ):
     """Download KartaView images to a local directory.
 
     Args:
         skip_existing: If true, only download missing images; otherwise overwrite.
+        token: KartaView access token (if not set via KARTAVIEW_TOKEN). Not
+            required, but raises the rate limit from 100 to 1000 requests/hour.
         project: An optional project to attach to.
     """
     from streetscapes.project import Project
@@ -218,7 +221,8 @@ def kartaview(
         logger.info("No new images to download.")
         return
 
-    _download_images(proj, KartaViewClient(), "kartaview", records, skip_existing)
+    client = KartaViewClient(token or CFG.kartaview_token)
+    _download_images(proj, client, "kartaview", records, skip_existing)
 
 
 @download_images_cli.command(name="panoramax")

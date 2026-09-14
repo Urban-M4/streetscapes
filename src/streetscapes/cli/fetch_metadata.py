@@ -87,6 +87,7 @@ def kartaview(
     image_limit: int = 1000,
     pano_only: Annotated[bool, Parameter(negative="")] = False,
     daytime_only: Annotated[bool, Parameter(negative="")] = False,
+    token: str | None = None,
     project: str | None = None,
 ):
     """Fetch metadata from the KartaView API.
@@ -99,6 +100,8 @@ def kartaview(
         daytime_only: Only fetch images captured with the sun at least 2° above
             the horizon. The API cannot filter on this, so the whole listing may
             be paged through to find them.
+        token: KartaView access token (if not set via KARTAVIEW_TOKEN). Not
+            required, but raises the rate limit from 100 to 1000 requests/hour.
         project: An optional project to attach to.
     """
     from streetscapes.project import Project
@@ -106,7 +109,7 @@ def kartaview(
 
     logger.info(f"Fetching metadata for {bbox=}")
 
-    client = KartaViewClient()
+    client = KartaViewClient(token or CFG.kartaview_token)
     proj = Project(project)
 
     try:

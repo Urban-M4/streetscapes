@@ -86,8 +86,8 @@ class TestCLIHelp:
     def test_download_images_kartaview_help(self):
         result = run_cli("streetscapes download-images kartaview --help")
         assert "--skip-existing" in result
-        # KartaView needs no authentication.
-        assert "--token" not in result
+        # KartaView needs no authentication, but a token raises the rate limit.
+        assert "--token" in result
 
     def test_download_images_panoramax_help(self):
         result = run_cli("streetscapes download-images panoramax --help")

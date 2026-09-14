@@ -45,6 +45,7 @@ streetscapes config list
 │ image_dir            │ /<current user>/.cache/streetscapes                    │
 │ active_project       │ streetscapes                                           │
 │ mapillary_token      │ MLY|00000000000000000|00000000000000000000000000000000 │
+│ kartaview_token      │                                                        │
 │ local_cache_dir_name │ local                                                  │
 │ sam3_model_path      │ /<SAM3 model dir>/sam3.pt                              │
 └──────────────────────┴────────────────────────────────────────────────────────┘
@@ -115,7 +116,12 @@ Download Mapillary images to a local directory.
 
 KartaView works the same way, but needs no token, and its API pages through a
 bounding box of any size, so there is no tiling and `--image-limit` caps the number
-of images for the whole bounding box (use `--image-limit 0` to fetch all of them):
+of images for the whole bounding box (use `--image-limit 0` to fetch all of them).
+
+A token is optional, but raises the rate limit from 100 to 1000 requests per hour.
+Register it with `streetscapes config set kartaview_token YOUR_TOKEN` (or pass
+`--token`, or set `KARTAVIEW_TOKEN`). For instructions on how to retreive a token,
+see the [section below](#kartaview-token).
 
 ```bash
 streetscapes fetch-metadata kartaview --help
@@ -152,6 +158,45 @@ KartaView serves its images at full resolution, which for recent cameras means 4
 Segmenting those needs a correspondingly large amount of memory, because the models
 scale their masks back up to the size of the image they were given — so on a machine
 with limited RAM, segment KartaView images in small batches (`--batch-size 1`).
+
+#### KartaView Token
+
+It's easiest to get a token through OpenStreetMap. First register and login at
+openstreetmap.org. Next register the kartaview API at:
+
+openstreetmap.org → Settings → OAuth 2 applications → Register new application:
+
+- As redirect URI enter: `urn:ietf:wg:oauth:2.0:oob`
+- Check Read user preferences (read_prefs)
+
+Save, and you get a client ID and client secret.
+
+To get an authorization code, open this in a browser and approve:
+
+```
+https://www.openstreetmap.org/oauth2/authorize?client_id=YOUR_CLIENT_ID&redirect_uri=urn:ietf:wg:oauth:2.0:oob&response_type=code&scope=read_prefs
+```
+
+OSM displays a code on the page. Copy it. Trade this third code for an OSM token,
+together with the client id and client secret from the openstreetmaps.org
+application registration:
+
+```bash
+curl -X POST https://www.openstreetmap.org/oauth2/token \
+  -d code=THE_THIRD_CODE \
+  -d client_id=YOUR_CLIENT_ID \
+  -d client_secret=YOUR_CLIENT_SECRET \
+  -d redirect_uri=urn:ietf:wg:oauth:2.0:oob \
+  -d grant_type=authorization_code
+```
+
+Finally, trade that for a KartaView token with:
+
+```bash
+curl -X POST https://api.openstreetcam.org/auth/openstreetmap/client_auth \
+  --data-raw 'request_token=OSM_ACCESS_TOKEN&secret_token=undefined'
+```
+The access_token in the response is what you want.
 
 ### Panoramax
 
