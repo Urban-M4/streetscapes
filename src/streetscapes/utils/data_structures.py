@@ -26,4 +26,3 @@ class Segmentation[T]:
     run_args: str
     rating: int
     instances: list[Instance[T]] = field(default_factory=list)
-    notes: str = ""
