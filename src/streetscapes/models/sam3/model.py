@@ -38,7 +38,7 @@ class SAM3:
             quantisation: Quantisation level. Possible values are `FP16` (faster
                 inference) or `FP32`. `None` means that the default value will be used.
         """
-        from ultralytics.models.sam import SAM3SemanticPredictor
+        from streetscapes.models.sam3.predictor import LowMemorySAM3SemanticPredictor
 
         self.device = common.get_device(device)
 
@@ -67,7 +67,7 @@ class SAM3:
         if isinstance(quantisation, str):
             overrides["quantize"] = quantisation.lower()
 
-        self.model = SAM3SemanticPredictor(overrides=overrides)
+        self.model = LowMemorySAM3SemanticPredictor(overrides=overrides)
 
     def segment_images(
         self,
