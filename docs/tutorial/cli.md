@@ -60,7 +60,7 @@ The Streetscapes CLI supports downloading images from [Mapillary](https://www.ma
 ### Mapillary
 
 For Mapillary, we first need to fetch image metadata. For this you will need to define a spatial bounding box.
-Some areas have enormous amounts of images available. To only get a certain number of images per spatial "tile", set the `--tile-limit` argument.
+Some areas have enormous amounts of images available. To only get a certain number of images per spatial "tile", set the `--images-per-tile` argument.
 
 Note that a [token](https://www.mapillary.com/developer/api-documentation/) is needed to use the Mapillary API.
 Register on Mapillary, and register your token with `streetscapes config set mapillary_token YOUR_TOKEN`.
@@ -78,14 +78,15 @@ Fetch metadata from the Mapillary API.
 │ *  BBOX  Bounding box (WEST SOUTH EAST NORTH). [required]                      │
 ╰────────────────────────────────────────────────────────────────────────────────╯
 ╭─ Parameters ───────────────────────────────────────────────────────────────────╮
-│ --tile-size     Tile size in degrees. [default: 0.001]                         │
-│ --tile-limit    Maximum number of images per tile. [default: 1000]             │
-│ --pano-only     Only fetch panoramic images. [default: False]                  │
-│ --daytime-only  Only keep images captured with the sun at least 2° above the   │
-│                 horizon. The API cannot filter on this, so the tile limit      │
-│                 applies before the other images are dropped. [default: False]  │
-│ --token         Mapillary OAuth token (if not set via MAPILLARY_TOKEN).        │
-│ --project       An optional project to attach to.                              │
+│ --tile-size        Tile size in degrees. [default: 0.001]                      │
+│ --images-per-tile  Maximum number of images per tile. [default: 1000]          │
+│ --pano-only        Only fetch panoramic images. [default: False]               │
+│ --daytime-only     Only keep images captured with the sun at least 2° above    │
+│                    the horizon. The API cannot filter on this, so the per-tile │
+│                    limit applies before the other images are dropped.          │
+│                    [default: False]                                            │
+│ --token            Mapillary OAuth token (if not set via MAPILLARY_TOKEN).     │
+│ --project          An optional project to attach to.                           │
 ╰────────────────────────────────────────────────────────────────────────────────╯
 ```
 
@@ -219,7 +220,7 @@ streetscapes fetch-metadata panoramax 2.34 48.856 2.345 48.86 \
 
 No token is needed for downloading the images.
 As for Mapillary, the bounding box is split into tiles and
-`--tile-limit` caps the images fetched per tile — but Panoramax returns up to
+`--images-per-tile` caps the images fetched per tile — but Panoramax returns up to
 32767 images per request against Mapillary's ~2000, so its tiles can be far
 larger before running into problems.
 
@@ -244,20 +245,21 @@ much larger than Mapillary's, as its limit is far higher.
 │ *  BBOX  Bounding box (WEST SOUTH EAST NORTH). [required]                      │
 ╰────────────────────────────────────────────────────────────────────────────────╯
 ╭─ Parameters ───────────────────────────────────────────────────────────────────╮
-│ --tile-size     Tile size in degrees. [default: 0.05]                          │
-│ --tile-limit    Maximum number of images per tile (at most 32767, which is     │
-│                 also what 0 means: the most the API will return). [default:    │
-│                 1000]                                                          │
-│ --pano-only     Only fetch panoramic images. Not every instance can filter on  │
-│                 this itself, so there the tile limit applies before the        │
-│                 non-pano images are dropped. [default: False]                  │
-│ --daytime-only  Only keep images captured with the sun at least 2° above the   │
-│                 horizon. The API cannot filter on this, so the tile limit      │
-│                 applies before the other images are dropped. [default: False]  │
-│ --instance      A single Panoramax instance to query, such as                  │
-│                 'https://panoramax.openstreetmap.fr'. Defaults to the          │
-│                 federated catalogue.                                           │
-│ --project       An optional project to attach to.                              │
+│ --tile-size        Tile size in degrees. [default: 0.05]                       │
+│ --images-per-tile  Maximum number of images per tile (at most 32767, which is  │
+│                    also what 0 means: the most the API will return). [default: │
+│                    1000]                                                       │
+│ --pano-only        Only fetch panoramic images. Not every instance can filter  │
+│                    on this itself, so there the per-tile limit applies before  │
+│                    the non-pano images are dropped. [default: False]           │
+│ --daytime-only     Only keep images captured with the sun at least 2° above    │
+│                    the horizon. The API cannot filter on this, so the per-tile │
+│                    limit applies before the other images are dropped.          │
+│                    [default: False]                                            │
+│ --instance         A single Panoramax instance to query, such as               │
+│                    'https://panoramax.openstreetmap.fr'. Defaults to the       │
+│                    federated catalogue.                                        │
+│ --project          An optional project to attach to.                           │
 ╰────────────────────────────────────────────────────────────────────────────────╯
 ```
 

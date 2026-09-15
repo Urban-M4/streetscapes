@@ -31,10 +31,10 @@ streetscapes fetch-metadata mapillary \
 * `tile-size`: Optional tiling of the bounding box (default 0.01°).
 * `output-file`: Path to save the GeoParquet manifest.
 * `pano-only`: Only fetch panoramic images. The API filters on `is_pano` itself, so
-  `tile-limit` counts panoramas only.
+  `images-per-tile` counts panoramas only.
 * `daytime-only`: Only keep images captured with the sun at least 2° above the
   horizon, so that their colours are those of the scene rather than of dusk. The
-  API cannot filter on this, so `tile-limit` applies before the images captured
+  API cannot filter on this, so `images-per-tile` applies before the images captured
   after dark are dropped.
 * `token`: OAuth token for Mapillary API.
 
@@ -71,24 +71,24 @@ the box are listed first, then their full records are fetched in batches by ID.
 streetscapes fetch-metadata panoramax \
     W S E N \
     --tile-size 0.05 \
-    --tile-limit 1000 \
+    --images-per-tile 1000 \
     --instance https://panoramax.openstreetmap.fr
 ```
 
 * `bbox`: Bounding box `[west, south, east, north]` to fetch images from.
 * `tile-size`: Tiling of the bounding box, in degrees (default 0.05°). Tiles can
   be much larger than Mapillary's, as Panoramax returns far more per request.
-* `tile-limit`: Maximum number of images per tile, at most 32767 — which is also
+* `images-per-tile`: Maximum number of images per tile, at most 32767 — which is also
   what `0` means, the most the API will return.
 * `instance`: A single Panoramax instance to query. Optional — defaults to the
   federated catalogue.
 * `pano-only`: Only fetch panoramic images, i.e. those with a 360° field of view.
   The federated catalogue filters on this itself, but single instances reject the
   filter, so with `--instance` the results are filtered afterwards and
-  `tile-limit` applies before the other images are dropped.
+  `images-per-tile` applies before the other images are dropped.
 * `daytime-only`: Only keep images captured with the sun at least 2° above the
   horizon. No instance can filter on this, so the results are filtered afterwards
-  and `tile-limit` applies before the images captured after dark are dropped.
+  and `images-per-tile` applies before the images captured after dark are dropped.
 
 No token is required. Panoramax is a federation of instances rather than one
 server, so by default the [federated catalogue](https://docs.panoramax.fr/federated-catalog/)
