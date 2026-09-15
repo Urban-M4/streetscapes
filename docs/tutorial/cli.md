@@ -55,7 +55,7 @@ The `project_dir` directory is where Streetscapes will be storing its projects, 
 
 ## Downloading images
 
-The Streetscapes CLI supports downloading images from [Mapillary](https://www.mapillary.com/), [KartaView](https://kartaview.org/landing) and [Panoramax](https://panoramax.fr/) (the [Amsterdam](https://api.data.amsterdam.nl/) collection is currently not yet supported). All three follow the same two steps — fetch the metadata for a bounding box, then download the images it describes. The available options can be displayed with the `--help` option via the subcommand for each source:
+The Streetscapes CLI supports downloading images from [Mapillary](https://www.mapillary.com/), [KartaView](https://kartaview.org/landing) and [Panoramax](https://panoramax.fr/) (the [Amsterdam](https://api.data.amsterdam.nl/) collection is currently not yet supported). All three follow the same two steps — fetch the metadata for a bounding box, then download the images it describes. The available options can be displayed with the `--help` option via the subcommand for each source.
 
 ### Mapillary
 
