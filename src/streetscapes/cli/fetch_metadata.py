@@ -183,7 +183,9 @@ def panoramax(
         for tile, _tile_id in track(
             tiles, description="Fetching tiles", total=ntiles, console=console
         ):
-            df = client.fetch_metadata_bbox(tile, images_per_tile, pano_only, daytime_only)
+            df = client.fetch_metadata_bbox(
+                tile, images_per_tile, pano_only, daytime_only
+            )
 
             if len(df) == 0:
                 continue
