@@ -72,9 +72,11 @@ class MaskFormerService:
 
         # Construct the response
         response = []
-        for result in segmentations:
+        for result, image in zip(segmentations, images, strict=True):
             # Convert masks to polygons here to avoid (de)serializing the masks.
-            polygons = mask2poly(result.pop("instances"), model="maskformer")
+            polygons = mask2poly(
+                result.pop("instances"), model="maskformer", image=image
+            )
             result["polygons"] = shapely.to_wkb(polygons)
             response.append(MaskFormerResponse(**result))
 
