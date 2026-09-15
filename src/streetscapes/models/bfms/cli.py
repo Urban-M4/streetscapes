@@ -2,16 +2,13 @@
 
 from typing import Annotated, cast
 
-import imageio.v3 as iio
-import numpy as np
+import shapely
 from cyclopts import Parameter
-from ray import cloudpickle
 
 from streetscapes import CFG, utils
 from streetscapes.project import Project
 from streetscapes.serve.server import serve_model
 from streetscapes.utils.logging import logger
-from streetscapes.utils.masks import mask2poly
 
 
 def cli(
@@ -63,26 +60,19 @@ def cli(
 
     # NOTE: BFMS does not support a batch mode.
     for image_idx, uid in enumerate(unprocessed, 1):
-        # Extract the paths and open the images as NumPy arrays.
+        # Read the encoded image file; decoding happens in the worker.
         path, _ = unprocessed[uid]
-        img = np.asarray(iio.imread(path))
-        request = {"image": cloudpickle.dumps(img)}
+        request = {"image": path.read_bytes()}
 
         # Process the images
         logger.info(f"Segmenting image [{image_idx:>4d}/{len(unprocessed):>4d}]...")
         response = handle.remote(request).result()
         logger.debug(f"Successfully segmented image {uid}, saving instances.")
 
-        # Save the instances.
-        instances = cloudpickle.loads(response.instances)
         # Save segmentation immediately
         proj.add_segmentation(
             run,
             uid,
             response.labels,
-            polygons=mask2poly(
-                instances,
-                model="bfms",
-                image=img,
-            ),
+            polygons=shapely.from_wkb(response.polygons),
         )

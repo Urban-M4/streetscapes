@@ -28,7 +28,7 @@ def mapillary(
     /,
     *,
     tile_size: float = 0.001,
-    tile_limit: int = 1000,
+    images_per_tile: int = 1000,
     pano_only: Annotated[bool, Parameter(negative="")] = False,
     daytime_only: Annotated[bool, Parameter(negative="")] = False,
     token: str | None = None,
@@ -39,11 +39,11 @@ def mapillary(
     Args:
         bbox: Bounding box (WEST SOUTH EAST NORTH).
         tile_size: Tile size in degrees.
-        tile_limit: Maximum number of images per tile.
+        images_per_tile: Maximum number of images per tile.
         pano_only: Only fetch panoramic images.
         daytime_only: Only keep images captured with the sun at least 2° above
-            the horizon. The API cannot filter on this, so the tile limit applies
-            before the other images are dropped.
+            the horizon. The API cannot filter on this, so the per-tile limit
+            applies before the other images are dropped.
         token: Mapillary OAuth token (if not set via MAPILLARY_TOKEN).
         project: An optional project to attach to.
     """
@@ -68,7 +68,7 @@ def mapillary(
     for tile, _tile_id in track(
         tiles, description="Fetching tiles", total=ntiles, console=console
     ):
-        df = m.fetch_metadata_bbox(tile, tile_limit, pano_only, daytime_only)
+        df = m.fetch_metadata_bbox(tile, images_per_tile, pano_only, daytime_only)
 
         # TODO: maybe this failsafe/optimization is not necessary?
         if len(df) == 0:
@@ -133,7 +133,7 @@ def panoramax(
     /,
     *,
     tile_size: float = 0.05,
-    tile_limit: int = 1000,
+    images_per_tile: int = 1000,
     pano_only: Annotated[bool, Parameter(negative="")] = False,
     daytime_only: Annotated[bool, Parameter(negative="")] = False,
     instance: str | None = None,
@@ -152,14 +152,14 @@ def panoramax(
     Args:
         bbox: Bounding box (WEST SOUTH EAST NORTH).
         tile_size: Tile size in degrees.
-        tile_limit: Maximum number of images per tile (at most 32767, which is
+        images_per_tile: Maximum number of images per tile (at most 32767, which is
             also what 0 means: the most the API will return).
         pano_only: Only fetch panoramic images. Not every instance can filter
-            on this itself, so there the tile limit applies before the
+            on this itself, so there the per-tile limit applies before the
             non-pano images are dropped.
         daytime_only: Only keep images captured with the sun at least 2° above
-            the horizon. The API cannot filter on this, so the tile limit applies
-            before the other images are dropped.
+            the horizon. The API cannot filter on this, so the per-tile limit
+            applies before the other images are dropped.
         instance: A single Panoramax instance to query, such as
             'https://panoramax.openstreetmap.fr'. Defaults to the federated
             catalogue.
@@ -183,7 +183,9 @@ def panoramax(
         for tile, _tile_id in track(
             tiles, description="Fetching tiles", total=ntiles, console=console
         ):
-            df = client.fetch_metadata_bbox(tile, tile_limit, pano_only, daytime_only)
+            df = client.fetch_metadata_bbox(
+                tile, images_per_tile, pano_only, daytime_only
+            )
 
             if len(df) == 0:
                 continue

@@ -50,7 +50,7 @@ class TestCLIHelp:
         result = run_cli("streetscapes fetch-metadata mapillary --help")
         assert "BBOX" in result
         assert "--tile-size" in result
-        assert "--tile-limit" in result
+        assert "--images-per-tile" in result
         assert "--pano-only" in result
         assert "--daytime-only" in result
 
@@ -61,13 +61,13 @@ class TestCLIHelp:
         assert "--pano-only" in result
         assert "--daytime-only" in result
         # The limit is for the whole bounding box, not per tile.
-        assert "--tile-limit" not in result
+        assert "--images-per-tile" not in result
 
     def test_fetch_metadata_panoramax_help(self):
         result = run_cli("streetscapes fetch-metadata panoramax --help")
         assert "BBOX" in result
         assert "--tile-size" in result
-        assert "--tile-limit" in result
+        assert "--images-per-tile" in result
         assert "--instance" in result
         assert "--pano-only" in result
         assert "--daytime-only" in result
