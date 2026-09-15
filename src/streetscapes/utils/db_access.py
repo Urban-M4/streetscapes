@@ -162,6 +162,7 @@ def get_segmentations(
             multipoly = transform(_flip, row["polygons"])  # type: ignore[arg-type]
             polys = list(multipoly.geoms)
             if len(polys) > len(labels):
+                # Older runs stored the background as the first polygon.
                 polys.pop(0)
             inst = [
                 Instance(

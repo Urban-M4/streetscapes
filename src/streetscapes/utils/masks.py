@@ -1,10 +1,13 @@
 """Segmentation mask utils."""
 
-from typing import Literal
+from typing import TYPE_CHECKING, Literal
 
 import numpy as np
 from shapely import GeometryCollection, geometry
 from skimage.measure import find_contours
+
+if TYPE_CHECKING:
+    from collections.abc import Iterator
 
 
 def _norm_contours(contours: list[np.ndarray]):
@@ -21,10 +24,21 @@ def _scale_contours(contours: list[np.ndarray], scale: tuple[float, float]):
         contours[i] = c
 
 
-def _get_boolean_masks(data: np.ndarray):
-    """Convert Maskformer 2D array to 3D array with boolean masks."""
-    classes = np.unique(data)
-    return np.stack([np.equal(data, _class) for _class in classes], axis=0)
+def _iter_padded_masks(data: np.ndarray, model: str) -> Iterator[np.ndarray]:
+    """Yield the masks one at a time, padded by 1 pixel.
+
+    Maskformer produces a 2D array of segment ids. Its segments are numbered from 1;
+    0 marks pixels that belong to no segment and -1 fills an image without any
+    segments, so those are skipped.
+    """
+    if model == "maskformer":
+        padded = np.pad(data, 1)
+        for segment_id in np.unique(data):
+            if segment_id > 0:
+                yield np.equal(padded, segment_id)
+    else:
+        for mask in data:
+            yield np.pad(mask, 1)
 
 
 def mask2poly(
@@ -53,9 +67,6 @@ def mask2poly(
         msg = f"Invalid segmentation, model '{model}' is not supported."
         raise NotImplementedError(msg)
 
-    if model == "maskformer":
-        data = _get_boolean_masks(data)
-
     if model == "bfms":
         if image is None:
             msg = "bfms generates lower resolution masks, image needed to rescale back."
@@ -66,8 +77,8 @@ def mask2poly(
         scale = (image.shape[0] / data_shape[0], image.shape[1] / data_shape[1])
 
     geometries = []
-    for i in range(data.shape[0]):
-        contours = find_contours(np.pad(data[i], 1), level=0.5)
+    for mask in _iter_padded_masks(data, model):
+        contours = find_contours(mask, level=0.5)
         contours = _norm_contours(contours)  # remove padding again
         if scale is not None:
             _scale_contours(contours, scale)
