@@ -7,13 +7,13 @@ from typing import Annotated, cast
 
 import imageio.v3 as iio
 import numpy as np
+import shapely
 from cyclopts import Parameter
 from ray import cloudpickle
 
 from streetscapes import CFG, utils
 from streetscapes.project import Project
 from streetscapes.serve.server import serve_model
-from streetscapes.utils.masks import mask2poly
 
 logger = logging.getLogger(__name__)
 
@@ -126,14 +126,13 @@ def cli(
         # Save the instances.
         segmentations = []
         for response in responses:
-            instances = cloudpickle.loads(response.instances)
             segmentations.append(
                 {
                     "run": run,
                     "image": response.uid,
                     "labels": response.labels,
                     "confidences": response.confidences,
-                    "polygons": mask2poly(instances, model="dinosam"),
+                    "polygons": shapely.from_wkb(response.polygons),
                 }
             )
 

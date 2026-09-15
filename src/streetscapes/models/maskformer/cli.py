@@ -5,6 +5,7 @@ from typing import Annotated, Any, cast
 
 import imageio as iio
 import numpy as np
+import shapely
 from cyclopts import Parameter
 from ray import cloudpickle
 
@@ -12,7 +13,6 @@ from streetscapes import CFG, utils
 from streetscapes.project import Project
 from streetscapes.serve.server import serve_model
 from streetscapes.utils import logger
-from streetscapes.utils.masks import mask2poly
 
 
 def cli(
@@ -106,14 +106,13 @@ def cli(
         # Save the instances.
         segmentations = []
         for response in responses:
-            instances = cloudpickle.loads(response.instances)
             segmentations.append(
                 {
                     "run": run,
                     "image": response.uid,
                     "labels": response.labels,
                     "confidences": response.confidences,
-                    "polygons": mask2poly(instances, model="maskformer"),
+                    "polygons": shapely.from_wkb(response.polygons),
                 }
             )
         # Update the segmentation table.
