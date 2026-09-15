@@ -57,7 +57,9 @@ streetscapes fetch-metadata kartaview \
 * `daytime-only`: Only fetch images captured with the sun at least 2° above the
   horizon. The listing reports both the position and the capture time, so this is
   filtered as the listing comes in, like `pano-only`, and `image-limit` counts
-  the images captured in daylight.
+  the images captured in daylight. Note that KartaView's capture timestamps are
+  known to be unreliable, so this filter may keep night-time images or drop
+  daytime ones.
 
 No token is required. Metadata is collected in two steps, as no single public
 endpoint both covers a bounding box and returns complete records: the photos in

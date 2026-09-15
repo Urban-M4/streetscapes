@@ -143,7 +143,13 @@ Fetch metadata from the KartaView API.
 │                 False]                                                         │
 │ --daytime-only  Only fetch images captured with the sun at least 2° above the  │
 │                 horizon. The API cannot filter on this, so the whole listing   │
-│                 may be paged through to find them. [default: False]            │
+│                 may be paged through to find them. Note that KartaView's       │
+│                 capture timestamps are known to be unreliable, so this filter  │
+│                 may keep night-time images or drop daytime ones. [default:     │
+│                 False]                                                         │
+│ --token         KartaView access token (if not set via KARTAVIEW_TOKEN). Not   │
+│                 required, but raises the rate limit from 100 to 1000           │
+│                 requests/hour.                                                 │
 │ --project       An optional project to attach to.                              │
 ╰────────────────────────────────────────────────────────────────────────────────╯
 ```
