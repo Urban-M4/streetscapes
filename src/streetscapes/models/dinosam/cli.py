@@ -4,11 +4,8 @@ import logging
 from itertools import batched
 from typing import Annotated, cast
 
-import imageio.v3 as iio
-import numpy as np
 import shapely
 from cyclopts import Parameter
-from ray import cloudpickle
 
 from streetscapes import CFG, utils
 from streetscapes.project import Project
@@ -86,7 +83,7 @@ def cli(
     logger.info(f"Segmenting {len(unprocessed)} images using {model}...")
     batches = list(batched(unprocessed, batch_size))
     for batch_idx, batch in enumerate(batches, 1):
-        # Extract the paths and open the images as NumPy arrays.
+        # Read the encoded image files; decoding happens in the worker.
         request = {
             "images": [],
             "prompt": prompt,
@@ -95,7 +92,7 @@ def cli(
             path, _ = unprocessed[uid]
             img_data = {
                 "uid": uid,
-                "image": cloudpickle.dumps(np.asarray(iio.imread(path))),
+                "image": path.read_bytes(),
             }
             request["images"].append(img_data)  # type: ignore[attr-defined]
 

@@ -2,9 +2,10 @@
 
 import uuid
 
+import imageio.v3 as iio
+import numpy as np
 import shapely
 from pydantic import BaseModel
-from ray import cloudpickle
 
 from streetscapes.models.maskformer.model import MaskFormer
 from streetscapes.utils.masks import mask2poly
@@ -12,7 +13,7 @@ from streetscapes.utils.masks import mask2poly
 
 class MaskFormerImage(BaseModel):
     uid: uuid.UUID
-    image: bytes
+    image: bytes  # encoded image file (e.g. JPEG)
 
 
 class MaskFormerRequest(BaseModel):
@@ -61,7 +62,7 @@ class MaskFormerService:
         images = []
         for entry in schema.images:
             uids.append(entry.uid)
-            images.append(cloudpickle.loads(entry.image))
+            images.append(np.asarray(iio.imread(entry.image)))
 
         # Segment the images
         segmentations = self.model.segment_images(
