@@ -114,7 +114,9 @@ dev = [
     "types-requests",
 ]
 sam3 = [
-    "ultralytics>=8.3.237",
+    # Low-mem SAM3 predictor overwrites ultralytics class behavior
+    # so it's more fragile with version changes
+    "ultralytics~=8.4",  
 ]
 
 [tool.uv.sources]

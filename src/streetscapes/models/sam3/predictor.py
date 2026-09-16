@@ -8,15 +8,20 @@ from ultralytics.models.sam import SAM3SemanticPredictor
 from ultralytics.utils import ops
 
 
+CHUNK = 8
+
+
 class LowMemorySAM3SemanticPredictor(SAM3SemanticPredictor):
-    """SAM3 semantic predictor that upscales the predicted masks one at a time.
+    """SAM3 semantic predictor that upscales the predicted masks in small chunks.
 
     Ultralytics upscales all kept masks to the original image size as a single
     float32 tensor before thresholding them, which costs 4 bytes per pixel per
-    instance (~4 GB for 80 instances on a 12 MP photo). Bilinear interpolation
-    treats each mask independently, so upscaling and thresholding them one at a
-    time yields identical boolean masks while holding only one float mask at full
-    resolution.
+    instance (~4 GB for 80 instances on a 12 MP photo). Each mask is treated
+    independently, so upscaling and thresholding them a couple at a
+    time yields identical masks while consuming much less memory.
+    Benchmarking found chunks of 8 to be about as fast as Ultralyics orignal
+    single-batch upscaling while avoiding possible OOMs on large images
+    with many instances.
     """
 
     def postprocess(self, preds, img, orig_imgs):
@@ -72,13 +77,16 @@ class LowMemorySAM3SemanticPredictor(SAM3SemanticPredictor):
     def _upscale_masks(
         self, masks: torch.Tensor, size: tuple[int, int]
     ) -> torch.Tensor:
-        """Upscale (N, h, w) mask logits to boolean (N, *size) masks, one at a time."""
+        """Upscale (N, h, w) mask logits to boolean (N, *size) masks, `CHUNK` at a time."""
         upscaled = torch.empty(
             (masks.shape[0], *size), dtype=torch.bool, device=masks.device
         )
-        for idx, mask in enumerate(masks):
-            upscaled[idx] = (
-                F.interpolate(mask.float()[None, None], size, mode="bilinear")[0, 0]
-                > self.model.mask_threshold  # type: ignore[attr-defined]
+        for start in range(0, masks.shape[0], CHUNK):
+            torch.gt(
+                F.interpolate(
+                    masks[start : start + CHUNK].float()[None], size, mode="bilinear"
+                )[0],
+                self.model.mask_threshold,  # type: ignore[attr-defined]
+                out=upscaled[start : start + CHUNK],
             )
         return upscaled
