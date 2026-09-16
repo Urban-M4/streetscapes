@@ -7,7 +7,6 @@ from ultralytics.engine.results import Results
 from ultralytics.models.sam import SAM3SemanticPredictor
 from ultralytics.utils import ops
 
-
 CHUNK = 8
 
 
@@ -77,7 +76,7 @@ class LowMemorySAM3SemanticPredictor(SAM3SemanticPredictor):
     def _upscale_masks(
         self, masks: torch.Tensor, size: tuple[int, int]
     ) -> torch.Tensor:
-        """Upscale (N, h, w) mask logits to boolean (N, *size) masks, `CHUNK` at a time."""
+        """Upscale (N, h, w) logits to boolean (N, *size) masks, `CHUNK` at a time."""
         upscaled = torch.empty(
             (masks.shape[0], *size), dtype=torch.bool, device=masks.device
         )
