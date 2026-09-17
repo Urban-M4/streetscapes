@@ -2,15 +2,18 @@
 
 import uuid
 
+import imageio.v3 as iio
+import numpy as np
+import shapely
 from pydantic import BaseModel
-from ray import cloudpickle
 
 from streetscapes.models.dinosam.model import DinoSAM
+from streetscapes.utils.masks import mask2poly
 
 
 class DinoSAMImage(BaseModel):
     uid: uuid.UUID
-    image: bytes
+    image: bytes  # encoded image file (e.g. JPEG)
 
 
 class DinoSAMRequest(BaseModel):
@@ -22,7 +25,7 @@ class DinoSAMResponse(BaseModel):
     uid: uuid.UUID
     labels: list[str]
     confidences: list[float]
-    instances: bytes
+    polygons: bytes  # WKB-encoded shapely GeometryCollection
 
 
 class DinoSAMService:
@@ -54,7 +57,7 @@ class DinoSAMService:
         images = []
         for entry in req.images:
             uids.append(entry.uid)
-            images.append(cloudpickle.loads(entry.image))
+            images.append(np.asarray(iio.imread(entry.image)))
 
         # Segment the images
         segmentations = self.model.segment_images(uids, images, req.prompt)
@@ -62,7 +65,9 @@ class DinoSAMService:
         # Construct the response
         response = []
         for result in segmentations:
-            result["instances"] = cloudpickle.dumps(result["instances"])
+            # Convert masks to polygons here to avoid (de)serializing the masks.
+            polygons = mask2poly(result.pop("instances"), model="dinosam")
+            result["polygons"] = shapely.to_wkb(polygons)
             response.append(DinoSAMResponse(**result))
 
         return response

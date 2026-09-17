@@ -18,6 +18,7 @@ class Configuration(BaseSettings):
     image_dir: Path = user_cache_path("streetscapes")
     active_project: str = "streetscapes"
     mapillary_token: str = os.getenv("MAPILLARY_TOKEN", "")
+    kartaview_token: str = os.getenv("KARTAVIEW_TOKEN", "")
     local_cache_dir_name: str = "local"
     sam3_model_path: Path | None = None
 

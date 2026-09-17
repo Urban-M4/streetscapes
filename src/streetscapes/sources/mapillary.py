@@ -1,20 +1,28 @@
 """Mapillary related functionality."""
 
 import logging
-from pathlib import Path
 from time import sleep
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 import geopandas as gpd
 import pandas as pd
 import requests
-from shapely.geometry import Point
+from pydantic import BaseModel, ConfigDict, ValidationError
 
-from streetscapes import utils
 from streetscapes.project import Project
+from streetscapes.sources.common import download_image, keep_daytime
+from streetscapes.utils.db_types import (
+    EpochMs,
+    FloatList,
+    JsonString,
+    UBigInt,
+    UrlString,
+    WktPoint,
+)
 
 if TYPE_CHECKING:
     import uuid
+    from pathlib import Path
 
     from streetscapes.utils.geo import Bbox
     from streetscapes.utils.metadata import ImageMeta
@@ -22,11 +30,92 @@ if TYPE_CHECKING:
 logger = logging.getLogger(__name__)
 
 
+class MapillaryImage(BaseModel):
+    """Mapillary image record, validated against the database schema.
+
+    The Mapillary API does not consistently honour its own schema: fields can be
+    missing, of the wrong type, or contain data belonging to another field (an
+    image URL in the `id` field, for instance).
+
+    Field names and types mirror the `mapillary` table schema, except for `image`
+    which is only known after the image itself has been downloaded.
+    """
+
+    model_config = ConfigDict(extra="ignore", protected_namespaces=())
+
+    # Required entries
+    id: UBigInt
+    geometry: WktPoint
+
+    altitude: float | None = None
+    atomic_scale: float | None = None
+    camera_type: str | None = None
+    captured_at: EpochMs | None = None
+    compass_angle: float | None = None
+    computed_altitude: float | None = None
+    computed_compass_angle: float | None = None
+    computed_geometry: WktPoint | None = None
+    computed_rotation: FloatList | None = None
+    creator: JsonString | None = None
+    exif_orientation: UBigInt | None = None
+    height: UBigInt | None = None
+    is_pano: bool | None = None
+    make: str | None = None
+    model: str | None = None
+    sequence: str | None = None
+    thumb_1024_url: UrlString | None = None
+    thumb_2048_url: UrlString | None = None
+    thumb_256_url: UrlString | None = None
+    thumb_original_url: UrlString | None = None
+    width: UBigInt | None = None
+    camera_parameters: FloatList | None = None
+
+    @classmethod
+    def api_fields(cls) -> list[str]:
+        """Get the field names to request from the Mapillary API."""
+        return list(cls.model_fields)
+
+    def to_row(self) -> dict[str, Any]:
+        """Get the record as a row for the `mapillary` table."""
+        # `image` is filled in once the image has been downloaded.
+        return {"image": None, **self.model_dump()}
+
+
+def validate_records(records: list[dict]) -> list[MapillaryImage]:
+    """Validate raw API records, dropping (and reporting) the invalid ones.
+
+    Args:
+        records: Raw image records as returned by the Mapillary API.
+
+    Returns:
+        The records that passed validation.
+    """
+    images = []
+    for record in records:
+        try:
+            images.append(MapillaryImage.model_validate(record))
+        except ValidationError as err:
+            problems = ", ".join(
+                f"{'.'.join(map(str, e['loc']))}: {e['msg']}" for e in err.errors()
+            )
+            logger.warning(
+                f"Skipping malformed Mapillary record (id={record.get('id')!r}):"
+                f" {problems}"
+            )
+
+    skipped = len(records) - len(images)
+    if skipped:
+        logger.info(f"Skipped {skipped}/{len(records)} malformed Mapillary records.")
+
+    return images
+
+
 class MapillaryClient:
     """Minimal client for fetching Mapillary image metadata via bounding boxes.
 
     Handles authentication, retries, and conversion of geometry fields to WKT
-    strings suitable for use with GeoPandas or DuckDB.
+    strings suitable for use with GeoPandas or DuckDB. Records are validated
+    against `MapillaryImage` and malformed ones are skipped individually.
 
     Usage example:
         import os
@@ -91,7 +180,7 @@ class MapillaryClient:
         self,
         url: str,
         output_dir: str | Path,
-        image_id: int | None,
+        image_id: int | str | None,
         uid: uuid.UUID | None = None,
         skip_existing: bool = True,
     ) -> ImageMeta:
@@ -107,55 +196,30 @@ class MapillaryClient:
         Returns:
             Image metadata.
         """
-        output_path = output_dir
-        if output_dir is not None:
-            output_dir = Path(output_dir)
+        return download_image(
+            self.session,
+            url,
+            output_dir,
+            image_id,
+            source="mapillary",
+            uid=uid,
+            skip_existing=skip_existing,
+        )
 
-        content = None
-        if uid is not None:
-            if output_dir is not None:
-                image_path = list(output_dir.glob(f"*{uid}*"))
-                if len(image_path) > 0:
-                    content = image_path[0].read_bytes()
-            if content is None:
-                # The image is missing, download it again.
-                skip_existing = False
-
-        if uid is None or not skip_existing:
-            response = self.session.get(url)
-            response.raise_for_status()
-            content = response.content
-
-        if content is None:
-            raise ValueError(
-                f"Failed to download image with UUID '{uid}': empty content"
-            )
-
-        meta = utils.get_image_metadata(content)
-
-        if uid is None and output_dir is not None:
-            utils.ensure_dir(output_dir)
-            output_path = output_dir / f"{meta.uid}.{meta.ext}"
-            output_path.write_bytes(meta.content)
-            # write mapillary-id -> uuid mapping
-            if image_id is not None:
-                with (output_dir / str(image_id)).open("w") as f:
-                    f.write(str(meta.uid))
-
-        meta.fpath = output_path
-        meta.source = "mapillary"
-
-        return meta
-
-    def _fetch_bbox(self, bbox: Bbox, limit: int = 1000) -> list[dict]:
+    def _fetch_bbox(
+        self, bbox: Bbox, limit: int = 1000, pano_only: bool = False
+    ) -> list[dict]:
         """Perform the raw API request to Mapillary for a single bounding box tile."""
         logger.debug(f"Fetching metadata for bounding box: {bbox}")
 
         params = {
             "bbox": ",".join(map(str, bbox)),
-            "fields": ",".join(self.db_fields),
+            "fields": ",".join(MapillaryImage.api_fields()),
             "limit": limit,
         }
+        if pano_only:
+            # Filtered by the Mapillary API
+            params["is_pano"] = "true"
 
         for attempt in range(self.retries):
             try:
@@ -171,11 +235,17 @@ class MapillaryClient:
         logger.warning(f"Failed to retrieve metadata for bounding box: {bbox}")
         return []
 
-    def fetch_metadata_bbox(self, bbox: Bbox, limit: int = 1000) -> pd.DataFrame:
+    def fetch_metadata_bbox(
+        self,
+        bbox: Bbox,
+        limit: int = 1000,
+        pano_only: bool = False,
+        daytime_only: bool = False,
+    ) -> pd.DataFrame:
         """Fetch metadata for a bounding box and convert to a pandas DataFrame.
 
-        Geometry columns are converted to WKT strings for downstream processing
-        with GeoPandas or spatial databases like DuckDB.
+        Every record is validated against `MapillaryImage` before being included;
+        records that fail validation are skipped and reported.
 
         Note:
         ----
@@ -188,35 +258,35 @@ class MapillaryClient:
                 Bounding box as (west, south, east, north).
             limit : int
                 Maximum number of images to fetch (default 1000).
+            pano_only : bool
+                Only fetch panoramic images (default False).
+            daytime_only : bool
+                Only keep images captured with the sun at least
+                2 degrees high. The API cannot filter
+                on this, so the limit applies before the other images are
+                dropped, and fewer may be returned.
 
         Returns:
             pd.DataFrame
-                DataFrame with Mapillary metadata and WKT geometry columns.
+                DataFrame with Mapillary metadata.
         """
-        records = self._fetch_bbox(bbox, limit)
+        columns = list(self.db_fields)
+        images = validate_records(self._fetch_bbox(bbox, limit, pano_only=pano_only))
 
-        if not records:
-            return pd.DataFrame()
+        if daytime_only:
+            images = keep_daytime(images)
 
-        df = pd.DataFrame(records)
+        if not images:
+            return pd.DataFrame(columns=columns)
 
-        # Geometry colums are dicts, flatten to wkt strings instead
-        def unpack_geometry(geometry):
-            if isinstance(geometry, dict) and "coordinates" in geometry:
-                # wkt facilitates conversion to either geopandas or duckdb geometry
-                return Point(geometry["coordinates"]).wkt
-            return None
-
-        df["geometry"] = df["geometry"].apply(unpack_geometry)
-        if df.get("computed_geometry") is None:
-            df["computed_geometry"] = None
-        else:
-            df["computed_geometry"] = df["computed_geometry"].apply(unpack_geometry)
-
-        return df
+        return pd.DataFrame([image.to_row() for image in images], columns=columns)
 
     def fetch_metadata_bbox_gpd(
-        self, bbox: Bbox, limit: int = 1000
+        self,
+        bbox: Bbox,
+        limit: int = 1000,
+        pano_only: bool = False,
+        daytime_only: bool = False,
     ) -> gpd.GeoDataFrame:
         """Fetch metadata for a bounding box and convert to a GeoDataFrame.
 
@@ -233,12 +303,16 @@ class MapillaryClient:
                 Bounding box as (west, south, east, north).
             limit : int
                 Maximum number of images to fetch (default 1000).
+            pano_only : bool
+                Only fetch panoramic images (default False).
+            daytime_only : bool
+                Only keep images captured in daylight (default False).
 
         Returns:
             gpd.GeoDataFrame
                 GeoDataFrame with Mapillary metadata and geometry columns.
         """
-        df = self.fetch_metadata_bbox(bbox, limit)
+        df = self.fetch_metadata_bbox(bbox, limit, pano_only, daytime_only)
 
         gdf = gpd.GeoDataFrame(df, geometry=gpd.GeoSeries.from_wkt(df["geometry"]))
         return gdf.set_crs("EPSG:4326")

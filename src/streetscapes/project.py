@@ -21,6 +21,9 @@ if TYPE_CHECKING:
     from streetscapes.utils.geo import Bbox
 
 
+SOURCE_TABLES = ("mapillary", "kartaview", "panoramax", "local")
+
+
 def _format_image(
     uid: uuid.UUID,
     source: str,
@@ -122,6 +125,64 @@ class Project:
             },
             "init": [],
         },
+        "kartaview": {
+            "schema": {
+                "image": "UUID",
+                # KartaView reports no altitude; the column is kept for consistency
+                "altitude": "FLOAT8",
+                "camera_parameters": "FLOAT8[]",
+                "captured_at": "TIMESTAMPTZ",
+                "compass_angle": "FLOAT8",
+                "computed_geometry": "GEOMETRY",
+                "creator": "JSON",
+                "field_of_view": "FLOAT8",
+                "geometry": "GEOMETRY",
+                "gps_accuracy": "FLOAT8",
+                "width": "UBIGINT",
+                "height": "UBIGINT",
+                "id": "UBIGINT PRIMARY KEY",
+                "image_url": "STRING",
+                "is_pano": "BOOL",
+                "projection": "STRING",
+                "quality_level": "UBIGINT",
+                "sequence": "STRING",
+                "sequence_index": "UBIGINT",
+                "thumb_large_url": "STRING",
+                "thumb_url": "STRING",
+                "uploaded_at": "TIMESTAMPTZ",
+                "way_id": "UBIGINT",
+            },
+            "init": [],
+        },
+        "panoramax": {
+            "schema": {
+                "image": "UUID",
+                # Panoramax reports no altitude; the column is kept for consistency
+                "altitude": "FLOAT8",
+                "captured_at": "TIMESTAMPTZ",
+                "compass_angle": "FLOAT8",
+                "creator": "JSON",
+                "field_of_view": "FLOAT8",
+                "geometry": "GEOMETRY",
+                "gps_accuracy": "FLOAT8",
+                "width": "UBIGINT",
+                "height": "UBIGINT",
+                # Panoramax identifies its pictures by UUID rather than by number
+                "id": "UUID PRIMARY KEY",
+                "image_url": "STRING",
+                # The instance hosting the picture, which the federated
+                # catalogue draws from.
+                "instance": "STRING",
+                "is_pano": "BOOL",
+                "license": "STRING",
+                "sequence": "STRING",
+                "sequence_index": "UBIGINT",
+                "thumb_large_url": "STRING",
+                "thumb_url": "STRING",
+                "uploaded_at": "TIMESTAMPTZ",
+            },
+            "init": [],
+        },
         "local": {
             "schema": {
                 "image": "UUID PRIMARY KEY",
@@ -142,7 +203,7 @@ class Project:
             },
             "init": [],
         },
-        # TODO: KartaView and Amsterdam tables
+        # TODO: Amsterdam table
     }
 
     def __init__(
@@ -698,42 +759,32 @@ class Project:
 
         return self.add_images(image_data, exif_data, overwrite)
 
-    def ingest_mapillary(self, df: DataFrame, table: str = "mapillary"):
-        """Ingest a DataFrame of Mapillary metadata."""
-        # Convert times as milliseconds since the epoch
-        # (UTC) to tz aware timestamp
-        if df.get("captured_at") is not None:
-            df["captured_at"] = pd.to_datetime(
-                pd.to_numeric(df["captured_at"], errors="coerce"), unit="ms", utc=True
-            )
+    def ingest_metadata(self, df: DataFrame, table: str):
+        """Ingest a DataFrame of image metadata into a source table.
 
-        # Ensure that that the camera_parameters column is a list of floats
-        if df.get("camera_parameters") is not None:
-            df["camera_parameters"] = df["camera_parameters"].apply(
-                lambda params: (
-                    [float(params)]
-                    if isinstance(params, int | float)
-                    else list(map(float, params))
-                )
-            )
+        The DataFrame is expected to have been produced and validated by the
+        source's client (`fetch_metadata_bbox`), so that its columns mirror the
+        table's schema.
 
-        df.insert(loc=0, column="uuid", value=None)
+        Args:
+            df: Validated image metadata.
+            table: The table to ingest into (e.g. 'mapillary', 'kartaview').
+        """
+        if df.empty:
+            return None
 
-        expected_colcount = len(self.core_tables["mapillary"]["schema"])
-        if df.columns.size != expected_colcount:
-            msg = (
-                "Missing columns in image. Skipping..."
-                f"Image is available at {df.get('thumb_2048_url')}"
-            )
-            logger.error(msg)
+        unknown = set(df.columns) - set(self.schema(table))
+        if unknown:
+            logger.error(f"Unknown columns for table '{table}': {sorted(unknown)}")
             return None
 
         self._con.con.register("metadata_tile", df)
 
         # TODO: consider configurable duplicate behaviour (REPLACE or IGNORE)
-        # TODO do not depend of order in df columns, but used named columns in SQL query
         try:
-            self._con.raw_sql(f"INSERT OR IGNORE INTO {table} FROM metadata_tile")
+            self._con.raw_sql(
+                f"INSERT OR IGNORE INTO {table} BY NAME SELECT * FROM metadata_tile"
+            )
         except Exception as err:
             if "Conversion Error" in str(err):
                 logger.error("Failed to insert data into table.")
@@ -823,32 +874,36 @@ class Project:
             logger.error(f"Error updating table '{table}': {e}")
 
     # TODO: could generalize to "get_records(table, columns, include='missing')"
-    def get_mapillary_download_records(
+    def get_download_records(
         self,
+        source: str,
+        url_column: str,
         skip_existing: bool = True,
     ) -> list[tuple[Any, ...]]:
-        """Return list of (id, url, location) for Mapillary images to download.
+        """Return the records of a source's images that can be downloaded.
 
         Args:
+            source: The source table (e.g. 'mapillary', 'kartaview').
+            url_column: The column of `source` holding the image download URL.
             skip_existing: Skip images that have already been downloaded.
 
         Returns:
-            A list of tuples constaining the images to download.
+            A list of (image, id, url, shard, location, is_pano) tuples
+            describing the images to download.
         """
         keys = {
             "image": "image",
             "id": "id",
-            "url": "thumb_2048_url",
+            "url": url_column,
             "shard": "shard",
             "location": "geometry",
             "is_pano": "is_pano",
-            "camera_type": "camera_type",
         }
-        t_map = self.table("mapillary")
+        t_map = self.table(source)
         t_img = self.table("images")
         if t_img is None or t_map is None:
             raise ValueError(
-                "Required tables 'mapillary' and 'images' "
+                f"Required tables '{source}' and 'images' "
                 "are not present in the database."
             )
         t = t_map.outer_join(t_img, t_map.image == t_img.uuid)

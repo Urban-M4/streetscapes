@@ -5,14 +5,17 @@ Usage:
 """
 
 import logging
+from typing import TYPE_CHECKING, Annotated
 
-import typer
-from cyclopts import App
+from cyclopts import App, Parameter
 from rich.progress import track
 
 from streetscapes import CFG
 from streetscapes.cli.console import console
 from streetscapes.utils.geo import Bbox, split_bbox
+
+if TYPE_CHECKING:
+    from streetscapes.project import Project
 
 logger = logging.getLogger(__name__)
 
@@ -25,21 +28,25 @@ def mapillary(
     /,
     *,
     tile_size: float = 0.001,
-    limit: int = 1000,
+    images_per_tile: int = 1000,
+    pano_only: Annotated[bool, Parameter(negative="")] = False,
+    daytime_only: Annotated[bool, Parameter(negative="")] = False,
     token: str | None = None,
     project: str | None = None,
 ):
     """Fetch metadata from the Mapillary API.
 
     Args:
-        bbox: Bounding box (WEST EAST SOUTH NORTH).
+        bbox: Bounding box (WEST SOUTH EAST NORTH).
         tile_size: Tile size in degrees.
-        limit: Maximum number of images per tile.
+        images_per_tile: Maximum number of images per tile.
+        pano_only: Only fetch panoramic images.
+        daytime_only: Only keep images captured with the sun at least 2° above
+            the horizon. The API cannot filter on this, so the per-tile limit
+            applies before the other images are dropped.
         token: Mapillary OAuth token (if not set via MAPILLARY_TOKEN).
         project: An optional project to attach to.
     """
-    import ibis
-
     from streetscapes.project import Project
     from streetscapes.sources.mapillary import MapillaryClient
 
@@ -51,7 +58,7 @@ def mapillary(
             "Error: 'mapillary_token' missing, set with `streetscapes config set"
             " mapillary_token <your token>`"
         )
-        raise typer.Exit(code=1)
+        raise SystemExit(1)
 
     m = MapillaryClient(token)
     proj = Project(project)
@@ -61,17 +68,142 @@ def mapillary(
     for tile, _tile_id in track(
         tiles, description="Fetching tiles", total=ntiles, console=console
     ):
-        df = m.fetch_metadata_bbox(tile, limit)
+        df = m.fetch_metadata_bbox(tile, images_per_tile, pano_only, daytime_only)
 
         # TODO: maybe this failsafe/optimization is not necessary?
         if len(df) == 0:
             continue
 
-        proj.ingest_mapillary(df)
+        proj.ingest_metadata(df, "mapillary")
 
-    # Inform user about result
+    _report(proj, "mapillary", bbox)
+
+
+@fetch_metadata_cli.command(name="kartaview")
+def kartaview(
+    bbox: Bbox,
+    /,
+    *,
+    image_limit: int = 1000,
+    pano_only: Annotated[bool, Parameter(negative="")] = False,
+    daytime_only: Annotated[bool, Parameter(negative="")] = False,
+    token: str | None = None,
+    project: str | None = None,
+):
+    """Fetch metadata from the KartaView API.
+
+    Args:
+        bbox: Bounding box (WEST SOUTH EAST NORTH).
+        image_limit: Maximum number of images to fetch (0 for no limit).
+        pano_only: Only fetch panoramic images. The API cannot filter on this,
+            so the whole listing may be paged through to find them.
+        daytime_only: Only fetch images captured with the sun at least 2° above
+            the horizon. The API cannot filter on this, so the whole listing may
+            be paged through to find them. Note that KartaView's capture
+            timestamps are known to be unreliable, so this filter may keep
+            night-time images or drop daytime ones.
+        token: KartaView access token (if not set via KARTAVIEW_TOKEN). Not
+            required, but raises the rate limit from 100 to 1000 requests/hour.
+        project: An optional project to attach to.
+    """
+    from streetscapes.project import Project
+    from streetscapes.sources.kartaview import KartaViewClient, KartaViewError
+
+    logger.info(f"Fetching metadata for {bbox=}")
+
+    client = KartaViewClient(token or CFG.kartaview_token)
+    proj = Project(project)
+
+    try:
+        with console.status("Fetching images..."):
+            df = client.fetch_metadata_bbox(bbox, image_limit, pano_only, daytime_only)
+    except KartaViewError as err:
+        logger.error(str(err))
+        raise SystemExit(1) from err
+
+    logger.info(f"Fetched metadata for {len(df)} images.")
+    proj.ingest_metadata(df, "kartaview")
+
+    _report(proj, "kartaview", bbox)
+
+
+@fetch_metadata_cli.command(name="panoramax")
+def panoramax(
+    bbox: Bbox,
+    /,
+    *,
+    tile_size: float = 0.05,
+    images_per_tile: int = 1000,
+    pano_only: Annotated[bool, Parameter(negative="")] = False,
+    daytime_only: Annotated[bool, Parameter(negative="")] = False,
+    instance: str | None = None,
+    project: str | None = None,
+):
+    """Fetch metadata from the Panoramax API.
+
+    Queries the federated catalogue by default, which indexes every Panoramax
+    instance taking part in the federation, so one query covers them all. Pass
+    `--instance` to search a single instance instead.
+
+    The API returns no more than 32767 images per request and offers no paging,
+    so the bounding box is split into tiles, as it is for Mapillary. Panoramax
+    tiles can be much larger than Mapillary's, as its limit is far higher.
+
+    Args:
+        bbox: Bounding box (WEST SOUTH EAST NORTH).
+        tile_size: Tile size in degrees.
+        images_per_tile: Maximum number of images per tile (at most 32767, which is
+            also what 0 means: the most the API will return).
+        pano_only: Only fetch panoramic images. Not every instance can filter
+            on this itself, so there the per-tile limit applies before the
+            non-pano images are dropped.
+        daytime_only: Only keep images captured with the sun at least 2° above
+            the horizon. The API cannot filter on this, so the per-tile limit
+            applies before the other images are dropped.
+        instance: A single Panoramax instance to query, such as
+            'https://panoramax.openstreetmap.fr'. Defaults to the federated
+            catalogue.
+        project: An optional project to attach to.
+    """
+    from streetscapes.project import Project
+    from streetscapes.sources.panoramax import (
+        FEDERATED_CATALOGUE,
+        PanoramaxClient,
+        PanoramaxError,
+    )
+
+    logger.info(f"Fetching metadata for {bbox=}")
+
+    client = PanoramaxClient(instance or FEDERATED_CATALOGUE)
+    proj = Project(project)
+
+    ntiles, tiles = split_bbox(bbox, tile_size)
+    logger.info(f"Splitting bbox in {ntiles} tiles with {tile_size=}")
+    try:
+        for tile, _tile_id in track(
+            tiles, description="Fetching tiles", total=ntiles, console=console
+        ):
+            df = client.fetch_metadata_bbox(
+                tile, images_per_tile, pano_only, daytime_only
+            )
+
+            if len(df) == 0:
+                continue
+
+            proj.ingest_metadata(df, "panoramax")
+    except PanoramaxError as err:
+        logger.error(str(err))
+        raise SystemExit(1) from err
+
+    _report(proj, "panoramax", bbox)
+
+
+def _report(proj: "Project", table: str, bbox: Bbox):
+    """Show the user what ended up in the table for the requested bounding box."""
+    import ibis
+
     ibis.options.interactive = True
-    filtered = proj.filter_bbox("mapillary", bbox)
+    filtered = proj.filter_bbox(table, bbox)
     logger.info(f"Total images in bbox: {filtered.count().execute()}, first 5 rows:")
     console.print(filtered.limit(5))  # console print gives nicer table than logger
     logger.info("Ready.")

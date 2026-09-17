@@ -24,6 +24,7 @@ dependencies = [
     "pandas",
     "pillow>=11.3.0",
     "pyarrow",
+    "pydantic",
     "pydantic-settings",
     "pygeohash>=3.2.0",
     "pyproj",
@@ -42,6 +43,7 @@ dependencies = [
     "transformers",
     "uuid7gen",
     "typer>=0.23.0",
+    "ephem>=4.2.1",
 ]
 authors = [
     { name = "Claire Donnelly", email = "c.donnelly@esciencecenter.nl" },

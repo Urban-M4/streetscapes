@@ -45,6 +45,7 @@ streetscapes config list
 │ image_dir            │ /<current user>/.cache/streetscapes                    │
 │ active_project       │ streetscapes                                           │
 │ mapillary_token      │ MLY|00000000000000000|00000000000000000000000000000000 │
+│ kartaview_token      │                                                        │
 │ local_cache_dir_name │ local                                                  │
 │ sam3_model_path      │ /<SAM3 model dir>/sam3.pt                              │
 └──────────────────────┴────────────────────────────────────────────────────────┘
@@ -54,10 +55,12 @@ The `project_dir` directory is where Streetscapes will be storing its projects, 
 
 ## Downloading images
 
-The Streetscapes CLI supports downloading images from [Mapillary](https://www.mapillary.com/) ([KartaView](https://kartaview.org/landing) and the [Amsterdam](https://api.data.amsterdam.nl/) collection are currently not yet supported). The available options can be displayed with the `--help` option via the subcommand for Mapillary:
+The Streetscapes CLI supports downloading images from [Mapillary](https://www.mapillary.com/), [KartaView](https://kartaview.org/landing) and [Panoramax](https://panoramax.fr/) (the [Amsterdam](https://api.data.amsterdam.nl/) collection is currently not yet supported). All three follow the same two steps — fetch the metadata for a bounding box, then download the images it describes. The available options can be displayed with the `--help` option via the subcommand for each source.
+
+### Mapillary
 
 For Mapillary, we first need to fetch image metadata. For this you will need to define a spatial bounding box.
-Some areas have enormous amounts of images available. To only get a certain number of images per spatial "tile", set the `--limit` argument.
+Some areas have enormous amounts of images available. To only get a certain number of images per spatial "tile", set the `--images-per-tile` argument.
 
 Note that a [token](https://www.mapillary.com/developer/api-documentation/) is needed to use the Mapillary API.
 Register on Mapillary, and register your token with `streetscapes config set mapillary_token YOUR_TOKEN`.
@@ -72,13 +75,18 @@ Usage: streetscapes fetch-metadata mapillary [OPTIONS] BBOX
 Fetch metadata from the Mapillary API.
 
 ╭─ Arguments ────────────────────────────────────────────────────────────────────╮
-│ *  BBOX  Bounding box (WEST EAST SOUTH NORTH). [required]                      │
+│ *  BBOX  Bounding box (WEST SOUTH EAST NORTH). [required]                      │
 ╰────────────────────────────────────────────────────────────────────────────────╯
 ╭─ Parameters ───────────────────────────────────────────────────────────────────╮
-│ --tile-size  Tile size in degrees. [default: 0.001]                            │
-│ --limit      Maximum number of images per tile. [default: 1000]                │
-│ --token      Mapillary OAuth token (if not set via MAPILLARY_TOKEN).           │
-│ --project    An optional project to attach to.                                 │
+│ --tile-size        Tile size in degrees. [default: 0.001]                      │
+│ --images-per-tile  Maximum number of images per tile. [default: 1000]          │
+│ --pano-only        Only fetch panoramic images. [default: False]               │
+│ --daytime-only     Only keep images captured with the sun at least 2° above    │
+│                    the horizon. The API cannot filter on this, so the per-tile │
+│                    limit applies before the other images are dropped.          │
+│                    [default: False]                                            │
+│ --token            Mapillary OAuth token (if not set via MAPILLARY_TOKEN).     │
+│ --project          An optional project to attach to.                           │
 ╰────────────────────────────────────────────────────────────────────────────────╯
 ```
 
@@ -103,6 +111,162 @@ Download Mapillary images to a local directory.
 │                       MAPILLARY_TOKEN).                                      │
 │ --project             An optional project to attach to.                      │
 ╰──────────────────────────────────────────────────────────────────────────────╯
+```
+
+### KartaView
+
+KartaView works the same way, but needs no token, and its API pages through a
+bounding box of any size, so there is no tiling and `--image-limit` caps the number
+of images for the whole bounding box (use `--image-limit 0` to fetch all of them).
+
+A token is optional, but raises the rate limit from 100 to 1000 requests per hour.
+Register it with `streetscapes config set kartaview_token YOUR_TOKEN` (or pass
+`--token`, or set `KARTAVIEW_TOKEN`). For instructions on how to retreive a token,
+see the [section below](#kartaview-token).
+
+```bash
+streetscapes fetch-metadata kartaview --help
+```
+
+```bash
+Usage: streetscapes fetch-metadata kartaview [OPTIONS] BBOX
+
+Fetch metadata from the KartaView API.
+
+╭─ Arguments ────────────────────────────────────────────────────────────────────╮
+│ *  BBOX  Bounding box (WEST SOUTH EAST NORTH). [required]                      │
+╰────────────────────────────────────────────────────────────────────────────────╯
+╭─ Parameters ───────────────────────────────────────────────────────────────────╮
+│ --image-limit   Maximum number of images to fetch (0 for no limit). [default:  │
+│                 1000]                                                          │
+│ --pano-only     Only fetch panoramic images. The API cannot filter on this, so │
+│                 the whole listing may be paged through to find them. [default: │
+│                 False]                                                         │
+│ --daytime-only  Only fetch images captured with the sun at least 2° above the  │
+│                 horizon. The API cannot filter on this, so the whole listing   │
+│                 may be paged through to find them. Note that KartaView's       │
+│                 capture timestamps are known to be unreliable, so this filter  │
+│                 may keep night-time images or drop daytime ones. [default:     │
+│                 False]                                                         │
+│ --token         KartaView access token (if not set via KARTAVIEW_TOKEN). Not   │
+│                 required, but raises the rate limit from 100 to 1000           │
+│                 requests/hour.                                                 │
+│ --project       An optional project to attach to.                              │
+╰────────────────────────────────────────────────────────────────────────────────╯
+```
+
+The images are then downloaded in the same way:
+
+```bash
+streetscapes download-images kartaview
+```
+
+KartaView serves its images at full resolution, which for recent cameras means 4K.
+Segmenting those needs a correspondingly large amount of memory, because the models
+scale their masks back up to the size of the image they were given — so on a machine
+with limited RAM, segment KartaView images in small batches (`--batch-size 1`).
+
+#### KartaView Token
+
+It's easiest to get a token through OpenStreetMap. First register and login at
+openstreetmap.org. Next register the kartaview API at:
+
+openstreetmap.org → Settings → OAuth 2 applications → Register new application:
+
+- As redirect URI enter: `urn:ietf:wg:oauth:2.0:oob`
+- Check Read user preferences (read_prefs)
+
+Save, and you get a client ID and client secret.
+
+To get an authorization code, open this in a browser and approve:
+
+```
+https://www.openstreetmap.org/oauth2/authorize?client_id=YOUR_CLIENT_ID&redirect_uri=urn:ietf:wg:oauth:2.0:oob&response_type=code&scope=read_prefs
+```
+
+OSM displays a code on the page. Copy it. Trade this third code for an OSM token,
+together with the client id and client secret from the openstreetmaps.org
+application registration:
+
+```bash
+curl -X POST https://www.openstreetmap.org/oauth2/token \
+  -d code=THE_THIRD_CODE \
+  -d client_id=YOUR_CLIENT_ID \
+  -d client_secret=YOUR_CLIENT_SECRET \
+  -d redirect_uri=urn:ietf:wg:oauth:2.0:oob \
+  -d grant_type=authorization_code
+```
+
+Finally, trade that for a KartaView token with:
+
+```bash
+curl -X POST https://api.openstreetcam.org/auth/openstreetmap/client_auth \
+  --data-raw 'request_token=OSM_ACCESS_TOKEN&secret_token=undefined'
+```
+The access_token in the response is what you want.
+
+### Panoramax
+
+Panoramax is federated: rather than one central server, it is a network of
+instances that each host their own pictures. Streetscapes queries the
+[federated catalogue](https://docs.panoramax.fr/federated-catalog/) by default,
+which indexes every instance taking part. Pass `--instance` to search just one
+instance, or one that is not federated:
+
+```bash
+streetscapes fetch-metadata panoramax 2.34 48.856 2.345 48.86 \
+    --instance https://panoramax.openstreetmap.fr
+```
+
+No token is needed for downloading the images.
+As for Mapillary, the bounding box is split into tiles and
+`--images-per-tile` caps the images fetched per tile — but Panoramax returns up to
+32767 images per request against Mapillary's ~2000, so its tiles can be far
+larger before running into problems.
+
+```bash
+streetscapes fetch-metadata panoramax --help
+```
+
+```bash
+Usage: streetscapes fetch-metadata panoramax [OPTIONS] BBOX
+
+Fetch metadata from the Panoramax API.
+
+Queries the federated catalogue by default, which indexes every Panoramax instance
+taking part in the federation, so one query covers them all. Pass --instance to
+search a single instance instead.
+
+The API returns no more than 32767 images per request and offers no paging, so the
+bounding box is split into tiles, as it is for Mapillary. Panoramax tiles can be
+much larger than Mapillary's, as its limit is far higher.
+
+╭─ Arguments ────────────────────────────────────────────────────────────────────╮
+│ *  BBOX  Bounding box (WEST SOUTH EAST NORTH). [required]                      │
+╰────────────────────────────────────────────────────────────────────────────────╯
+╭─ Parameters ───────────────────────────────────────────────────────────────────╮
+│ --tile-size        Tile size in degrees. [default: 0.05]                       │
+│ --images-per-tile  Maximum number of images per tile (at most 32767, which is  │
+│                    also what 0 means: the most the API will return). [default: │
+│                    1000]                                                       │
+│ --pano-only        Only fetch panoramic images. Not every instance can filter  │
+│                    on this itself, so there the per-tile limit applies before  │
+│                    the non-pano images are dropped. [default: False]           │
+│ --daytime-only     Only keep images captured with the sun at least 2° above    │
+│                    the horizon. The API cannot filter on this, so the per-tile │
+│                    limit applies before the other images are dropped.          │
+│                    [default: False]                                            │
+│ --instance         A single Panoramax instance to query, such as               │
+│                    'https://panoramax.openstreetmap.fr'. Defaults to the       │
+│                    federated catalogue.                                        │
+│ --project          An optional project to attach to.                           │
+╰────────────────────────────────────────────────────────────────────────────────╯
+```
+
+Downloading is straightforward with the following command:
+
+```bash
+streetscapes download-images panoramax
 ```
 
 ## Segmenting images

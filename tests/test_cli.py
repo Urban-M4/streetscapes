@@ -43,17 +43,59 @@ class TestCLIHelp:
     def test_fetch_metadata_help(self):
         result = run_cli("streetscapes fetch-metadata --help")
         assert "mapillary" in result
+        assert "kartaview" in result
+        assert "panoramax" in result
 
     def test_fetch_metadata_mapillary_help(self):
         result = run_cli("streetscapes fetch-metadata mapillary --help")
         assert "BBOX" in result
         assert "--tile-size" in result
-        assert "--limit" in result
+        assert "--images-per-tile" in result
+        assert "--pano-only" in result
+        assert "--daytime-only" in result
+
+    def test_fetch_metadata_kartaview_help(self):
+        result = run_cli("streetscapes fetch-metadata kartaview --help")
+        assert "BBOX" in result
+        assert "--image-limit" in result
+        assert "--pano-only" in result
+        assert "--daytime-only" in result
+        # The limit is for the whole bounding box, not per tile.
+        assert "--images-per-tile" not in result
+
+    def test_fetch_metadata_panoramax_help(self):
+        result = run_cli("streetscapes fetch-metadata panoramax --help")
+        assert "BBOX" in result
+        assert "--tile-size" in result
+        assert "--images-per-tile" in result
+        assert "--instance" in result
+        assert "--pano-only" in result
+        assert "--daytime-only" in result
+
+    def test_download_images_help(self):
+        result = run_cli("streetscapes download-images --help")
+        assert "mapillary" in result
+        assert "kartaview" in result
+        assert "panoramax" in result
 
     def test_download_images_mapillary_help(self):
         result = run_cli("streetscapes download-images mapillary --help")
         assert "--skip-existing" in result
         assert "--token" in result
+
+    def test_download_images_kartaview_help(self):
+        result = run_cli("streetscapes download-images kartaview --help")
+        assert "--skip-existing" in result
+        # KartaView needs no authentication, but a token raises the rate limit.
+        assert "--token" in result
+
+    def test_download_images_panoramax_help(self):
+        result = run_cli("streetscapes download-images panoramax --help")
+        assert "--skip-existing" in result
+        # Panoramax needs no authentication, and the instance to download from
+        # is whichever one the metadata came from.
+        assert "--token" not in result
+        assert "--instance" not in result
 
     def test_export_help(self):
         result = run_cli("streetscapes export --help")

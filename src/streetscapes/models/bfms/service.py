@@ -1,18 +1,21 @@
 """BFMS segmentation service."""
 
+import imageio.v3 as iio
+import numpy as np
+import shapely
 from pydantic import BaseModel
-from ray import cloudpickle
 
 from streetscapes.models.bfms.model import BFMS
+from streetscapes.utils.masks import mask2poly
 
 
 class BFMSRequest(BaseModel):
-    image: bytes  # cloudpickled numpy array
+    image: bytes  # encoded image file (e.g. JPEG)
 
 
 class BFMSResponse(BaseModel):
     labels: list[str]  # Instance labels
-    instances: bytes  # cloudpickled numpy array
+    polygons: bytes  # WKB-encoded shapely GeometryCollection
 
 
 class BFMSService:
@@ -33,12 +36,15 @@ class BFMSService:
         """Run a segmentation request."""
         req = BFMSRequest(**request)
 
-        image = cloudpickle.loads(req.image)
+        image = np.asarray(iio.imread(req.image))
         result = self.model.segment(image)
+
+        # Convert masks to polygons here to avoid (de)serializing the masks.
+        polygons = mask2poly(result["instances"], model="bfms", image=image)
 
         response = BFMSResponse(
             labels=result["labels"],
-            instances=cloudpickle.dumps(result["instances"]),
+            polygons=shapely.to_wkb(polygons),
         )
 
         return response

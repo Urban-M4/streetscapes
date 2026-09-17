@@ -30,7 +30,72 @@ streetscapes fetch-metadata mapillary \
 * `bbox`: Bounding box `[west, south, east, north]` to fetch images from.
 * `tile-size`: Optional tiling of the bounding box (default 0.01°).
 * `output-file`: Path to save the GeoParquet manifest.
+* `pano-only`: Only fetch panoramic images. The API filters on `is_pano` itself, so
+  `images-per-tile` counts panoramas only.
+* `daytime-only`: Only keep images captured with the sun at least 2° above the
+  horizon, so that their colours are those of the scene rather than of dusk. The
+  API cannot filter on this, so `images-per-tile` applies before the images captured
+  after dark are dropped.
 * `token`: OAuth token for Mapillary API.
+
+### KartaView
+
+```bash
+streetscapes fetch-metadata kartaview \
+    W S E N \
+    --image-limit 1000
+```
+
+* `bbox`: Bounding box `[west, south, east, north]` to fetch images from.
+* `image-limit`: Maximum number of images to fetch for the bounding box (`0` for
+  no limit). The KartaView API pages through a bounding box of any size, so there
+  is no tiling, and the limit is not per tile as it is for Mapillary.
+* `pano-only`: Only fetch panoramic images, i.e. those whose `projection` is not
+  `PLANE`. The API cannot filter on this, so the listing is filtered as it comes
+  in and paged through until `image-limit` panoramas are found — in an area with
+  few of them, that can mean listing the whole bounding box.
+* `daytime-only`: Only fetch images captured with the sun at least 2° above the
+  horizon. The listing reports both the position and the capture time, so this is
+  filtered as the listing comes in, like `pano-only`, and `image-limit` counts
+  the images captured in daylight. Note that KartaView's capture timestamps are
+  known to be unreliable, so this filter may keep night-time images or drop
+  daytime ones.
+
+No token is required. Metadata is collected in two steps, as no single public
+endpoint both covers a bounding box and returns complete records: the photos in
+the box are listed first, then their full records are fetched in batches by ID.
+
+### Panoramax
+
+```bash
+streetscapes fetch-metadata panoramax \
+    W S E N \
+    --tile-size 0.05 \
+    --images-per-tile 1000 \
+    --instance https://panoramax.openstreetmap.fr
+```
+
+* `bbox`: Bounding box `[west, south, east, north]` to fetch images from.
+* `tile-size`: Tiling of the bounding box, in degrees (default 0.05°). Tiles can
+  be much larger than Mapillary's, as Panoramax returns far more per request.
+* `images-per-tile`: Maximum number of images per tile, at most 32767 — which is also
+  what `0` means, the most the API will return.
+* `instance`: A single Panoramax instance to query. Optional — defaults to the
+  federated catalogue.
+* `pano-only`: Only fetch panoramic images, i.e. those with a 360° field of view.
+  The federated catalogue filters on this itself, but single instances reject the
+  filter, so with `--instance` the results are filtered afterwards and
+  `images-per-tile` applies before the other images are dropped.
+* `daytime-only`: Only keep images captured with the sun at least 2° above the
+  horizon. No instance can filter on this, so the results are filtered afterwards
+  and `images-per-tile` applies before the images captured after dark are dropped.
+
+No token is required. Panoramax is a federation of instances rather than one
+server, so by default the [federated catalogue](https://docs.panoramax.fr/federated-catalog/)
+at `https://api.panoramax.xyz` is queried, which indexes every participating
+instance; `--instance` restricts the search to one of them, or reaches one that is
+not federated. The search endpoint is STAC and offers no paging, so 32767 images is
+the most one request can yield; a fetch that hits the limit says so.
 
 ### Amsterdam Panorama
 
@@ -65,6 +130,30 @@ streetscapes download-images mapillary \
 * `overwrite`: Whether to overwrite existing images.
 * `token`: OAuth token for Mapillary API.
 
+### KartaView
+
+```bash
+streetscapes download-images kartaview \
+    --skip-existing
+```
+
+* `skip-existing`: Only download the images that are missing.
+
+Images are downloaded at full resolution, which for recent cameras means 4K.
+
+### Panoramax
+
+```bash
+streetscapes download-images panoramax \
+    --skip-existing
+```
+
+* `skip-existing`: Only download the images that are missing.
+
+No instance is given here: each picture is downloaded from whichever instance
+hosts it, which is recorded in the `instance` column when the metadata is fetched.
+Much of Panoramax is 360° imagery at up to 8000×4000.
+
 ### Amsterdam Panorama
 
 ```bash
@@ -82,7 +171,7 @@ streetscapes download-images amsterdam \
 
 ## Implementation Notes
 
-* **Sources**: Raw sources (Mapillary, KartaView) and derived datasets (e.g., global streetscapes metadata) implement `fetch_metadata` and provide a standardized manifest writer.
+* **Sources**: Raw sources (Mapillary, KartaView, Panoramax) and derived datasets (e.g., global streetscapes metadata) implement `fetch_metadata` and provide a standardized manifest writer.
 * **Manifest Writer**: `PyArrowGeoParquetWriter` ensures output manifests are compatible with spatial operations.
 * **Transparency**: Each CLI call is fully self-contained; there are no hidden global states or complicated initialization chains.
 * **Extensible**: New sources can be added by implementing `fetch_metadata` and optionally a downloader. The CLI can then expose them as a separate subcommand.

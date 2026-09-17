@@ -5,15 +5,12 @@ import logging
 from itertools import batched
 from typing import Annotated, cast
 
-import imageio.v3 as iio
-import numpy as np
+import shapely
 from cyclopts import Parameter
-from ray import cloudpickle
 
 from streetscapes import CFG, utils
 from streetscapes.project import Project
 from streetscapes.serve.server import serve_model
-from streetscapes.utils.masks import mask2poly
 
 logger = logging.getLogger(__name__)
 
@@ -105,7 +102,7 @@ def cli(
     logger.info(f"Segmenting {len(unprocessed)} images using {model}...")
     batches = list(batched(unprocessed, batch_size))
     for batch_idx, batch in enumerate(batches, 1):
-        # Extract the paths and open the images as NumPy arrays.
+        # Read the encoded image files; decoding happens in the worker.
         request = {
             "images": [],
             "prompt": prompt,
@@ -114,7 +111,7 @@ def cli(
             path, _ = unprocessed[uid]
             img_data = {
                 "uid": uid,
-                "image": cloudpickle.dumps(np.asarray(iio.imread(path))),
+                "image": path.read_bytes(),
             }
             request["images"].append(img_data)  # type: ignore[attr-defined]
 
@@ -126,14 +123,13 @@ def cli(
         # Save the instances.
         segmentations = []
         for response in responses:
-            instances = cloudpickle.loads(response.instances)
             segmentations.append(
                 {
                     "run": run,
                     "image": response.uid,
                     "labels": response.labels,
                     "confidences": response.confidences,
-                    "polygons": mask2poly(instances, model="dinosam"),
+                    "polygons": shapely.from_wkb(response.polygons),
                 }
             )
 
