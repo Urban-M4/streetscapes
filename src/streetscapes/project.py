@@ -732,7 +732,7 @@ class Project:
         ti = self.table("images")
 
         # Iterate over all images and copy them to the local directory.
-        # Any EXIF metadata in the images themselves can be used to
+        # Any EXIF or XMP metadata in the images themselves can be used to
         # populate the `local` table.
         for ip in track(image_paths, description="Adding local images..."):
             uid = utils.get_image_uuid(ip)
@@ -755,6 +755,8 @@ class Project:
             exif = utils.extract_exif_data(ip)
             exif["captured_at"] = exif["timestamp"]
             exif["image"] = uid
+            # Only XMP metadata says whether an image is a panorama.
+            exif["is_pano"] = utils.is_panoramic(ip)
             exif_data.append(exif)
 
         return self.add_images(image_data, exif_data, overwrite)

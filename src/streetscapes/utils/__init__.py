@@ -22,6 +22,7 @@ from streetscapes.utils.uuids import (
     hash2uuid,
     uuid7,
 )
+from streetscapes.utils.xmp import find_xmp_packet, is_panoramic, parse_gpano_properties
 
 __all__ = [
     "logger",
@@ -30,6 +31,7 @@ __all__ = [
     "ensure_dir",
     "extract_exif_data",
     "filter_files",
+    "find_xmp_packet",
     "get_env",
     "get_geohash_shard_path",
     "get_image_hash",
@@ -38,10 +40,12 @@ __all__ = [
     "get_image_uuid",
     "hash2uuid",
     "hide_home",
+    "is_panoramic",
     "iso_timestamp",
     "make_colourmap",
     "make_path",
     "open_image",
+    "parse_gpano_properties",
     "plot_metadata",
     "show_dir_tree",
     "uuid7",
