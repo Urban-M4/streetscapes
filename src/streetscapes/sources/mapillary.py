@@ -1,16 +1,22 @@
 """Mapillary related functionality."""
 
 import logging
+import threading
 from time import sleep
 from typing import TYPE_CHECKING, Any
 
 import geopandas as gpd
 import pandas as pd
 import requests
-from pydantic import BaseModel, ConfigDict, ValidationError
+from pydantic import BaseModel, ConfigDict, ValidationError, field_validator
 
 from streetscapes.project import Project
-from streetscapes.sources.common import download_image, keep_daytime
+from streetscapes.sources.common import (
+    RateLimiter,
+    concurrent_map,
+    download_image,
+    keep_daytime,
+)
 from streetscapes.utils.db_types import (
     EpochMs,
     FloatList,
@@ -22,12 +28,16 @@ from streetscapes.utils.db_types import (
 
 if TYPE_CHECKING:
     import uuid
+    from collections.abc import Iterable, Iterator
     from pathlib import Path
 
     from streetscapes.utils.geo import Bbox
     from streetscapes.utils.metadata import ImageMeta
 
 logger = logging.getLogger(__name__)
+
+# The API allows 10,000 bounding box requests per minute (per token)
+RATE_LIMIT_PER_MINUTE = 10_000
 
 
 class MapillaryImage(BaseModel):
@@ -69,6 +79,21 @@ class MapillaryImage(BaseModel):
     thumb_original_url: UrlString | None = None
     width: UBigInt | None = None
     camera_parameters: FloatList | None = None
+
+    @field_validator(
+        "thumb_256_url", "thumb_1024_url", "thumb_2048_url", "thumb_original_url"
+    )
+    @classmethod
+    def reject_placeholder_url(cls, value: str | None) -> str | None:
+        """Reject the placeholder URL, which never points at a real image.
+        
+        Some images turn out to have placeholder URLs which messes with
+        image downloading.
+        """
+        if value == "https://example.com/a.jpg":
+            msg = f"URL must not be {"https://example.com/a.jpg"}"
+            raise ValueError(msg)
+        return value
 
     @classmethod
     def api_fields(cls) -> list[str]:
@@ -145,6 +170,11 @@ class MapillaryClient:
         ) -> gpd.GeoDataFrame
             Fetch metadata for a bounding box and return as a GeoDataFrame
             with CRS EPSG:4326.
+        fetch_metadata_tiles(
+            tiles: Iterable[tuple[float, float, float, float]], limit: int = 1000
+        ) -> Iterator[pd.DataFrame]
+            Fetch metadata for many bounding boxes at once, yielding a
+            DataFrame per bounding box.
     """
 
     BASE_URL = "https://graph.mapillary.com/images"
@@ -153,15 +183,30 @@ class MapillaryClient:
     def __init__(self, token: str, retries: int = 3):
         """Instantiate the client.
 
+        The client is safe to use from several threads at once: each thread
+        gets its own session, and they share a limiter that keeps their
+        requests within the API's rate limit.
+
         Args:
             token : str
                 Mapillary OAuth token.
             retries : int, optional
                 Number of request retries on failure (default is 3).
         """
-        self.session = requests.Session()
-        self.session.headers.update({"Authorization": f"OAuth {token}"})
+        self.token = token
         self.retries = retries
+        self.limiter = RateLimiter(RATE_LIMIT_PER_MINUTE)
+        self._sessions = threading.local()
+
+    @property
+    def session(self) -> requests.Session:
+        """The calling thread's session (a session is not thread-safe)."""
+        session = getattr(self._sessions, "session", None)
+        if session is None:
+            session = requests.Session()
+            session.headers.update({"Authorization": f"OAuth {self.token}"})
+            self._sessions.session = session
+        return session
 
     @property
     def db_fields(self) -> dict:
@@ -222,6 +267,7 @@ class MapillaryClient:
             params["is_pano"] = "true"
 
         for attempt in range(self.retries):
+            self.limiter.acquire()
             try:
                 res = self.session.get(self.BASE_URL, params=params, timeout=20)  # type: ignore[arg-type]
                 res.raise_for_status()
@@ -280,6 +326,46 @@ class MapillaryClient:
             return pd.DataFrame(columns=columns)
 
         return pd.DataFrame([image.to_row() for image in images], columns=columns)
+
+    def fetch_metadata_tiles(
+        self,
+        tiles: Iterable[Bbox],
+        limit: int = 1000,
+        pano_only: bool = False,
+        daytime_only: bool = False,
+        workers: int = 16,
+    ) -> Iterator[pd.DataFrame]:
+        """Fetch metadata for a series of bounding boxes, several at a time.
+
+        A single request spends nearly all of its time waiting for the API, so
+        fetching one tile after the other leaves most of the time unused. Tiles
+        are requested concurrently instead, which is what makes covering an
+        area of any size practical.
+
+        The tiles are consumed lazily and only a limited number of requests are
+        in flight at any one time, so `tiles` may be a generator over an area
+        far too large to hold in memory.
+
+        Args:
+            tiles: Bounding boxes, each as (west, south, east, north), such as
+                those produced by `streetscapes.utils.geo.split_bbox`.
+            limit: Maximum number of images to fetch per tile (default 1000).
+            pano_only: Only fetch panoramic images (default False).
+            daytime_only: Only keep images captured with the sun at least
+                2 degrees high, see `fetch_metadata_bbox`.
+            workers: How many tiles to fetch at a time. One fetches them one by
+                one, on the calling thread.
+
+        Yields:
+            One DataFrame per tile, in the order in which the API answers
+            rather than in the order of the tiles. A tile holding no images
+            yields an empty DataFrame, so that every tile is accounted for.
+        """
+
+        def fetch(tile: Bbox) -> pd.DataFrame:
+            return self.fetch_metadata_bbox(tile, limit, pano_only, daytime_only)
+
+        yield from concurrent_map(fetch, tiles, workers)
 
     def fetch_metadata_bbox_gpd(
         self,

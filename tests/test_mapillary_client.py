@@ -1,8 +1,11 @@
+import threading
+
 import pytest
 import requests
 from pydantic import ValidationError
 
 from streetscapes.project import Project
+from streetscapes.sources.common import concurrent_map
 from streetscapes.sources.mapillary import (
     MapillaryClient,
     MapillaryImage,
@@ -51,6 +54,49 @@ def test_fetch_metadata_bbox_empty(fake_mapillary_client, monkeypatch):
 
     assert df.empty
     assert list(df.columns) == list(Project.core_tables["mapillary"]["schema"])
+
+
+@pytest.mark.parametrize("workers", [1, 8])
+def test_fetch_metadata_tiles(fake_mapillary_client, workers):
+    """Every tile is fetched, and yields a DataFrame of its own."""
+    tiles = [(4.89 + i / 100, 52.37, 4.90 + i / 100, 52.38) for i in range(20)]
+
+    frames = list(fake_mapillary_client.fetch_metadata_tiles(tiles, workers=workers))
+
+    schema = list(Project.core_tables["mapillary"]["schema"])
+    assert len(frames) == len(tiles)
+    assert all(list(df.columns) == schema for df in frames)
+
+
+def test_fetch_metadata_tiles_requests_each_tile_once(
+    fake_mapillary_client, monkeypatch
+):
+    requested = []
+    lock = threading.Lock()
+
+    def spy(self, bbox, limit=1000, pano_only=False):
+        with lock:
+            requested.append(bbox)
+        return []
+
+    monkeypatch.setattr(type(fake_mapillary_client), "_fetch_bbox", spy)
+    tiles = [(4.89 + i / 100, 52.37, 4.90 + i / 100, 52.38) for i in range(20)]
+
+    list(fake_mapillary_client.fetch_metadata_tiles(tiles, workers=8))
+
+    assert sorted(requested) == sorted(tiles)
+
+
+def test_each_thread_gets_its_own_session():
+    """A `requests.Session` is not thread-safe, so threads must not share one."""
+    client = MapillaryClient("fake_token")
+    # Held on to, so that no session is collected and its id handed to another.
+    sessions = list(concurrent_map(lambda _: client.session, range(8), workers=8))
+
+    assert len({id(session) for session in sessions}) > 1
+    assert client.session.headers["Authorization"] == "OAuth fake_token"
+    # The same thread keeps the same session, so connections are reused.
+    assert client.session is client.session
 
 
 @pytest.mark.parametrize("pano_only", [False, True])

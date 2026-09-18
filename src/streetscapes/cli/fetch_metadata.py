@@ -31,6 +31,7 @@ def mapillary(
     images_per_tile: int = 1000,
     pano_only: Annotated[bool, Parameter(negative="")] = False,
     daytime_only: Annotated[bool, Parameter(negative="")] = False,
+    workers: int = 16,
     token: str | None = None,
     project: str | None = None,
 ):
@@ -44,6 +45,8 @@ def mapillary(
         daytime_only: Only keep images captured with the sun at least 2° above
             the horizon. The API cannot filter on this, so the per-tile limit
             applies before the other images are dropped.
+        workers: How many tiles to fetch at a time. Fetching several at once
+            is far faster than one by one.
         token: Mapillary OAuth token (if not set via MAPILLARY_TOKEN).
         project: An optional project to attach to.
     """
@@ -65,11 +68,18 @@ def mapillary(
 
     ntiles, tiles = split_bbox(bbox, tile_size)
     logger.info(f"Splitting bbox in {ntiles} tiles with {tile_size=}")
-    for tile, _tile_id in track(
-        tiles, description="Fetching tiles", total=ntiles, console=console
-    ):
-        df = m.fetch_metadata_bbox(tile, images_per_tile, pano_only, daytime_only)
+    logger.info(f"Fetching up to {workers} tiles at a time")
 
+    frames = m.fetch_metadata_tiles(
+        (tile for tile, _tile_id in tiles),
+        images_per_tile,
+        pano_only,
+        daytime_only,
+        workers,
+    )
+    for df in track(
+        frames, description="Fetching tiles", total=ntiles, console=console
+    ):
         # TODO: maybe this failsafe/optimization is not necessary?
         if len(df) == 0:
             continue
