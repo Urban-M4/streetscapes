@@ -53,6 +53,7 @@ class TestCLIHelp:
         assert "--images-per-tile" in result
         assert "--pano-only" in result
         assert "--daytime-only" in result
+        assert "--workers" in result
 
     def test_fetch_metadata_kartaview_help(self):
         result = run_cli("streetscapes fetch-metadata kartaview --help")
@@ -82,12 +83,15 @@ class TestCLIHelp:
         result = run_cli("streetscapes download-images mapillary --help")
         assert "--skip-existing" in result
         assert "--token" in result
+        assert "--workers" in result
 
     def test_download_images_kartaview_help(self):
         result = run_cli("streetscapes download-images kartaview --help")
         assert "--skip-existing" in result
         # KartaView needs no authentication, but a token raises the rate limit.
         assert "--token" in result
+        # Only the Mapillary client hands each thread a session of its own.
+        assert "--workers" not in result
 
     def test_download_images_panoramax_help(self):
         result = run_cli("streetscapes download-images panoramax --help")
@@ -96,6 +100,8 @@ class TestCLIHelp:
         # is whichever one the metadata came from.
         assert "--token" not in result
         assert "--instance" not in result
+        # Only the Mapillary client hands each thread a session of its own.
+        assert "--workers" not in result
 
     def test_export_help(self):
         result = run_cli("streetscapes export --help")

@@ -3,6 +3,10 @@
 from __future__ import annotations
 
 import logging
+import threading
+import time
+from concurrent.futures import FIRST_COMPLETED, ThreadPoolExecutor, wait
+from itertools import islice
 from pathlib import Path
 from typing import TYPE_CHECKING, Protocol, TypeVar
 
@@ -13,7 +17,7 @@ from streetscapes.utils.sun import solar_altitude
 
 if TYPE_CHECKING:
     import uuid
-    from collections.abc import Sequence
+    from collections.abc import Callable, Iterable, Iterator, Sequence
     from datetime import datetime
 
     import requests
@@ -137,3 +141,81 @@ def download_image(
     meta.source = source
 
     return meta
+
+
+class RateLimiter:
+    """Hands out permission to make a request, at most so many per minute.
+
+    Requests are spaced out evenly rather than let through in bursts, so that a
+    quota stays intact however many threads are asking for it at once.
+    """
+
+    def __init__(self, per_minute: int):
+        """Instantiate the limiter.
+
+        Args:
+            per_minute: How many requests are allowed per minute. A limit of 0
+                (or less) lets every request through immediately.
+        """
+        self.interval = 60.0 / per_minute if per_minute > 0 else 0.0
+        self._lock = threading.Lock()
+        self._next = 0.0
+
+    def acquire(self) -> None:
+        """Wait until the next request is allowed to be made."""
+        if not self.interval:
+            return
+
+        with self._lock:
+            now = time.monotonic()
+            delay = self._next - now
+            self._next = max(now, self._next) + self.interval
+
+        if delay > 0:
+            time.sleep(delay)
+
+
+_In = TypeVar("_In")
+_Out = TypeVar("_Out")
+
+
+def concurrent_map(
+    func: Callable[[_In], _Out],
+    items: Iterable[_In],
+    workers: int,
+) -> Iterator[_Out]:
+    """Apply a function to every item in a pool of threads.
+
+    Meant for work that waits on the network, where threads help despite the
+    GIL. Only a limited number of items are in flight at any one time, so
+    `items` may be an arbitrarily long (or lazy) iterable.
+
+    Args:
+        func: The function to apply. It is called from several threads at once,
+            so it has to be safe to call concurrently.
+        items: The items to apply it to, consumed lazily.
+        workers: How many threads to use. One means no threads at all, which
+            keeps the work (and any traceback) on the calling thread.
+
+    Yields:
+        The results, in the order in which they are finished rather than in the
+        order of the items.
+    """
+    if workers <= 1:
+        yield from map(func, items)
+        return
+
+    # Keeping the pool fed takes a couple of items per thread; more than that
+    # would only queue up work that cannot be started any sooner.
+    window = 2 * workers
+    items = iter(items)
+
+    with ThreadPoolExecutor(max_workers=workers) as pool:
+        pending = {pool.submit(func, item) for item in islice(items, window)}
+        while pending:
+            done, pending = wait(pending, return_when=FIRST_COMPLETED)
+            # Top the pool up before handing the results over, so that the
+            # threads keep working while the caller deals with them.
+            pending.update(pool.submit(func, item) for item in islice(items, len(done)))
+            for future in done:
+                yield future.result()

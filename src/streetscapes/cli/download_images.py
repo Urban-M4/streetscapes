@@ -14,6 +14,7 @@ from rich.progress import track
 from streetscapes import CFG, utils
 from streetscapes.cli.console import console
 from streetscapes.project import _format_image
+from streetscapes.sources.common import concurrent_map
 
 if TYPE_CHECKING:
     import uuid
@@ -81,6 +82,7 @@ def _download_images(
     source: str,
     records: list[tuple[Any, ...]],
     skip_existing: bool,
+    workers: int = 1,
 ):
     """Download a source's images and register them with the project.
 
@@ -91,16 +93,15 @@ def _download_images(
         records: The records to download, as returned by
             `Project.get_download_records`.
         skip_existing: If true, only download missing images.
+        workers: How many images to download at a time. More than one
+            will spread the work over multiple threads.
     """
     total = len(records)
     image_dir = proj.get_image_dir_for_source(source)
     console.print(f"Downloading {total} image(s) to {image_dir}.")
 
-    # Add metadata to batch
-    image_data = []
-    downloaded = 0
-
-    for rec in track(records, "Downloading images..."):
+    def fetch(rec: tuple[Any, ...]) -> tuple[Any, ...] | None:
+        """Download one image. Runs in a worker thread."""
         (
             uid,
             image_id,
@@ -127,7 +128,22 @@ def _download_images(
                 uid = img_meta.uid
             except Exception as e:
                 logger.error(e)
-                continue
+                return None
+
+        return uid, image_id, shard, is_pano
+
+    image_data = []
+    downloaded = 0
+
+    for result in track(
+        concurrent_map(fetch, records, workers),
+        "Downloading images...",
+        total=total,
+    ):
+        if result is None:
+            continue
+
+        uid, image_id, shard, is_pano = result
 
         tags = [source]
         if is_pano:
@@ -161,6 +177,7 @@ def _show_project(proj: "Project"):
 def mapillary(
     *,
     skip_existing: bool = True,
+    workers: int = 32,
     token: str | None = None,
     project: str | None = None,
 ):
@@ -168,6 +185,8 @@ def mapillary(
 
     Args:
         skip_existing: If true, only download missing images; otherwise overwrite.
+        workers: How many images to download at a time. Fetching several at once
+            is usually far faster than one by one.
         token: Mapillary OAuth token (if not set via MAPILLARY_TOKEN).
         project: An optional project to attach to.
     """
@@ -191,7 +210,9 @@ def mapillary(
         )
         raise SystemExit(1)
 
-    _download_images(proj, MapillaryClient(token), "mapillary", records, skip_existing)
+    _download_images(
+        proj, MapillaryClient(token), "mapillary", records, skip_existing, workers
+    )
 
 
 @download_images_cli.command(name="kartaview")
