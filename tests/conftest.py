@@ -9,9 +9,16 @@ from streetscapes.sources.panoramax import PanoramaxClient
 
 @pytest.fixture(autouse=True)
 def test_config(tmp_path, monkeypatch):
-    """Patch conf.project_dir to point to a temporary path for all tests."""
-    config.CFG.project_dir = Path(tmp_path)
-    config.CFG.active_project = "test_streetscapes"
+    """Isolate the global configuration from the user's own for all tests.
+
+    Both the in-memory settings and the file they are saved to are redirected,
+    so that a test creating a ``Project`` (which calls ``CFG.save()``) cannot
+    overwrite the config file in the user's config directory.
+    """
+    monkeypatch.setattr(config, "CONFIG_FILE", tmp_path / "config.json")
+    monkeypatch.setattr(config.CFG, "project_dir", Path(tmp_path))
+    monkeypatch.setattr(config.CFG, "image_dir", Path(tmp_path) / "images")
+    monkeypatch.setattr(config.CFG, "active_project", "test_streetscapes")
 
 
 @pytest.fixture
