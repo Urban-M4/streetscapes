@@ -86,12 +86,12 @@ class MapillaryImage(BaseModel):
     @classmethod
     def reject_placeholder_url(cls, value: str | None) -> str | None:
         """Reject the placeholder URL, which never points at a real image.
-        
+
         Some images turn out to have placeholder URLs which messes with
         image downloading.
         """
         if value == "https://example.com/a.jpg":
-            msg = f"URL must not be {"https://example.com/a.jpg"}"
+            msg = f"URL must not be {'https://example.com/a.jpg'}"
             raise ValueError(msg)
         return value
 
