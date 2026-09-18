@@ -19,7 +19,7 @@ def cli(
     /,
     *,
     image_path: str | None = None,
-    batch_size: int = 10,
+    batch_size: int = 1,
     sam_model_id: str = "facebook/sam2.1-hiera-large",
     dino_model_id: str = "IDEA-Research/grounding-dino-base",
     box_threshold: float = 0.3,

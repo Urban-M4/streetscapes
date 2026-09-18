@@ -20,7 +20,7 @@ def cli(
     /,
     *,
     image_path: str | None = None,
-    batch_size: int = 10,
+    batch_size: int = 1,
     confidence: float = 0.25,
     quantisation: str | None = None,
     run: str | None = None,

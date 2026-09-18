@@ -60,10 +60,10 @@ def serve_model(
     """Serve CV model using ray."""
     app = get_model_app(model, **model_kwargs)
 
-    logger = logging.getLogger("ray.serve")
+    # The dashboard is unused and costs ~0.7 GB of RAM.
+    ray.init(include_dashboard=False, log_to_driver=verbose)
     if not verbose:
-        ray.init(log_to_driver=False)
-        logger.setLevel(logging.WARNING)
+        logging.getLogger("ray.serve").setLevel(logging.WARNING)
     return serve.run(  # type: ignore[no-any-return]
         app, logging_config={"log_level": logging.INFO if verbose else logging.WARNING}
     )
