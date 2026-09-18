@@ -378,6 +378,15 @@ wheels = [
 ]
 
 [[package]]
+name = "cloudpickle"
+version = "3.1.2"
+source = { registry = "https://pypi.org/simple" }
+sdist = { url = "https://files.pythonhosted.org/packages/27/fb/576f067976d320f5f0114a8d9fa1215425441bb35627b1993e5afd8111e5/cloudpickle-3.1.2.tar.gz", hash = "sha256:7fda9eb655c9c230dab534f1983763de5835249750e85fbcef43aaa30a9a2414", size = 22330, upload-time = "2025-11-03T09:25:26.604Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/88/39/799be3f2f0f38cc727ee3b4f1445fe6d5e4133064ec2e4115069418a5bb6/cloudpickle-3.1.2-py3-none-any.whl", hash = "sha256:9acb47f6afd73f60dc1df93bb801b472f05ff42fa6c84167d25cb206be1fbf4a", size = 22228, upload-time = "2025-11-03T09:25:25.534Z" },
+]
+
+[[package]]
 name = "colorama"
 version = "0.4.6"
 source = { registry = "https://pypi.org/simple" }
@@ -3743,7 +3752,7 @@ requires-dist = [
     { name = "typer", specifier = ">=0.23.0" },
     { name = "types-requests", marker = "extra == 'dev'" },
     { name = "types-shapely", marker = "extra == 'dev'" },
-    { name = "ultralytics", marker = "extra == 'sam3'", specifier = ">=8.3.237" },
+    { name = "ultralytics", marker = "extra == 'sam3'", specifier = ">=8.4.154" },
     { name = "uuid7gen" },
     { name = "uvicorn", marker = "extra == 'explorer'" },
 ]
@@ -4035,9 +4044,10 @@ wheels = [
 
 [[package]]
 name = "ultralytics"
-version = "8.4.130"
+version = "8.4.154"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
+    { name = "cloudpickle" },
     { name = "filelock" },
     { name = "matplotlib" },
     { name = "numpy" },
@@ -4053,21 +4063,21 @@ dependencies = [
     { name = "ultralytics-platform" },
     { name = "ultralytics-thop" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/76/90/3baa30c712dba82417aa4e9568c71f145c7f657c45008d967a1d045f9508/ultralytics-8.4.130.tar.gz", hash = "sha256:a45ec411a8ae7ba3bbeb88e62339e8550a8f723204a5b55a1f45960299d1222f", size = 1217380, upload-time = "2026-08-26T23:48:19.856Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/b0/21/960cabcc9ce40a866ee7a13188c3651b623b37c1930ee38e44035f2a3c89/ultralytics-8.4.154.tar.gz", hash = "sha256:d323477784202cec86176cd8fb40c898e3af2795801a48dc5e3167e4fee48f31", size = 1230595, upload-time = "2026-09-16T17:11:09.816Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/95/2c/3bee44c3af346de4aa2daa4ead2112905ad77b498baf1678c3d1e02321b8/ultralytics-8.4.130-py3-none-any.whl", hash = "sha256:08500bc59c5e7e893bfb20e32b0111fcf30e98508c62e6feca321329f2146a91", size = 1434307, upload-time = "2026-08-26T23:48:15.572Z" },
+    { url = "https://files.pythonhosted.org/packages/a8/68/758bc77c23775d39a11e696c8e58ce115af17c51b6a8f7fe50da3a2766a4/ultralytics-8.4.154-py3-none-any.whl", hash = "sha256:8c3c1678c3d67afb1af41eeedd7f74256f2d27704a3e0d570888f36c4c459532", size = 1447306, upload-time = "2026-09-16T17:11:04.884Z" },
 ]
 
 [[package]]
 name = "ultralytics-platform"
-version = "0.1.18"
+version = "0.1.46"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "httpx" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/9f/57/971992ed295cbf32723f72f16ab7f3aceb7876461777c0919780a91e4f85/ultralytics_platform-0.1.18.tar.gz", hash = "sha256:0bcedb8379466aef576cb66d15ffeb9df6fcf70a0e77cbd341107dadc09a0c97", size = 54687, upload-time = "2026-08-27T01:40:37.964Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/12/af/0631b4a92458e477752ccaaffff61f1f8d1621f509b073001019cca821e4/ultralytics_platform-0.1.46.tar.gz", hash = "sha256:7ba73432a773626cdd24e66c845067c1c822443f58c1e245a41ab9e9850210f9", size = 66369, upload-time = "2026-09-17T00:38:54.271Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/a0/4b/b3de98da370a15efba580848050c32605e5354436dfe49d077444aa03604/ultralytics_platform-0.1.18-py3-none-any.whl", hash = "sha256:0e6727aac7a672e7c97df84ee67d0ce0fa29105e3d8dc05d8e84d7bb66b41df9", size = 65983, upload-time = "2026-08-27T01:40:36.638Z" },
+    { url = "https://files.pythonhosted.org/packages/19/09/d4c97f65bd6fd025f425e018099a2f73b7bb97221acbe45b635904a7449b/ultralytics_platform-0.1.46-py3-none-any.whl", hash = "sha256:065b2ff092ae08bd249b18627b75e7eda2b8f289a0b1ca20b4304de2bfd14b06", size = 78134, upload-time = "2026-09-17T00:38:52.714Z" },
 ]
 
 [[package]]

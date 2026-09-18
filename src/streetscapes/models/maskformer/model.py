@@ -173,6 +173,8 @@ class MaskFormer:
 
         Returns:
             A list of dictionaries containing instance-level segmentation information.
+                The "instances" segment id map is at the model's resolution (384x384),
+                not at the resolution of the image.
 
         """
         import torch
@@ -189,13 +191,15 @@ class MaskFormer:
             # Pass the pixel masks through the model to obtain the segmentation.
             output = self.model(pixel_values=pixel_values, pixel_mask=pixel_mask)
 
+            # No `target_sizes`: upscaling every kept query to the image size costs
+            # gigabytes and adds little detail, as the model works at 384x384. The
+            # polygons are scaled to the image size instead (see `mask2poly`).
             segmented = self.processor.post_process_panoptic_segmentation(
                 output,
                 threshold=self.threshold,
                 mask_threshold=self.mask_threshold,
                 overlap_mask_area_threshold=self.overlap_mask_area_threshold,
                 label_ids_to_fuse=self.label_ids_to_fuse,
-                target_sizes=[img.shape[:2] for img in images],
             )
 
             # List of segmentation results.
@@ -209,7 +213,7 @@ class MaskFormer:
                     "confidences": [
                         float(info["score"]) for info in item["segments_info"]
                     ],
-                    "instances": item["segmentation"].detach().clone().cpu().numpy(),
+                    "instances": item["segmentation"].cpu().numpy(),
                 }
                 for idx, item in enumerate(segmented)
             ]
