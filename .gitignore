@@ -167,3 +167,7 @@ docs/site/
 
 # Pytorch models:
 *.pt
+
+# Data files
+*.nc
+*.tiff

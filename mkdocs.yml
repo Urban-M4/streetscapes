@@ -11,6 +11,7 @@ nav:
   - Examples:
       - Facade classification in Amsterdam: examples/ams-map-workflow.ipynb
       - Facade classification with confidence: examples/ams-map-workflow-confidence.ipynb
+      - Facade emissivity map: examples/ams-emissivity.ipynb
   - About:
       - Licence: about/licence.md
       - Contributing: about/contributing.md
