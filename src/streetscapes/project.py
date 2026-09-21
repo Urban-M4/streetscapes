@@ -1,6 +1,8 @@
 """Streetscapes project."""
 
+import os
 import shutil
+import tempfile
 import uuid
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
@@ -706,6 +708,7 @@ class Project:
         path: Path | str,
         shard: str | None = None,
         overwrite: bool = False,
+        auto_rotate: bool = True,
     ):
         """Add images from a directory.
 
@@ -713,6 +716,9 @@ class Project:
             path: A directory containing images.
             shard: An optional shard (=subdirectory) to use.
             overwrite: Overwrite existing entries.
+            auto_rotate: Turn the imported copies upright according to their
+                         EXIF orientation. Switch off to store them byte for
+                         byte, leaving every reader to interpret the tag itself.
         """
         path = Path(path)
         if not path.absolute():
@@ -735,17 +741,27 @@ class Project:
         # Any EXIF or XMP metadata in the images themselves can be used to
         # populate the `local` table.
         for ip in track(image_paths, description="Adding local images..."):
-            uid = utils.get_image_uuid(ip)
-            if (ti.filter(ti.uuid == uid).count().to_pandas() > 0) and not overwrite:
-                continue
+            # The UUID identifies the stored copy, which differs from the source
+            # once it has been turned upright, so the copy is written first.
+            fd, tmp_name = tempfile.mkstemp(dir=image_dir, suffix=ip.suffix.lower())
+            os.close(fd)
+            tmp_fpath = Path(tmp_name)
+            try:
+                if auto_rotate:
+                    utils.copy_upright(ip, tmp_fpath)
+                else:
+                    shutil.copy2(ip, tmp_fpath)
 
-            new_fname = f"{uid}{ip.suffix}".lower()
-            new_fpath = image_dir / new_fname
+                uid = utils.get_image_uuid(tmp_fpath)
+                if (
+                    ti.filter(ti.uuid == uid).count().to_pandas() > 0
+                ) and not overwrite:
+                    continue
 
-            if not new_fpath.exists() or overwrite:
-                shutil.copy2(ip, new_fpath)
+                tmp_fpath.replace(image_dir / f"{uid}{ip.suffix}".lower())
+            finally:
+                tmp_fpath.unlink(missing_ok=True)
 
-            #
             entry = _format_image(
                 uid,
                 source="local",
@@ -757,6 +773,9 @@ class Project:
             exif["image"] = uid
             # Only XMP metadata says whether an image is a panorama.
             exif["is_pano"] = utils.is_panoramic(ip)
+            if auto_rotate:
+                # The stored copy is upright, so its metadata must say so.
+                utils.upright_metadata(exif)
             exif_data.append(exif)
 
         return self.add_images(image_data, exif_data, overwrite)

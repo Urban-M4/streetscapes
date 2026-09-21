@@ -16,6 +16,7 @@ def add_images(
     project: str | None = None,
     shard: str | None = None,
     overwrite: Annotated[bool, Parameter(negative="")] = False,
+    auto_rotate: bool = True,
 ):
     """Add images from a local directory.
 
@@ -27,8 +28,10 @@ def add_images(
         project: The name of the project to use for these images.
         shard: Optional path shard (to a subpath for the images).
         overwrite: Overwrite images that have already been added.
+        auto_rotate: Turn the imported copies upright according to their
+                     EXIF orientation.
     """
     from streetscapes.project import Project
 
     proj = Project(project)
-    proj.add_local_images(path, shard, overwrite)
+    proj.add_local_images(path, shard, overwrite, auto_rotate=auto_rotate)
