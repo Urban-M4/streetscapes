@@ -10,6 +10,7 @@ nav:
       - Access database from Python: tutorial/manual-database-access.ipynb
   - Examples:
       - Facade classification in Amsterdam: examples/ams-map-workflow.ipynb
+      - Facade classification with confidence: examples/ams-map-workflow-confidence.ipynb
   - About:
       - Licence: about/licence.md
       - Contributing: about/contributing.md

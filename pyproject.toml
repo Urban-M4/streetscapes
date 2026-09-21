@@ -43,6 +43,8 @@ dependencies = [
     "transformers",
     "uuid7gen",
     "ephem>=4.2.1",
+    "xarray",
+    "netcdf4",
 ]
 authors = [
     { name = "Claire Donnelly", email = "c.donnelly@esciencecenter.nl" },
