@@ -21,7 +21,7 @@ To install streetscapes with support for AMD GPUs (ROCm), do;
 
 ```
 pip install uv  # if you don't have uv yet
-uv pip install streetscapes==1.0.0a0 --extra rocm,sam3,explorer
+uv pip install streetscapes --extra rocm,sam3,explorer
 ```
 
 For more information on the CLI, see [this page](tutorial/cli.md).

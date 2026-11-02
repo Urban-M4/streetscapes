@@ -7,7 +7,7 @@ To run it you will need to have installed streetscapes with the extra `explorer`
 dependencies:
 
 ```bash
-pip install streetscapes==1.0.0a0[explorer]
+pip install streetscapes[explorer]
 ```
 
 If you have a project set up with some images and segmentations, you start the
