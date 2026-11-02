@@ -154,9 +154,9 @@ def copy_upright(source: Path, target: Path) -> bool:
         if exif:
             options["exif"] = exif.tobytes()
 
-        if image.format == "JPEG":
-            from PIL.JpegImagePlugin import get_sampling
+        from PIL.JpegImagePlugin import JpegImageFile, get_sampling
 
+        if isinstance(image, JpegImageFile):
             # Re-encode with the tables the image already used, which costs
             # neither noticeable quality nor extra bytes.
             options |= {
