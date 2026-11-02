@@ -26,6 +26,14 @@ uv pip install streetscapes==1.0.0a0 --extra rocm,sam3,explorer
 
 For more information on the CLI, see [this page](tutorial/cli.md).
 
+## Image sources
+
+Streetscapes can retrieve street view images from Mapillary, KartaView and Panoramax, or use your own local images. See [image sources](tutorial/sources.md) for an overview.
+
+## Segmentation models
+
+Streetscapes supports several computer vision models for segmenting the images (SAM3, DinoSAM, MaskFormer and BFMS). See [segmentation models](tutorial/models.md) for an overview, and for the extra setup some models need.
+
 ## Examples
 
 - [Facade classification in Amsterdam](examples/ams-map-workflow.ipynb): classify building facades as brick, concrete or glass with SAM3, and map the facade fractions on a grid.
