@@ -4744,7 +4744,7 @@ wheels = [
 
 [[package]]
 name = "streetscapes"
-version = "1.0.0a0"
+version = "1.0.0"
 source = { editable = "." }
 dependencies = [
     { name = "contextily" },
