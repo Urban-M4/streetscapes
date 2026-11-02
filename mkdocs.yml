@@ -5,6 +5,7 @@ nav:
   - Tutorials:
       - Introduction: tutorial/tutorial.md
       - Streetscapes CLI: tutorial/cli.md
+      - Image sources: tutorial/sources.md
       - Segmentation models: tutorial/models.md
       - Streetscapes Explorer: tutorial/explorer.md
       - Local images: tutorial/local-images.md
