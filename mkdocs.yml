@@ -5,6 +5,7 @@ nav:
   - Tutorials:
       - Introduction: tutorial/tutorial.md
       - Streetscapes CLI: tutorial/cli.md
+      - Segmentation models: tutorial/models.md
       - Streetscapes Explorer: tutorial/explorer.md
       - Local images: tutorial/local-images.md
       - Access database from Python: tutorial/manual-database-access.ipynb
@@ -67,6 +68,7 @@ extra:
 extra_css:
   - stylesheets/extra.css
 markdown_extensions:
+  - admonition
   - pymdownx.superfences:
       custom_fences:
         - name: mermaid
