@@ -13,6 +13,7 @@ nav:
       - Facade classification with confidence: examples/ams-map-workflow-confidence.ipynb
       - Facade emissivity map: examples/ams-emissivity.ipynb
       - Building color analysis: examples/ams-building-color.ipynb
+      - Building albedo: examples/ams-albedo.ipynb
   - About:
       - Licence: about/licence.md
       - Contributing: about/contributing.md
