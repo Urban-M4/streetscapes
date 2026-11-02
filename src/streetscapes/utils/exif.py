@@ -70,6 +70,9 @@ def _to_deg(
 def extract_exif_data(impath: Path) -> dict[str, Any]:
     """Extract EXIF metadata from an image file.
 
+    Note that EXIF has no tag saying whether an image is a panorama; that is
+    read from the image's XMP metadata instead (see `utils.xmp.is_panoramic`).
+
     Args:
         impath: Path to an image.
     """
@@ -109,7 +112,6 @@ def extract_exif_data(impath: Path) -> dict[str, Any]:
         "altitude": ("GPS GPSAltitude", float),
         "compass_angle": ("GPS GPSTrack", float),
         "geometry": (shapely.Point([lon, lat]), None),
-        "is_pano": (None, None),
         "iso": ("EXIF ISOSpeedRatings", int),
         "focal_length": ("EXIF FocalLength", float),
         "exposure": ("EXIF ExposureTime", float),

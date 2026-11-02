@@ -17,6 +17,7 @@ dependencies = [
     "ibis-framework[duckdb,geospatial]",
     "imageio[pyav]",
     "loguru",
+    "lxml>=6.1.3",
     "matplotlib",
     "mit-semseg",
     "numpy",
