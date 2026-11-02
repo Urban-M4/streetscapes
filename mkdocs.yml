@@ -9,6 +9,7 @@ nav:
       - Segmentation models: tutorial/models.md
       - Streetscapes Explorer: tutorial/explorer.md
       - Local images: tutorial/local-images.md
+      - WRF input files: tutorial/wrf-input.md
       - Access database from Python: tutorial/manual-database-access.ipynb
   - Examples:
       - Facade classification in Amsterdam: examples/ams-map-workflow.ipynb
