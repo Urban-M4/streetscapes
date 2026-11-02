@@ -25,3 +25,11 @@ uv pip install streetscapes==1.0.0a0 --extra rocm,sam3,explorer
 ```
 
 For more information on the CLI, see [this page](tutorial/cli.md).
+
+## Examples
+
+- [Facade classification in Amsterdam](examples/ams-map-workflow.ipynb): classify building facades as brick, concrete or glass with SAM3, and map the facade fractions on a grid.
+- [Facade classification with confidence](examples/ams-map-workflow-confidence.ipynb): a variant of the facade classification where overlapping facade masks are resolved by the most confident SAM3 instance.
+- [Facade emissivity map](examples/ams-emissivity.ipynb): convert the facade fractions into a map of facade emissivity, written to a GeoTIFF file.
+- [Building albedo](examples/ams-albedo.ipynb): estimate building albedo from the HSV value of the building pixels, and write it to a GeoTIFF file on the same grid as the emissivity map.
+- [Building color analysis](examples/ams-building-color.ipynb): compute the mean building color per image, and show how building color and hue vary over the city.
