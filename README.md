@@ -22,6 +22,7 @@ pip install streetscapes[sam3]
 
 To install for AMD GPUs (ROCm), do;
 ```bash
+pip install uv
 uv pip install streetscapes --extra rocm,sam3
 ```
 
